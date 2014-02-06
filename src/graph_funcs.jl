@@ -34,7 +34,7 @@ end
 ####### fuse identical nodes  ###########
 function dedup!(g::ExGraph)
 	i = 1 
-	while i < length(g.nodes)   # efficient algo ?
+	while i < length(g.nodes) 
 	    pg = g.nodes[i]
 	    sig = (pg.name, pg.nodetype, pg.parents)
 
