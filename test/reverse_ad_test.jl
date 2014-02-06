@@ -2,9 +2,62 @@
 #    testing script for gradients calculated by reversediff()
 #########################################################################
 
-using AutoDiff
+# using AutoDiff
 
-include("helper_functions.jl")
+module AutoDiff
+    include("src/reverse/proto.jl")
+    include("src/reverse/graph_funcs.jl")
+    include("src/reverse/reversegraph.jl")
+    include("src/reverse/graph_code.jl")
+    include("src/reverse/proto_rules.jl")
+
+    function reversediff(ex, paramsym::Vector{Symbol}, outsym=nothing)
+        # ex = :( 2^x ) ; paramsym = [:x] ; outsym = nothing
+        # ex = :( a[2] ) ; paramsym = [:a] ; outsym = nothing
+        # ex = :( x + y ); paramsym = [:x, :y] ; outsym = nothing
+        # ex = :( x[1] + x[2] ) ; paramsym = [:x] ; outsym = nothing
+        g, d, exitnode = Proto.tograph(ex)
+        (outsym != nothing) && !haskey(d, outsym) && error("can't find output var $outsym")
+        (outsym == nothing) && (exitnode == nothing) && error("can't identify expression's output")
+        
+        (exitnode, outsym) = outsym == nothing ? (exitnode, :res) : ( d[outsym], outsym) 
+
+        g.exitnodes = { outsym => exitnode }
+
+        Proto.splitnary!(g)
+        Proto.dedup!(g)
+        Proto.simplify!(g)
+        Proto.prune!(g)
+        Proto.evalsort!(g)
+        Proto.calc!(g)
+
+        dg, dnodes = Proto.reversegraph(g, g.exitnodes[outsym], paramsym)
+        g.nodes = [g.nodes, dg]
+        for i in 1:length(paramsym)
+            g.exitnodes[Proto.dprefix(paramsym[i])] = dnodes[i]
+        end
+        # println(g.nodes)
+
+        # g.exitnodes[:dy] == g.nodes[4]
+        # g.exitnodes[:dx] == g.nodes[4]
+        # g.exitnodes[:res] == g.nodes[3]
+
+        # (g2, length(g2))
+        Proto.splitnary!(g)
+        Proto.dedup!(g)
+        Proto.evalconstants!(g)
+        Proto.simplify!(g)
+        Proto.prune!(g)
+        #  (g2, length(g2))
+        Proto.evalsort!(g)
+
+        println(g.nodes)
+        Proto.tocode(g)
+    end
+
+end
+
+include("test/reverse/helper_functions.jl")
 
 ## variables of different dimension for testing
 v0ref = 2.
