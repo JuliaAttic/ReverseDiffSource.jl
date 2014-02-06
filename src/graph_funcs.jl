@@ -42,7 +42,9 @@ function dedup!(g::ExGraph)
 	    for j in (i+1):(length(g.nodes))
 	        pg2 = g.nodes[j]
 		    sig2 = (pg2.name, pg2.nodetype, pg2.parents)
-	        if sig == sig2
+	        if (sig == sig2) &
+	        	(pg2.nodetype != :alloc)  # do not fuse allocations !
+
 	            fusenodes(g, pg, pg2)
 
 	            # now that the graph is changed, we need to start over
@@ -164,13 +166,13 @@ function calc!(g::ExGraph, emod = Main)
 	    elseif n.nodetype == :dot
 	        n.value = emod.eval( Expr(:., n.parents[1].value, n.name) )
 
-	    elseif n.nodetype == :call
+	    elseif in(n.nodetype, [:call, :alloc])
 	        n.value = invoke(emod.eval(n.name), 
 	            tuple([ typeof(x.value) for x in n.parents]...),
 	            [ x.value for x in n.parents]...)
 
 	    elseif in(n.nodetype, [:subref, :subdot])
-	    	n.value = n.parents[1].value  # shortcut
+	    	n.value = n.parents[1].value  
 
 	    end
 	end

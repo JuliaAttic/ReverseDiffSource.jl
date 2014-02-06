@@ -6,11 +6,11 @@ cd("AutoDiff.jl")
 ########### load and reload  ##########
 
     module Proto
-        include("src/reverse/proto.jl")
-        include("src/reverse/graph_funcs.jl")
-        include("src/reverse/reversegraph.jl")
-        include("src/reverse/graph_code.jl")
-        include("src/reverse/proto_rules.jl")
+        include("src/proto.jl")
+        include("src/graph_funcs.jl")
+        include("src/reversegraph.jl")
+        include("src/graph_code.jl")
+        include("src/proto_rules.jl")
     end
 
     function reversediff(ex, paramsym::Vector{Symbol}, outsym=nothing)
@@ -76,6 +76,7 @@ cd("AutoDiff.jl")
     g.exitnodes[Proto.dprefix(:x3)] = dnodes[1]
 
     g.nodes = [g.nodes, dg1, dg2, dg3]
+    # g.nodes[1:20]
     # g.nodes = [g.nodes, dg1]
 
     Proto.evalconstants!(g); Proto.dedup!(g); 
@@ -195,6 +196,7 @@ cd("AutoDiff.jl")
 
     reversediff(:( sin(x * a.x)), [:x])
     reversediff(:( x * a.x), [:x])
+    reversediff(:( x * a.x), [:a])
 
     norm(t::Test1) = t.x*t.x + t.y*t.y
     norm(a)

@@ -14,11 +14,11 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 		
 		elseif any( map(t->isa(n.value,t), [Array{Float64}, Array{Int}]) )
 			v1 = Proto.add_node(g2, :call, :size, [n])
-			vdict[n] = Proto.add_node(g2, :call, :zeros, [v1])
+			vdict[n] = Proto.add_node(g2, :alloc, :zeros, [v1])
 
 		elseif haskey(tdict, typeof(n.value))
 			v1 = Proto.add_node(g2, :constant, tdict[typeof(n.value)])
-			vdict[n] = Proto.add_node(g2, :call, :zeros, [v1])
+			vdict[n] = Proto.add_node(g2, :alloc, :zeros, [v1])
 
 		else
 			error("[reversegraph] Unknown variable type $(typeof(n.value))")

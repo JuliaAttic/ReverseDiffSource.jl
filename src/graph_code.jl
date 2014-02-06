@@ -48,7 +48,6 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
 
-	explore(ex::ExCall)    = add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	explore(ex::ExRef)     = add_node(g, :ref, ex.args[2], [ explore(ex.args[1]) ])
 	explore(ex::ExDot)     = add_node(g, :dot, ex.args[2], [ explore(ex.args[1]) ])
 
@@ -62,6 +61,10 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 			nr = filter(n -> (n.name==ex) & (n.nodetype==:external) , g.nodes)
 			return length(nr)==0 ? add_node(g, :external, ex) : nr[1]
 		end
+	end
+
+	function explore(ex::ExCall)
+	    add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	end
 
 	function explore(ex::ExEqual) 
@@ -130,6 +133,9 @@ function tocode(g::ExGraph)
 	    elseif n.nodetype == :subdot
 	    	push!(out, :( $(Expr(:., n.parents[1].value, n.name)) = $(n.parents[2].value) ) ) # an assign is necessary
 	        n.value = n.parents[1].value
+
+	    elseif n.nodetype == :alloc
+	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
 
 	    end
 
