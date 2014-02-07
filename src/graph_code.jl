@@ -146,6 +146,7 @@ function tocode(g::ExGraph)
 
 		# create an assignment statement if...        
         if ( length(nvn) > 0 ) |                 # is an exit node
+        	( n.nodetype ==:alloc ) |            # is an allocation
         	((np > 1) & (n.nodetype == :call))   # has several children
 
         	if length(nvn) > 0

@@ -116,6 +116,22 @@ function simplify!(g::ExGraph)
 				end
 			end
 
+		elseif (n.nodetype == :subref) &&
+			   (n.parents[2].nodetype == :ref) &&
+			   (n.name == n.parents[2].name) &&
+			   (n.parents[1] == n.parents[2].parents[1])
+
+			restart = true
+			fusenodes(g, n.parents[1], n)
+
+		elseif (n.nodetype == :subdot) &&
+			   (n.parents[2].nodetype == :dot) &&
+			   (n.name == n.parents[2].name) &&
+			   (n.parents[1] == n.parents[2].parents[1])
+
+			restart = true
+			fusenodes(g, n.parents[1], n)
+
 		end
 
 	    i = restart ? 1 : (i + 1)

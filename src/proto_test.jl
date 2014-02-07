@@ -1,7 +1,7 @@
 pwd()
 cd("..")
 cd("/home/fred/devl")
-cd("AutoDiff.jl")
+cd("ReverseDiffSource.jl")
 
 ########### load and reload  ##########
 
