@@ -2,26 +2,32 @@
 #    Helper functions for gradient tests of reversediff()
 #########################################################################
 
-using Base.LinAlg.BLAS  # required by generated code of reversediff
+# using Base.LinAlg.BLAS  # required by generated code of reversediff
 
-## error thresholds
+#####  Error thresholds  #####
 DIFF_DELTA = 1e-9
 ERROR_THRESHOLD = 2e-2
 
 good_enough(x,y) = isfinite(x) ? (abs(x-y) / max(ERROR_THRESHOLD, abs(x))) < ERROR_THRESHOLD : isequal(x,y) 
 good_enough(t::Tuple) = good_enough(t[1], t[2])
 
-##  gradient check by comparing numerical gradient to automated gradient
-function deriv1( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
+
+#####  single gradient check  #####
+#  compares numerical gradient to automated gradient
+
+x0 = 1.0
+testedmod.reversediff( :(res=sum(a+x)), :res, x=x0)
+ex=:(x*tz) ; x0= [-3., 2, 0]
+function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
 	println("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
-	ex1, ex2, outsym = AutoDiff.reversediff( :( res = sum($ex)), :res, x=x0	)
+	# ex1, ex2, outsym = testedmod.reversediff( :(res = sum($ex)), :res, x=x0	)
+	ex2 = testedmod.reversediff( :(res=sum($ex)), :res, x=x0 )
 	fsym = gensym()
 	@eval let 
 		global $fsym
-		$ex1
-		($fsym)(x) = ($ex2 ; ($outsym, dx))
+		($fsym)(x) = ($ex2 ; (res, dx))
 	end
 	myf = eval(fsym)
 
@@ -47,10 +53,13 @@ function deriv1( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) 
 	end
 end
 
-# ##  tests derivation on all parameters, for all combinations of arguments dimensions
+
+#####  combination check  #####
+# for all possibilties of arguments dimensions, under specified constraints
+
 macro test_combin(func::Expr, constraints...)
 	constraints = collect(constraints)
-	parnames = collect(AutoDiff.getSymbols(func))
+	parnames = collect(testedmod.getSymbols(func))
 
 	#  args to derive against
 	dargs = filter(ex->isa(ex,Symbol), constraints)
@@ -79,7 +88,7 @@ macro test_combin(func::Expr, constraints...)
 		end
 
 		# reject combination if one of rules fails
-		if all( [ eval( AutoDiff.substSymbols(r, Dict(parnames, par))) for r in rules] )
+		if all( [ eval( testedmod.substSymbols(r, Dict(parnames, par))) for r in rules] )
 			# println("## combin = $(combin[ic,:])")
 			# apply transformations on args
 			for t in trans
@@ -94,11 +103,11 @@ macro test_combin(func::Expr, constraints...)
 			for p in dargs 
 				tpar = copy(par)
 				tpar[p .== parnames] = :x  # replace tested args with parameter symbol :x for deriv1 testing func
-				fex = AutoDiff.substSymbols(func, Dict( parnames, tpar))
+				fex = testedmod.substSymbols(func, Dict( parnames, tpar))
 				# println("##+## $fex  $(Dict( parnames, tpar))")
 				x0 = eval(par[p .== parnames][1])  # set x0 for deriv 1
 				# println("##-## $fex  ##-##   $x0")
-				deriv1(fex, x0) 
+				compare(fex, x0) 
 			end
 		end
 	end

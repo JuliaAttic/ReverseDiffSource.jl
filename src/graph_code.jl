@@ -1,3 +1,9 @@
+#########################################################################
+#
+#   Expression to graph, graph to expression functions
+#
+#########################################################################
+
 
 ##########  Parameterized type to ease AST exploration  ############
 type ExH{H}
@@ -23,6 +29,27 @@ typealias ExRef      ExH{:ref}
 typealias ExIf       ExH{:if}
 typealias ExComp     ExH{:comparison}
 typealias ExDot      ExH{:.}
+
+## variable symbol sampling functions
+getSymbols(ex::Any)    = Set{Symbol}()
+getSymbols(ex::Symbol) = Set{Symbol}(ex)
+getSymbols(ex::Array)  = mapreduce(getSymbols, union, ex)
+getSymbols(ex::Expr)   = getSymbols(toExH(ex))
+getSymbols(ex::ExH)    = mapreduce(getSymbols, union, ex.args)
+getSymbols(ex::ExCall) = mapreduce(getSymbols, union, ex.args[2:end])  # skip function name
+getSymbols(ex::ExRef)  = setdiff(mapreduce(getSymbols, union, ex.args), Set(:(:), symbol("end")) )# ':'' and 'end' do not count
+getSymbols(ex::ExDot)  = Set{Symbol}(ex.args[1])  # return variable, not fields
+getSymbols(ex::ExComp) = setdiff(mapreduce(getSymbols, union, ex.args), 
+	Set(:(>), :(<), :(>=), :(<=), :(.>), :(.<), :(.<=), :(.>=), :(==)) )
+
+## variable symbol subsitution functions
+substSymbols(ex::Any, smap::Dict)     = ex
+substSymbols(ex::Expr, smap::Dict)    = substSymbols(toExH(ex), smap::Dict)
+substSymbols(ex::Vector, smap::Dict)  = map(e -> substSymbols(e, smap), ex)
+substSymbols(ex::ExH, smap::Dict)     = Expr(ex.head, map(e -> substSymbols(e, smap), ex.args)...)
+substSymbols(ex::ExCall, smap::Dict)  = Expr(:call, ex.args[1], map(e -> substSymbols(e, smap), ex.args[2:end])...)
+substSymbols(ex::ExDot, smap::Dict)   = (ex = toExpr(ex) ; ex.args[1] = substSymbols(ex.args[1], smap) ; ex)
+substSymbols(ex::Symbol, smap::Dict)  = get(smap, ex, ex)
 
 
 	
@@ -64,7 +91,11 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 	end
 
 	function explore(ex::ExCall)
-	    add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
+		if in(ex.args[1], [:zeros, :ones, :vcat])
+			add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
+	    else
+	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
+	    end
 	end
 
 	function explore(ex::ExEqual) 
@@ -101,7 +132,7 @@ end
 ###### builds expr from graph  ######
 function tocode(g::ExGraph)
 
-	Proto.evalsort!(g)
+	evalsort!(g)
 	out = Expr[]
 	for n in g.nodes # n = g.nodes[4]
 	    if n.nodetype == :constant

@@ -1,41 +1,89 @@
-module AutoDiff
-  using DualNumbers
-  
-  importall Base
-  
-  include(joinpath("forward", "gradual.jl"))
-  include(joinpath("forward", "fad_hessian.jl"))
-  # include(joinpath("source_transformation", "source_transformation.jl"))
-  include(joinpath("reverse", "reversediff.jl"))
-  
-  export
-    Dual,
-    Dual128,
-    Dual64,
-    DualPair,
-    dual,
-    dual128,
-    dual64,
-    isdual,
-    dual_show,
-    
-    GraDual,
-    gradual,
-    value,
-    grad,
-    jacobian,
-    isgradual,
-    isconstant,
-    iszero,
-    
-    FADHessian,
-    hessian,
-    isfadhessian
+#########################################################################
+#
+#   Julia Package for reverse mode automated differentiation (from source)
+#
+#########################################################################
 
-# Exports for reverse AD
-export 
-  reversediff, 
-  @deriv_rule, deriv_rule, declareType
+module ReverseDiffSource
+
+  import Base.show
+
+  # naming conventions
+  const TEMP_NAME = "_tmp"     # prefix of new variables
+  const DERIV_PREFIX = "d"   # prefix of gradient variables
+
+  ## misc functions
+  dprefix(v::Union(Symbol, String, Char)) = symbol("$DERIV_PREFIX$v")
+
+  isSymbol(ex)   = isa(ex, Symbol)
+  isDot(ex)      = isa(ex, Expr) && ex.head == :.   && isa(ex.args[1], Symbol)
+  isRef(ex)      = isa(ex, Expr) && ex.head == :ref && isa(ex.args[1], Symbol)
+
+  ## var name generator
+  let
+    vcount = Dict()
+    global newvar
+    function newvar(radix::Union(String, Symbol)=TEMP_NAME)
+      vcount[radix] = haskey(vcount, radix) ? vcount[radix]+1 : 1
+      return symbol("$(radix)$(vcount[radix])")
+    end
+
+    global resetvar
+    function resetvar()
+      vcount = Dict()
+    end
+  end
+
+  #####  ExNode type  ######
+  type ExNode
+    nodetype::Symbol
+    name
+    parents::Vector
+    value
+  end
+
+  ExNode(typ::Symbol, name) = ExNode(typ, name, ExNode[], NaN)
+  ExNode(typ::Symbol, name, parents) = ExNode(typ, name, parents, NaN)
+
+  function show(io::IO, res::ExNode)
+    pl = join( map(x->string(x.name), res.parents) , " / ")
+    print(io, "[$(res.nodetype)] $(res.name) ($(res.value))")
+    length(pl) > 0 && print(io, ", in = $pl")
+  end
+
+  typealias ExNodes Vector{ExNode}
+
+  #####  ExGraph type  ######
+  type ExGraph
+    nodes::ExNodes
+    exitnodes::Dict
+  end
+
+  ExGraph() = ExGraph(ExNode[], Dict{Symbol, ExNode}())
+
+  ######  Graph functions  ######
+  function add_node(g::ExGraph, nargs...)
+    v = ExNode(nargs...)
+    push!(g.nodes, v)
+    v
+  end
+
+  ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
+  ancestors(n::Vector) = union( map(ancestors, n)... )
+
+  ######  Includes  ######
+  include("graph_funcs.jl")
+  include("graph_code.jl")
+  include("reversegraph.jl")
+  include("deriv_rules.jl")
+  include("reversediff.jl")
 
 
-end # module Autodiff
+  ######  Exports  ######
+  export 
+    reversediff, ndiff,
+    @deriv_rule, deriv_rule, 
+    @type_decl, type_decl
+
+
+end # module ReverseDiffSource

@@ -1,3 +1,8 @@
+#########################################################################
+#
+#    Graph manipulation functions
+#
+#########################################################################
 
 ######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ###### 
 function splitnary!(g::ExGraph)
@@ -140,10 +145,6 @@ end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
 function prune!(g::ExGraph)
-
-    ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
-    ancestors(n::Vector) = union( map(ancestors, n)... )
-
 	g2 = ancestors(collect(values(g.exitnodes)))
 	filter!(n -> in(n, g2), g.nodes)
 end
@@ -166,12 +167,16 @@ function evalsort!(g::ExGraph)
 end
 
 ####### calculate the value of each node  ###########
-function calc!(g::ExGraph, emod = Main)
+function calc!(g::ExGraph; params=nothing, emod = Main)
 
 	evalsort!(g)
 	for n in g.nodes
 	    if n.nodetype==:external
-	        n.value = emod.eval(n.name)
+	    	if isa(params, Dict) && haskey(params, n.name)
+	        	n.value = params[n.name]
+	        else
+	        	n.value = emod.eval(n.name) # TODO : catch error if undefined
+	        end
 
 	    elseif n.nodetype == :constant
 	        n.value = emod.eval(n.name)

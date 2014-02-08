@@ -1,11 +1,16 @@
 #################################################################
-#    Model Expression Parsing and Autodiff Unit tests
+#
+#    Internal function testing
+#
 #################################################################
 
 using Base.Test
 
-include("p:/Documents/julia/MCMC.jl.fredo/src/autodiff/Autodiff.jl")
-testedmod = Autodiff
+module Sandbox
+    include("../src/ReverseDiffSource.jl")
+end
+testedmod = Sandbox.ReverseDiffSource
+
 
 @test testedmod.isSymbol(:a)            == true
 @test testedmod.isSymbol(:(a[1]))       == false
@@ -28,70 +33,56 @@ testedmod = Autodiff
 @test testedmod.isDot(:(a[end].b))  == false
 @test testedmod.isDot(:(exp(a)))    == false
 
-
-@test testedmod.dprefix("coucou")            == :_dcoucou
-@test testedmod.dprefix(:tr)                 == :_dtr
-@test testedmod.dprefix(:(b[2]))             == :(_db[2])
-@test testedmod.dprefix(:(foo.bar))          == :(_dfoo.bar)
-@test testedmod.dprefix(:(foo.bar.baz))      == :(_dfoo.bar.baz)
-@test testedmod.dprefix(:(foo.bar[2].baz))   == :(_dfoo.bar[2].baz)
-@test testedmod.dprefix(:(foo[3].bar))       == :(_dfoo[3].bar)
+@test testedmod.dprefix("coucou")            == :dcoucou
+@test testedmod.dprefix(:tr)                 == :dtr
 
 
-@test testedmod.getSymbols(:abc)             == Set(:abc)
-@test testedmod.getSymbols([:abc, :foo])     == Set(:abc, :foo)
-@test testedmod.getSymbols(:(a+b))           == Set(:b, :a)
-@test testedmod.getSymbols(:(x=a+b ; z = y*x)) == Set(:b, :a, :x, :y, :z)
-@test testedmod.getSymbols(:(sin(x)))        == Set(:x)
-@test testedmod.getSymbols(:(log( exp( max(a,b))))) == Set(:a, :b)
-@test testedmod.getSymbols(:(foo.bar))       == Set(:foo)
-@test testedmod.getSymbols(:(foo[x]))        == Set(:foo, :x)
-@test testedmod.getSymbols(:(foo[1,2,a]))    == Set(:foo, :a)
-@test testedmod.getSymbols(:(foo[end,:,a]))  == Set(:foo, :a)
-@test testedmod.getSymbols(:(foo[end,:,a]))  == Set(:foo, :a)
-@test testedmod.getSymbols(:([ exp(i) for i in 1:10])) == Set(:i)
-@test testedmod.getSymbols(:(if x >= 4 & y < 5 || w == 3; return y <= x ; end)) == Set(:x, :y, :w)
+## expression to graph testing
 
+function transform(ex)
+    g, d, exitnode = testedmod.tograph(ex)
+    (exitnode==nothing) && (exitnode = last(collect(values(d))) )
+    g.exitnodes = { :out => exitnode }
 
-## variable subsitution function
-smap = Dict()
-@test testedmod.substSymbols(:(a+b), smap)             == :(a+b)
+    testedmod.splitnary!(g)
+    testedmod.dedup!(g)
+    testedmod.evalconstants!(g)
+    testedmod.simplify!(g)
+    testedmod.prune!(g)
 
-smap = {:a => :x, :b => :y}
-@test testedmod.substSymbols(:a, smap)                 == :x
-@test testedmod.substSymbols(:(a+b), smap)             == :(x+y)
-@test testedmod.substSymbols(:(exp(a)), smap)          == :(exp(x))
-@test testedmod.substSymbols(:(x=exp(a);y=log(c)), smap) == :(x=exp(x); y=log(c))
-@test testedmod.substSymbols(:(a[z]), smap)            == :(x[z])
-@test testedmod.substSymbols(:(z[a]), smap)            == :(z[x])
-@test testedmod.substSymbols(:(a.z), smap)             == :(x.z)
-@test testedmod.substSymbols(:(z.a), smap)             == :(z.a)     # note : no subst on field names
-@test testedmod.substSymbols(:(z.a[x]), smap)          == :(z.a[x])  # note : no subst on field names
-@test testedmod.substSymbols(:(z[x].a), smap)          == :(z[x].a)  # note : no subst on field names
-@test testedmod.substSymbols(:(a[x].z), smap)          == :(x[x].z)  
-
-
-## expression unfolding
-macro unfold(ex)
-	m = testedmod.ParsingStruct()
-	m.source = ex
-	testedmod.resetvar()  # needed to have a constant temporary var name generated
-	testedmod.unfold!(m)
-	m.exprs
+    testedmod.resetvar()
+    testedmod.tocode(g)
 end
 
-@test (@unfold a = b+6)           == [:(a=b+6)]
-@test (@unfold (sin(y);a=3))      == [:(sin(y)), :(a=3)]
-@test (@unfold a[4] = b+6)        == [:(a[4]=b+6)]
-@test (@unfold a += b+6)          == [:($(symbol("tmp#1"))=b+6), :(a = +(a,$(symbol("tmp#1"))))]
-@test (@unfold a -= b+6)          == [:($(symbol("tmp#1"))=b+6), :(a = -(a,$(symbol("tmp#1"))))]
-@test (@unfold a *= b+6)          == [:($(symbol("tmp#1"))=b+6), :(a = *(a,$(symbol("tmp#1"))))]
-@test (@unfold b = a')            == [:(b=transpose(a))]
-@test (@unfold a = [1,2])         == [:(a=vcat(1,2))]
-@test_throws (@unfold a.b = 3.) 
-@test (@unfold a = b.f)           == [:(a=b.f)]
-@test (@unfold a = b.f[i])        == [:(a=b.f[i])]
-@test (@unfold a = b[j].f[i])     == [:(a=b[j].f[i])]
+@test transform(:( a = b+6 ))       == :(out = b+6;)
+@test transform(:(sin(y);a=3))      == :(out = 3;)
+@test transform(:(a += b+6))        == :(out = a + (b+6);)
+@test transform(:(a -= b+6))        == :(out = a - (b+6);)
+@test transform(:(a *= b+6))        == :(out = a * (b+6);)
+@test transform(:(b = a'))          == :(out = transpose(a);)
+@test transform(:(a = [1,2]))       == :(out = vcat(1,2);)
+
+@test transform(:( a[2] ))                       == :(out = a[2];)
+@test transform(:( y = a[2] ; y ))               == :(out = a[2];)
+@test transform(:( y = a[2] ; y[1] ))            == :(out = a[2][1];)
+@test transform(:( y[1] = a[2] ; y[1] ))         == :(y[1] = a[2]; out = y[1])
+@test transform(:( y = a+1 ; y[2]+y[1] ))        == :(_tmp1 = a+1 ; out = _tmp1[2]+_tmp1[1])
+@test transform(:( a[2] = x ; a[3] ))            == :(a[2] = x ; out = a[3])
+@test transform(:( a[2] = x ; y=a[3] ; y ))      == :(a[2] = x ; out = a[3])
+@test transform(:( b = a ; b[2] = x; 1 + b[2] )) == :(a[2] = x ; out = 1+a[2]) 
+@test transform(:( b = a ; b[2] = x; 1 + b[1] )) == :(a[2] = x ; out = 1+a[1]) 
+@test transform(:( a[1] + a[2] ))                == :( out = a[1] + a[2];)
+
+@test transform(:( a.x ))                     == :(out = a.x;)
+@test transform(:( y = a.x ; y ))             == :(out = a.x;)
+@test transform(:( y = a.x + 1 ; y.b + y.c )) == :(_tmp1 = +(a.x,1) ; out = _tmp1.b+_tmp1.c)
+@test transform(:( a.x = x ; a[3] ))          == :(a.x = x; out = a[3])
+@test transform(:( a.x = x ; y = a.y ; y ))   == :(a.x = x ; out = a.y )
+@test transform(:( b = a; b.x = x; 1 + b.y )) == :(a.x = x ; out = 1+a.y )
+@test transform(:( a.x + a.y ))               == :( out = a.x+a.y ;)
+
+@test transform(:( a = b.f[i]))        == :(out = b.f[i];)
+@test transform(:( a = b[j].f[i]))     == :(out = b[j].f[i];)
 
 
 
