@@ -3,6 +3,9 @@ cd("..")
 cd("/home/fred/devl")
 cd("ReverseDiffSource.jl")
 
+include("ReverseDiffSource.jl/src/ReverseDiffSource.jl")
+
+
 ########### load and reload  ##########
 
     module Proto
@@ -135,7 +138,6 @@ cd("ReverseDiffSource.jl")
     [ myf(x0,y0)[2]  (myf(x0+delta,y0)[1]- myf(x0,y0)[1])/delta ; 
         myf(x0,y0)[3]  (myf(x0,y0+delta)[1]- myf(x0,y0)[1])/delta]
 
-
 ##############   tests for derivation     #####################
 
     x = 1.5
@@ -211,6 +213,79 @@ cd("ReverseDiffSource.jl")
 
     myf(a)
     myf(Test1(3,3))
+
+
+    using Distributions
+
+    testedmod.type_decl(Normal,2)    
+
+    testedmod.@deriv_rule mean(d::Main.Normal)          d      [ ds , 0. ]
+    testedmod.@deriv_rule mean(d::Array{Main.Normal})   d      [ ds , zeros(size(ds)) ]
+    testedmod.@deriv_rule Normal(mu, sigma)      mu     ds[1]
+    testedmod.@deriv_rule Normal(mu, sigma)      sigma  ds[2]
+
+    ex = quote
+        d = Normal(x,y)
+        res = mean(d)
+    end
+
+    @eval function exf(x,y)
+        $(testedmod.reversediff(ex, :res, x=1.0, y=1.0))
+        (res, dx, dy)
+    end
+
+    exf(2,2)
+
+    ex = quote
+        d = [ Normal(x,y), Normal(2x, y/2)]
+        res = mean(d)
+    end
+
+    mean( d::Array{Main.Normal}) = [ mean(de) for de in d]
+    testedmod.reversediff(ex, :res, x=1.0, y=1.0)
+
+    @eval function exf(x,y)
+        $(testedmod.reversediff(ex, :res, x=1.0, y=1.0))
+        (res, dx, dy)
+    end
+
+    exf(2,2)
+
+##############   tests for composite types 2   #####################
+
+    module Sandbox
+        type Foo
+            x::Float64
+            y::Float64
+        end
+
+    end
+    bar(t::Sandbox.Foo) = t.x*t.x + t.y*t.y
+    bar(ta::Array{Sandbox.Foo}) = Float64[ t.x*t.x + t.y*t.y for t in ta]
+
+
+    x = Sandbox.Foo(1.,2.)
+    bar(x)
+    bar([x,x])
+
+    ReverseDiffSource.type_decl(Main.Sandbox.Foo,2)    
+    ReverseDiffSource.type_decl(Sandbox.Foo,2)    
+    ReverseDiffSource.@type_decl    Main.Sandbox.Foo   2  # FIXME : fails
+
+    ReverseDiffSource.@deriv_rule   bar(t::Main.Sandbox.Foo)           t      [ 2*t.x*ds , 2*t.y*ds ]
+    ReverseDiffSource.@deriv_rule   bar(ta::Array{Main.Sandbox.Foo})   ta     [ 2*ta[1].*ds , 2*ta[2].*ds ]
+
+    ex = quote
+        v = [ Sandbox.Foo(1., y), Sandbox.Foo(0.,1.)]
+        res = sum( bar(v) )
+    end
+
+    g, d, exitnode  = ReverseDiffSource.tograph(ex)
+    g.nodes
+
+    ReverseDiffSource.reversediff(ex, :res, y=1.)
+    ReverseDiffSource.tdict[ Foo ]
+    ReverseDiffSource.tdict[ Sandbox.Foo ]
 
 
 ############ higher order  ndiff #####################

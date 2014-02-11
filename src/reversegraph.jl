@@ -13,19 +13,30 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 
 	# creates the starting points for derivatives variables
 	for n in g.nodes # n = g.nodes[3]
+		# exit node, which should always be a Real
 		if n == exitnode
 			vdict[n] = add_node(g2, :constant, 1.0)
 
+		# Real
 		elseif isa(n.value, Real)
 			vdict[n] = add_node(g2, :constant, 0.0)
 		
+		# Array of Real
 		elseif any( map(t->isa(n.value,t), [Array{Float64}, Array{Int}]) )
 			v1 = add_node(g2, :call, :size, [n])
-			vdict[n] = add_node(g2, :alloc, :zeros, [v1])
+			vdict[n] = add_node(g2, :alloc, :zeros, [v1])  # TODO : alloc necessary only if diffsym ?
 
-		elseif haskey(tdict, typeof(n.value))
+		# Composite type
+		elseif haskey(tdict, typeof(n.value))   # composite type
 			v1 = add_node(g2, :constant, tdict[typeof(n.value)])
-			vdict[n] = add_node(g2, :alloc, :zeros, [v1])
+			vdict[n] = add_node(g2, :alloc, :zeros, [v1])  # TODO : alloc necessary only if diffsym ?
+
+		# Array of composite type
+		elseif isa( n.value, Array) && haskey(tdict, eltype(n.value))  
+			v1 = add_node(g2, :call, :size, [n])
+			# TODO : alloc necessary only if diffsym ?
+			aa = ExNode[ add_node(g2, :alloc, :zeros, [v1]) for i in 1:(tdict[typeof(n.value)]) ]
+			vdict[n] = add_node(g2, :call, :vcat, aa)  
 
 		else
 			error("[reversegraph] Unknown variable type $(typeof(n.value))")

@@ -12,8 +12,6 @@ function reversediff(ex, outsym::Symbol=nothing; init...)
     paramsym = Symbol[ e[1] for e in init]
     paramvalues = [ e[2] for e in init]
 
-    resetvar()
-
     g, d, exitnode = tograph(ex)
     (outsym != nothing) && 
         !haskey(d, outsym) && 
@@ -30,6 +28,7 @@ function reversediff(ex, outsym::Symbol=nothing; init...)
     simplify!(g)
     prune!(g)
     evalsort!(g)
+    # println(Dict(paramsym, paramvalues))
     calc!(g, params=Dict(paramsym, paramvalues))
 
     dg, dnodes = reversegraph(g, g.exitnodes[outsym], paramsym)
@@ -45,5 +44,6 @@ function reversediff(ex, outsym::Symbol=nothing; init...)
     prune!(g)
     evalsort!(g)
 
+    resetvar()
     tocode(g)
 end
