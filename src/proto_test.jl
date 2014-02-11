@@ -3,7 +3,7 @@ cd("..")
 cd("/home/fred/devl")
 cd("ReverseDiffSource.jl")
 
-include("ReverseDiffSource.jl/src/ReverseDiffSource.jl")
+include("ReverseDiffSource.jl")
 
 
 ########### load and reload  ##########
@@ -268,15 +268,15 @@ include("ReverseDiffSource.jl/src/ReverseDiffSource.jl")
     bar(x)
     bar([x,x])
 
-    ReverseDiffSource.type_decl(Main.Sandbox.Foo,2)    
-    ReverseDiffSource.type_decl(Sandbox.Foo,2)    
-    ReverseDiffSource.@type_decl    Main.Sandbox.Foo   2  # FIXME : fails
-
+    ReverseDiffSource.@type_decl    Main.Sandbox.Foo                   2   
+    ReverseDiffSource.@deriv_rule   Main.Sandbox.Foo(x,y)              x      ds[1]
+    ReverseDiffSource.@deriv_rule   Main.Sandbox.Foo(x,y)              y      ds[2]
+    ReverseDiffSource.@deriv_rule   bar(t::Main.Sandbox.Foo)           t      [ 2*t.x*ds , 2*t.y*ds ]
     ReverseDiffSource.@deriv_rule   bar(t::Main.Sandbox.Foo)           t      [ 2*t.x*ds , 2*t.y*ds ]
     ReverseDiffSource.@deriv_rule   bar(ta::Array{Main.Sandbox.Foo})   ta     [ 2*ta[1].*ds , 2*ta[2].*ds ]
 
     ex = quote
-        v = [ Sandbox.Foo(1., y), Sandbox.Foo(0.,1.)]
+        v = [ Main.Sandbox.Foo(1., y), Main.Sandbox.Foo(0.,1.)]
         res = sum( bar(v) )
     end
 

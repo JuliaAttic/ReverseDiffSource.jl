@@ -35,7 +35,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 		elseif isa( n.value, Array) && haskey(tdict, eltype(n.value))  
 			v1 = add_node(g2, :call, :size, [n])
 			# TODO : alloc necessary only if diffsym ?
-			aa = ExNode[ add_node(g2, :alloc, :zeros, [v1]) for i in 1:(tdict[typeof(n.value)]) ]
+			aa = ExNode[ add_node(g2, :alloc, :zeros, [v1]) for i in 1:(tdict[eltype(n.value)]) ]
 			vdict[n] = add_node(g2, :call, :vcat, aa)  
 
 		else
@@ -51,7 +51,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 			for (index, arg) in zip(1:length(n.parents), n.parents)
 	            if !in(arg.nodetype, [:constant, :comp])
 
-	            	fn = symbol("d_$(n.name)_x$index")
+	            	fn = dfuncname(n.name, index)
 	            	(dg, dd, de) = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
 	            	smap = Dict( dd, [n.parents, vdict[n]])

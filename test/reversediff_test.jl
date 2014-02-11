@@ -4,10 +4,8 @@
 #
 #########################################################################
 
-module Sandbox
-    include("../src/ReverseDiffSource.jl")
-end
-testedmod = Sandbox.ReverseDiffSource
+
+include("../src/ReverseDiffSource.jl")
 
 include("helper_functions.jl")
 

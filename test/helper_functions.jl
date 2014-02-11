@@ -16,14 +16,14 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #  compares numerical gradient to automated gradient
 
 x0 = 1.0
-testedmod.reversediff( :(res=sum(a+x)), :res, x=x0)
+ReverseDiffSource.reversediff( :(res=sum(a+x)), :res, x=x0)
 ex=:(x*tz) ; x0= [-3., 2, 0]
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
 	println("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
-	# ex1, ex2, outsym = testedmod.reversediff( :(res = sum($ex)), :res, x=x0	)
-	ex2 = testedmod.reversediff( :(res=sum($ex)), :res, x=x0 )
+	# ex1, ex2, outsym = ReverseDiffSource.reversediff( :(res = sum($ex)), :res, x=x0	)
+	ex2 = ReverseDiffSource.reversediff( :(res=sum($ex)), :res, x=x0 )
 	fsym = gensym()
 	@eval let 
 		global $fsym
@@ -59,7 +59,7 @@ end
 
 macro test_combin(func::Expr, constraints...)
 	constraints = collect(constraints)
-	parnames = collect(testedmod.getSymbols(func))
+	parnames = collect(ReverseDiffSource.getSymbols(func))
 
 	#  args to derive against
 	dargs = filter(ex->isa(ex,Symbol), constraints)
@@ -88,7 +88,7 @@ macro test_combin(func::Expr, constraints...)
 		end
 
 		# reject combination if one of rules fails
-		if all( [ eval( testedmod.substSymbols(r, Dict(parnames, par))) for r in rules] )
+		if all( [ eval( ReverseDiffSource.substSymbols(r, Dict(parnames, par))) for r in rules] )
 			# println("## combin = $(combin[ic,:])")
 			# apply transformations on args
 			for t in trans
@@ -103,7 +103,7 @@ macro test_combin(func::Expr, constraints...)
 			for p in dargs 
 				tpar = copy(par)
 				tpar[p .== parnames] = :x  # replace tested args with parameter symbol :x for deriv1 testing func
-				fex = testedmod.substSymbols(func, Dict( parnames, tpar))
+				fex = ReverseDiffSource.substSymbols(func, Dict( parnames, tpar))
 				# println("##+## $fex  $(Dict( parnames, tpar))")
 				x0 = eval(par[p .== parnames][1])  # set x0 for deriv 1
 				# println("##-## $fex  ##-##   $x0")

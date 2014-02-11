@@ -6,6 +6,20 @@
 
 rdict = Dict()
 
+
+# this is really crappy, should use the function as key, not a symbol
+# that is namespace dependant
+function dfuncname(nam::Union(Expr, Symbol), ind::Int)
+    if isa(nam, Symbol)
+        return symbol("d_$(nam)_$(ind)")
+    elseif nam.head == :. 
+        st = "$nam"[3:end-1]
+        return symbol("d_$(st)_$(ind)")
+    else
+        error("[dfuncname] cannot parse expr $nam")
+    end
+end
+
 function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
     argsn = map(e-> isa(e, Symbol) ? e : e.args[1], func.args[2:end])
     push!(argsn, :ds)  # add special symbol ds
@@ -23,7 +37,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
     rdict[rn] = (g, vmap, exitnode)
 
     # diff function name
-    fn = symbol("d_$(func.args[1])_x$index")
+    fn = dfuncname(func.args[1], index)
 
     # create function returning applicable rule # for this signature
     eval( :( $(Expr(:call, fn, func.args[2:end]...)) = $(Expr(:quote, rn)) ) )
@@ -38,11 +52,11 @@ end
 
 tdict = Dict()
 
-type_decl(typ::DataType, n::Int) = tdict[typ] = n
+type_decl(typ::DataType, n::Real) = tdict[typ] = n
 
 # macro version
-macro type_decl(typ::DataType, n::Int)
-    deriv_rule(typ, n)
+macro type_decl(typ::Union(Symbol, Expr), n::Int)
+    type_decl(eval(typ), n)
 end
 
 
