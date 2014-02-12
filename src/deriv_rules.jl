@@ -6,9 +6,6 @@
 
 rdict = Dict()
 
-
-# this is really crappy, should use the function as key, not a symbol
-# that is namespace dependant
 function dfuncname(nam::Union(Expr, Symbol), ind::Int)
     if isa(nam, Symbol)
         return symbol("d_$(nam)_$(ind)")
@@ -21,7 +18,35 @@ function dfuncname(nam::Union(Expr, Symbol), ind::Int)
 end
 
 function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
-    argsn = map(e-> isa(e, Symbol) ? e : e.args[1], func.args[2:end])
+    # list variable symbols and annotate type names with "Main." 
+    argsn = Symbol[]
+    sig = {}
+    for e in func.args[2:end]
+        if isa(e, Symbol)
+            push!(argsn, e)
+            push!(sig, e)
+
+        elseif isa(e, Expr) && e.head== :(::)  # FIXME : will fail for complex definitions
+            push!(argsn, e.args[1])
+            e2 = e.args[2]
+            if isa(e2, Symbol) || (isa(e2, Expr) && e2.head == :.)
+                ne = Expr(:., :Main, Expr(:quote, e2))
+            elseif isa(e2, Expr) && e2.head == :curly
+                ne = Expr(:curly, [ Expr(:., :Main, Expr(:quote, ei)) for ei in e2.args]...)
+            elseif isa(e2, Expr) && e2.head == :call && e2.args[1] == :Union
+                ne = Expr(:call, :Union, [ Expr(:., :Main, Expr(:quote, ei)) for ei in e2.args[2:end]]...)
+            
+            else
+                error("[deriv_rule] cannot parse $e")
+            end
+
+            push!(sig, Expr(:(::), e.args[1], ne))
+
+        else
+            error("[deriv_rule] cannot parse $e")
+        end
+    end
+    # argsn = map(e-> isa(e, Symbol) ? e : e.args[1], func.args[2:end])
     push!(argsn, :ds)  # add special symbol ds
 
     index = find(dv .== argsn)[1] # TODO : add error message if not found
@@ -40,7 +65,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
     fn = dfuncname(func.args[1], index)
 
     # create function returning applicable rule # for this signature
-    eval( :( $(Expr(:call, fn, func.args[2:end]...)) = $(Expr(:quote, rn)) ) )
+    eval( :( $(Expr(:call, fn, sig...)) = $(Expr(:quote, rn)) ) )
 end
 
 # macro version
@@ -56,7 +81,7 @@ type_decl(typ::DataType, n::Real) = tdict[typ] = n
 
 # macro version
 macro type_decl(typ::Union(Symbol, Expr), n::Int)
-    type_decl(eval(typ), n)
+    type_decl(eval(Main, typ), n)
 end
 
 

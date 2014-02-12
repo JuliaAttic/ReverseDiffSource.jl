@@ -92,7 +92,8 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
-			add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
+			# add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
+			add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	    else
 	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	    end

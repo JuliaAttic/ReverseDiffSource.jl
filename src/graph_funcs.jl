@@ -172,7 +172,6 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 	evalsort!(g)
 	for n in g.nodes
 	    if n.nodetype==:external
-	    	println(" $(typeof(params)) - $(keys(params)) - $(n.name)"  )
 	    	if isa(params, Dict) && haskey(params, n.name)
 	        	n.value = params[n.name]
 	        else
