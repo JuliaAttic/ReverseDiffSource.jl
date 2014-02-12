@@ -3,7 +3,7 @@ cd("..")
 cd("/home/fred/devl")
 cd("ReverseDiffSource.jl")
 
-include("src/ReverseDiffSource.jl")
+include("ReverseDiffSource.jl")
 
 
 ########### load and reload  ##########
@@ -91,7 +91,6 @@ include("src/ReverseDiffSource.jl")
     g.nodes
     Proto.tocode(g)
 
-
 ########### testing big func  ##########
     x = 1.5
     a = -4.
@@ -112,7 +111,6 @@ include("src/ReverseDiffSource.jl")
 
     myf(1.5)
     myf(1.5001)
-
 
 ########### testing big func 2 ##########
     x = 1.5
@@ -284,15 +282,15 @@ include("src/ReverseDiffSource.jl")
 
     getfield(af::Array{Foo}, f::Symbol) = [ getfield(t, f) for t in af]
 
-t = [ Foo(1.,2.), Foo(3.,4.)]
-Foo.names
-fieldoffsets(Foo)
-x[1]
-x.data
+    t = [ Foo(1.,2.), Foo(3.,4.)]
+    Foo.names
+    fieldoffsets(Foo)
+    x[1]
+    x.data
 
 
 
-t2 = reinterpret(Float64,t)
+    t2 = reinterpret(Float64,t)
 
 
     ex = quote
@@ -369,7 +367,6 @@ t2 = reinterpret(Float64,t)
     X = Test1.Foo
     "$X"
     names(X)
-fullname
 
     Base.exprtype(:a)
     Base.resolve_relative(:Foo, Test1, Main, DataType, "blah")
@@ -399,16 +396,6 @@ fullname
 
     methods(Test1.Foo)
     methodswith(Test1.Foo)
-
-
-
-
-
-
-
-
-
-
 
 
 ############ higher order  ndiff #####################
@@ -467,18 +454,18 @@ fullname
 
 ################## for loops  #######################
 
-    module Proto
-        include("src/reverse/proto.jl")
-        include("src/reverse/proto_rules.jl")
-        include("src/reverse/graph_funcs.jl")
-        include("src/reverse/reversegraph.jl")
-        include("src/reverse/graph_code.jl")
-    end
+
+    include("ReverseDiffSource.jl")
 
     ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
     dump(ex)
-    g, d, outsym = Proto.tograph(ex)
-    g
+    g, d, outsym = ReverseDiffSource.tograph(ex)
+    g.nodes
+    d
+    collect(keys(d))
+g.exitnodes = { :res => d[:acc] }
+    ReverseDiffSource.tocode(g)
+
     d
     dump(:( for i in 1:10 ; a = a + b[i] ; end )) 
 

@@ -67,7 +67,7 @@ function evalconstants!(g::ExGraph, emod = Main)
 	for n in g.nodes
 		if (n.nodetype == :call) & 
 			all( map(n->n.nodetype, n.parents) .== :constant) &
-			!in(n.name, [:zeros, :ones])
+			!in(n.name, [:zeros, :ones, :vcat])
 			res = invoke(emod.eval(n.name), 
 	            tuple([ typeof(x.name) for x in n.parents]...),
 	            [ x.name for x in n.parents]...)
@@ -155,8 +155,9 @@ function evalsort!(g::ExGraph)
 
 	while length(g2) < length(g.nodes)
 		canary = length(g2)
-	    for n in setdiff(g.nodes, g2)
-	        if all( [ in(x, g2) for x in n.parents] ) # | (length(n.parents) == 0)
+		nl = setdiff(g.nodes, g2)
+	    for n in nl
+	        if !any( [ in(x, nl) for x in n.parents] ) # | (length(n.parents) == 0)
 	            push!(g2,n)
 	        end
 	    end
@@ -200,7 +201,7 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 end
 
 ###### inserts graph src into dest  ######
-function add_graph!(src::ExGraph, dest::ExGraph, exitnode::ExNode, smap::Dict)
+function add_graph!(src::ExGraph, dest::ExGraph, exitnode, smap::Dict)
 
     evalsort!(src)
     # exitnode2
@@ -214,10 +215,13 @@ function add_graph!(src::ExGraph, dest::ExGraph, exitnode::ExNode, smap::Dict)
             if haskey(smap, n)
                 nmap[n] = smap[ n ]
             else
+	            nn = add_node(dest, n.nodetype, n.name, [])
+	            nmap[n] = nn
+
                 warn("unmapped symbol in source graph $(n.name)")
             end
         end
     end
 
-    nmap[exitnode]
+    (exitnode==nothing) ? nothing : nmap[exitnode]
 end

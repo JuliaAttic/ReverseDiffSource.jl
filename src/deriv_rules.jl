@@ -18,7 +18,7 @@ function dfuncname(nam::Union(Expr, Symbol), ind::Int)
 end
 
 function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
-    # list variable symbols and annotate type names with "Main." 
+    #### list variable symbols and annotate type names with "Main." 
     argsn = Symbol[]
     sig = {}
     for e in func.args[2:end]
@@ -51,6 +51,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
 
     index = find(dv .== argsn)[1] # TODO : add error message if not found
 
+    #### make the graph
     g, vd, exitnode = tograph( diff )
     vmap = Union(ExNode, Nothing)[]
     for v in argsn
@@ -58,6 +59,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
         push!(vmap, length(pos) == 0 ? nothing : g.nodes[pos[1]])
     end
 
+    #### store graph, build proxy function
     rn = gensym("rule")
     rdict[rn] = (g, vmap, exitnode)
 

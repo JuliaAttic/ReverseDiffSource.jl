@@ -85,8 +85,11 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 		if haskey(vdict, ex) # var already set in expression
 			return vdict[ex]
 		else
-			nr = filter(n -> (n.name==ex) & (n.nodetype==:external) , g.nodes)
-			return length(nr)==0 ? add_node(g, :external, ex) : nr[1]
+			# nr = filter(n -> (n.name==ex) & (n.nodetype==:external) , g.nodes)
+			# return length(nr)==0 ? add_node(g, :external, ex) : nr[1]
+			nn = add_node(g, :external, ex)
+			vdict[ex] = nn
+			return nn
 		end
 	end
 
@@ -97,6 +100,22 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 	    else
 	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	    end
+	end
+
+	function explore(ex::ExFor)
+		nn = length(g.nodes)
+		explore(ex.args[2])
+
+		g2, vdict2, exitnode2 = tograph(ex.args[2])
+		add_graph!(g, g2, nothing, vdict)
+
+		n = add_node(g, :for, ex.args[1], 
+					 g.nodes[(nn+1):end]) # mark dependency
+
+		for k in keys(vdict2)
+			vdict[ k ] = n
+		end
+
 	end
 
 	function explore(ex::ExEqual) 
@@ -168,6 +187,11 @@ function tocode(g::ExGraph)
 
 	    elseif n.nodetype == :alloc
 	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
+
+	    elseif n.nodetype == :for
+	    	fb = tocode(ExGraph(n.parents, Dict{Symbol, ExNode}()))
+	    	append!( out, fb.args )
+	        n.value = nothing
 
 	    end
 

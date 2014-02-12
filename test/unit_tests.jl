@@ -6,10 +6,8 @@
 
 using Base.Test
 
-module Sandbox
-    include("../src/ReverseDiffSource.jl")
-end
-testedmod = Sandbox.ReverseDiffSource
+include("../src/ReverseDiffSource.jl")
+testedmod = ReverseDiffSource
 
 
 @test testedmod.isSymbol(:a)            == true
@@ -39,9 +37,15 @@ testedmod = Sandbox.ReverseDiffSource
 
 ## expression to graph testing
 
-function transform(ex)
+function transform(ex, outsym=nothing)
     g, d, exitnode = testedmod.tograph(ex)
-    (exitnode==nothing) && (exitnode = last(collect(values(d))) )
+    if exitnode==nothing
+        if outsym==nothing
+            exitnode = last(collect(values(d))) # pick at random
+        else
+            exitnode = d[outsym]
+        end
+    end
     g.exitnodes = { :out => exitnode }
 
     testedmod.splitnary!(g)
@@ -54,12 +58,13 @@ function transform(ex)
     testedmod.tocode(g)
 end
 
+
 @test transform(:( a = b+6 ))       == :(out = b+6;)
 @test transform(:(sin(y);a=3))      == :(out = 3;)
 @test transform(:(a += b+6))        == :(out = a + (b+6);)
 @test transform(:(a -= b+6))        == :(out = a - (b+6);)
 @test transform(:(a *= b+6))        == :(out = a * (b+6);)
-@test transform(:(b = a'))          == :(out = transpose(a);)
+@test transform(:(a = b'))          == :(out = transpose(b);)
 @test transform(:(a = [1,2]))       == :(out = vcat(1,2);)
 
 @test transform(:( a[2] ))                       == :(out = a[2];)
