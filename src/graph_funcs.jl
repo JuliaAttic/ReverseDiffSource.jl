@@ -201,7 +201,7 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 end
 
 ###### inserts graph src into dest  ######
-function add_graph!(src::ExGraph, dest::ExGraph, exitnode, smap::Dict)
+function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
 
     evalsort!(src)
     # exitnode2
@@ -223,5 +223,5 @@ function add_graph!(src::ExGraph, dest::ExGraph, exitnode, smap::Dict)
         end
     end
 
-    (exitnode==nothing) ? nothing : nmap[exitnode]
+    nmap
 end

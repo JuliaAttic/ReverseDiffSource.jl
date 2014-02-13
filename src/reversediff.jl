@@ -12,7 +12,7 @@ function reversediff(ex, outsym::Symbol=nothing; init...)
     paramsym = Symbol[ e[1] for e in init]
     paramvalues = [ e[2] for e in init]
 
-    g, d, exitnode = tograph(ex)
+    g, d, ext, exitnode = tograph(ex)
     (outsym != nothing) && 
         !haskey(d, outsym) && 
             error("can't find output var $outsym")

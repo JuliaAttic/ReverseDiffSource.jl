@@ -52,7 +52,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
     index = find(dv .== argsn)[1] # TODO : add error message if not found
 
     #### make the graph
-    g, vd, exitnode = tograph( diff )
+    g, vd, exts, exitnode = tograph( diff )
     vmap = Union(ExNode, Nothing)[]
     for v in argsn
         pos = find( n -> (n.nodetype==:external) & (n.name == v) , g.nodes)

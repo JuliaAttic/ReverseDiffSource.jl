@@ -57,9 +57,9 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	            	smap = Dict( dd, [n.parents, vdict[n]])
 	            	delete!(smap, nothing)
 
-	            	dres = add_graph!(dg, g2, de, smap)
+	            	nmap = add_graph!(dg, g2, smap)
 
-            		v2 = add_node(g2, :call, :+, [vdict[arg], dres])
+            		v2 = add_node(g2, :call, :+, [vdict[arg], nmap[de]])
             		vdict[arg] = v2
 
 	            end

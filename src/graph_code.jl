@@ -54,7 +54,10 @@ substSymbols(ex::Symbol, smap::Dict)  = get(smap, ex, ex)
 
 	
 ######## maps expr to a ExNode graph ###################
-function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
+function tograph(s, 
+	             g::ExGraph = ExGraph(), 
+	             setvars::Dict = Dict(),
+	             externals::Dict = Dict() )
 
 	explore(ex::Expr)      = explore(toExH(ex))
 	explore(ex::ExH)       = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
@@ -82,21 +85,19 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 										[ explore(ex.args[1]), explore(ex.args[3])])
 
 	function explore(ex::Symbol)
-		if haskey(vdict, ex) # var already set in expression
-			return vdict[ex]
+		if haskey(setvars, ex) # var already set in expression
+			return setvars[ex]
+		elseif haskey(external, ex) # external ref already turned into a node
+			return externals[ex]
 		else
-			# nr = filter(n -> (n.name==ex) & (n.nodetype==:external) , g.nodes)
-			# return length(nr)==0 ? add_node(g, :external, ex) : nr[1]
-			nn = add_node(g, :external, ex)
-			vdict[ex] = nn
-			return nn
+			return add_node(g, :external, ex)  # create node for this var
 		end
 	end
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
 			# add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
-			add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
+			add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  # TODO : decide what to do here
 	    else
 	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	    end
@@ -104,16 +105,19 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 
 	function explore(ex::ExFor)
 		nn = length(g.nodes)
-		explore(ex.args[2])
 
-		g2, vdict2, exitnode2 = tograph(ex.args[2])
-		add_graph!(g, g2, nothing, vdict)
+		# explore the for block as a separate graph 
+		# (with external references and setvars of enclosing graph passed as externals)
+		g2, sv2, ext2, exitnode = tograph(ex.args[2], ExGraph(), Dict(), merge(externals, setvars))
+
+		# now include the new graph
+		nmap = add_graph!(g, g2, ##setvars## ??? )
 
 		n = add_node(g, :for, ex.args[1], 
-					 g.nodes[(nn+1):end]) # mark dependency
+					 g.nodes[(nn+1):end]  ???? ) # mark dependency
 
-		for k in keys(vdict2)
-			vdict[ k ] = n
+		for k in keys(setvars2)
+			setvars[ k ] = n
 		end
 
 	end
@@ -122,19 +126,19 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 		lhs = ex.args[1]
 		
 		if isSymbol(lhs)
-			vdict[lhs] = explore(ex.args[2])
+			setvars[lhs] = explore(ex.args[2])
 
 		elseif isRef(lhs)
 			v2 = add_node(g, :subref, lhs.args[2], 
 							[ explore(lhs.args[1]),  # var whose subpart is assigned
 							  explore(ex.args[2])] ) # assigned value
-			vdict[lhs.args[1]] = v2
+			setvars[lhs.args[1]] = v2
 
 		elseif isDot(lhs)
 			v2 = add_node(g, :subdot, lhs.args[2], 
 							[ explore(lhs.args[1]),  # var whose subpart is assigned
 							  explore(ex.args[2])] ) # assigned value
-			vdict[lhs.args[1]] = v2
+			setvars[lhs.args[1]] = v2
 
 		else
 			error("[tograph] not a symbol on LHS of assigment $(toExpr(ex))")
@@ -146,7 +150,7 @@ function tograph(s, g::ExGraph = ExGraph(), vdict::Dict = Dict() )
 	# exitnode = nothing if only variable assigments in expression
 	#          = ExNode of last calc otherwise
 
-	(g, vdict, exitnode)
+	(g, setvars, externals, exitnode)
 end
 
 ###### builds expr from graph  ######
