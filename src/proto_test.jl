@@ -1,5 +1,6 @@
 pwd()
 cd("..")
+cd("src")
 cd("/home/fred/devl")
 cd("ReverseDiffSource.jl")
 
@@ -397,7 +398,6 @@ include("ReverseDiffSource.jl")
     methods(Test1.Foo)
     methodswith(Test1.Foo)
 
-
 ############ higher order  ndiff #####################
 
     function ndiff(ex, order::Int, paramsym::Symbol, outsym=nothing)
@@ -453,12 +453,9 @@ include("ReverseDiffSource.jl")
     [ bar(1.0)[2] (bar(1.001)[1]-bar(1.)[1]) / 0.001 ]
 
 ################## for loops  #######################
-
-
     include("ReverseDiffSource.jl")
 
     ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
-    dump(ex)
     g, d, outsym = ReverseDiffSource.tograph(ex)
     g.nodes
     d
