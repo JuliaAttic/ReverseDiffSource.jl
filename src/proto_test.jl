@@ -455,10 +455,35 @@ include("ReverseDiffSource.jl")
 ################## for loops  #######################
     include("ReverseDiffSource.jl")
 
-    ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
-    g, d, outsym = ReverseDiffSource.tograph(ex)
+    ex = :( abcd = 0. ; acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    ext
+    outsym
+    sv
+    g.nodes  #  donne  acc = 0 + b[i]
+
+    ex = :( abcd = 0. ; acc = 0. ; for i in 1:10 ; a[i] += b[i] ; end ; acc  )
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    ext
+    outsym
+    sv
+    g.nodes  #  donne  acc = 0 + b[i]
+
+
+    ex2 = :( for i in 1:10 ; acc += b[i] ; end )
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex2, 
+        ReverseDiffSource.ExGraph(), Dict(), 
+        {:acc => ReverseDiffSource.ExNode(:constant, 0.0)})
+
+
+    ext
+    outsym
+    sv
     g.nodes
-    d
+
+
+
+
     collect(keys(d))
 g.exitnodes = { :res => d[:acc] }
     ReverseDiffSource.tocode(g)

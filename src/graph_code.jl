@@ -87,10 +87,10 @@ function tograph(s,
 	function explore(ex::Symbol)
 		if haskey(setvars, ex) # var already set in expression
 			return setvars[ex]
-		elseif haskey(external, ex) # external ref already turned into a node
+		elseif haskey(externals, ex) # external ref already turned into a node
 			return externals[ex]
 		else
-			return add_node(g, :external, ex)  # create node for this var
+			return add_node(g, :external, ex)  # create node for this external var
 		end
 	end
 
@@ -104,21 +104,21 @@ function tograph(s,
 	end
 
 	function explore(ex::ExFor)
-		nn = length(g.nodes)
-
 		# explore the for block as a separate graph 
 		# (with external references and setvars of enclosing graph passed as externals)
-		g2, sv2, ext2, exitnode = tograph(ex.args[2], ExGraph(), Dict(), merge(externals, setvars))
+		g2, sv2, ext2, dummy = tograph(ex.args[2], ExGraph(), Dict(), merge(externals, setvars))
 
-		# now include the new graph
-		nmap = add_graph!(g, g2, ##setvars## ??? )
+		# remove nodes already known by enclosing graph
+		for (k,v) in merge(externals, setvars) ; delete!(ext2, k) ; end
 
-		n = add_node(g, :for, ex.args[1], 
-					 g.nodes[(nn+1):end]  ???? ) # mark dependency
+		# update externals with really new external vars found in 'for' block
+		for v in keys(ext2) ; externals[v] = ext2[v] ; end
 
-		for k in keys(setvars2)
-			setvars[ k ] = n
-		end
+		append!(g.nodes, g2.nodes)
+		n = add_node(g, :for, ex.args[1], collect(values(sv2)) )
+
+		# update vdict for vars set in 'for' block
+		for (k,v) in sv2 ; setvars[k] = n ; end
 
 	end
 

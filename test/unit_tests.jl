@@ -38,12 +38,12 @@ testedmod = ReverseDiffSource
 ## expression to graph testing
 
 function transform(ex, outsym=nothing)
-    g, d, exitnode = testedmod.tograph(ex)
+    g, sv, ext, exitnode = testedmod.tograph(ex)
     if exitnode==nothing
         if outsym==nothing
-            exitnode = last(collect(values(d))) # pick at random
+            exitnode = last(collect(values(sv))) # pick at random
         else
-            exitnode = d[outsym]
+            exitnode = sv[outsym]
         end
     end
     g.exitnodes = { :out => exitnode }
@@ -58,9 +58,9 @@ function transform(ex, outsym=nothing)
     testedmod.tocode(g)
 end
 
-
-@test transform(:( a = b+6 ))       == :(out = b+6;)
-@test transform(:(sin(y);a=3))      == :(out = 3;)
+@test   45 == 45
+@test transform(:( a = b+6 ))       == :(begin ; out = b+6 ; end)  # syntax problem here with :(---- ;)
+@test transform(:(sin(y);a=3))      == :(out = 3 ;  )
 @test transform(:(a += b+6))        == :(out = a + (b+6);)
 @test transform(:(a -= b+6))        == :(out = a - (b+6);)
 @test transform(:(a *= b+6))        == :(out = a * (b+6);)
