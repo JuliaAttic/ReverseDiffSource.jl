@@ -1,11 +1,11 @@
 pwd()
 cd("..")
 cd("src")
+cd("ReverseDiffSource.jl/src")
 cd("/home/fred/devl")
 cd("ReverseDiffSource.jl")
 
 include("ReverseDiffSource.jl")
-
 
 ########### load and reload  ##########
 
@@ -103,7 +103,7 @@ include("ReverseDiffSource.jl")
         y + y2 + y3 + 12
     end
 
-    out = reversediff(ex, [:x] )
+    out = ReverseDiffSource.reversediff(ex, x=1.5, a=-4 )
 
     @eval function myf(x)
             $out
@@ -456,9 +456,23 @@ include("ReverseDiffSource.jl")
     include("ReverseDiffSource.jl")
 
     ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
-    g, d, outsym = ReverseDiffSource.tograph(ex)
+    ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end )
+    dump(ex)
+
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex.args[2])
     g.nodes
-    d
+    sv
+    ext
+
+
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    g.nodes
+    out = ReverseDiffSource.tocode(g) 
+    out
+    dump(ReverseDiffSource.tocode(g))
+    sv
+    ext
+
     collect(keys(d))
 g.exitnodes = { :res => d[:acc] }
     ReverseDiffSource.tocode(g)

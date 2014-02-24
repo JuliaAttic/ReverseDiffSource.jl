@@ -30,7 +30,7 @@ typealias ExIf       ExH{:if}
 typealias ExComp     ExH{:comparison}
 typealias ExDot      ExH{:.}
 
-## variable symbol sampling functions
+# variable symbol sampling functions
 getSymbols(ex::Any)    = Set{Symbol}()
 getSymbols(ex::Symbol) = Set{Symbol}(ex)
 getSymbols(ex::Array)  = mapreduce(getSymbols, union, ex)
@@ -42,7 +42,7 @@ getSymbols(ex::ExDot)  = Set{Symbol}(ex.args[1])  # return variable, not fields
 getSymbols(ex::ExComp) = setdiff(mapreduce(getSymbols, union, ex.args), 
 	Set(:(>), :(<), :(>=), :(<=), :(.>), :(.<), :(.<=), :(.>=), :(==)) )
 
-## variable symbol subsitution functions
+## variable symbol substitution functions
 substSymbols(ex::Any, smap::Dict)     = ex
 substSymbols(ex::Expr, smap::Dict)    = substSymbols(toExH(ex), smap::Dict)
 substSymbols(ex::Vector, smap::Dict)  = map(e -> substSymbols(e, smap), ex)
@@ -59,11 +59,12 @@ function tograph(s,
 	             setvars::Dict = Dict(),
 	             externals::Dict = Dict() )
 
+	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
 	explore(ex::Expr)      = explore(toExH(ex))
 	explore(ex::ExH)       = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
+
 	explore(ex::ExLine)    = nothing     # remove line info
 	explore(ex::LineNumberNode) = nothing     # remove line info
-
 
 	explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
 	explore(ex::ExTrans)   = explore(Expr(:call, :transpose, ex.args[1]) )  # translate to transpose() and explore
@@ -74,11 +75,9 @@ function tograph(s,
 
 	explore(ex::Real)      = add_node(g, :constant, ex)
 
-	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
-
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
 
-	explore(ex::ExRef)     = add_node(g, :ref, ex.args[2], [ explore(ex.args[1]) ])
+	explore(ex::ExRef)     = add_node(g, :ref, ex.args[2:end], [ explore(ex.args[1]) ])
 	explore(ex::ExDot)     = add_node(g, :dot, ex.args[2], [ explore(ex.args[1]) ])
 
 	explore(ex::ExComp)    = add_node(g, :comp, ex.args[2], 
@@ -87,17 +86,19 @@ function tograph(s,
 	function explore(ex::Symbol)
 		if haskey(setvars, ex) # var already set in expression
 			return setvars[ex]
-		elseif haskey(external, ex) # external ref already turned into a node
+		elseif haskey(externals, ex) # external ref already turned into a node
 			return externals[ex]
-		else
-			return add_node(g, :external, ex)  # create node for this var
+		else # symbol neither set var nor known external
+			externals[ex] = add_node(g, :external, ex)  # create external node for this var
+			return externals[ex]
 		end
 	end
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
 			# add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
-			add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  # TODO : decide what to do here
+			add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  
+			# TODO : decide what to do here
 	    else
 	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
 	    end
@@ -108,18 +109,23 @@ function tograph(s,
 
 		# explore the for block as a separate graph 
 		# (with external references and setvars of enclosing graph passed as externals)
-		g2, sv2, ext2, exitnode = tograph(ex.args[2], ExGraph(), Dict(), merge(externals, setvars))
+		g2, sv2, ext2, exitnode = tograph(ex.args[2])
+		# ,ExGraph(), Dict(), merge(externals, setvars))
 
 		# now include the new graph
-		nmap = add_graph!(g, g2, ##setvars## ??? )
+		nmap = add_graph!(g2, g, ext2)
 
-		n = add_node(g, :for, ex.args[1], 
-					 g.nodes[(nn+1):end]  ???? ) # mark dependency
+		ni = add_node(g, :forindex, (ex.args[1].args[1], 
+			                         ex.args[1].args[2], 
+			                         { v => nmap[ sv2[v]] for v in keys(sv2) } ) )
+		nb = add_node(g, :forblock, nothing, [ni, g.nodes[(nn+1):end]])
 
-		for k in keys(setvars2)
-			setvars[ k ] = n
+		# n = add_node(g, :for, ex.args[1], 
+		# 			 g.nodes[(nn+1):end]  ) # mark dependency
+
+		for k in keys(sv2)
+			setvars[ k ] = nb
 		end
-
 	end
 
 	function explore(ex::ExEqual) 
@@ -129,7 +135,7 @@ function tograph(s,
 			setvars[lhs] = explore(ex.args[2])
 
 		elseif isRef(lhs)
-			v2 = add_node(g, :subref, lhs.args[2], 
+			v2 = add_node(g, :subref, lhs.args[2:end], 
 							[ explore(lhs.args[1]),  # var whose subpart is assigned
 							  explore(ex.args[2])] ) # assigned value
 			setvars[lhs.args[1]] = v2
@@ -176,13 +182,13 @@ function tocode(g::ExGraph)
 	        n.value = Expr(:comparison, { n.parents[1].value, n.name, n.parents[2].value }...)
 
 	    elseif n.nodetype == :ref
-	        n.value = Expr(:ref, n.parents[1].value, n.name)
+	        n.value = Expr(:ref, n.parents[1].value, n.name...)
 
 	    elseif n.nodetype == :dot
 	        n.value = Expr(:(.), n.parents[1].value, n.name)
 
 	    elseif n.nodetype == :subref
-	    	push!(out, :( $(Expr(:ref, n.parents[1].value, n.name)) = $(n.parents[2].value) ) ) # an assign is necessary
+	    	push!(out, :( $(Expr(:ref, n.parents[1].value, n.name...)) = $(n.parents[2].value) ) ) # an assign is necessary
 	        n.value = n.parents[1].value
 
 	    elseif n.nodetype == :subdot
@@ -192,9 +198,11 @@ function tocode(g::ExGraph)
 	    elseif n.nodetype == :alloc
 	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
 
-	    elseif n.nodetype == :for
-	    	fb = tocode(ExGraph(n.parents, Dict{Symbol, ExNode}()))
-	    	append!( out, fb.args )
+	    elseif n.nodetype == :forindex
+	    	nb = filter(n2 -> in(n, n2.parents) & (n.nodetype!=:forblock), g.nodes)
+	    	fb = tocode( ExGraph(nb, n.name[3]) )
+	    	push!(out, Expr(:for, Expr(:(=), n.name[1], n.name[2]), fb) )
+	    	# append!( out, fb.args )
 	        n.value = nothing
 
 	    end

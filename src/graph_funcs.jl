@@ -183,7 +183,7 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 	        n.value = emod.eval(n.name)
 
 	    elseif n.nodetype == :ref
-	        n.value = emod.eval( Expr(:ref, n.parents[1].value, n.name) )
+	        n.value = emod.eval( Expr(:ref, n.parents[1].value, n.name...) )
 
 	    elseif n.nodetype == :dot
 	        n.value = emod.eval( Expr(:., n.parents[1].value, n.name) )
@@ -201,10 +201,33 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 end
 
 ###### inserts graph src into dest  ######
-function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
+# function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
 
+#     evalsort!(src)
+#     # exitnode2
+#     nmap = Dict()
+#     for n in src.nodes  #  n = src[1]  
+#         if n.nodetype != :external 
+#             nn = add_node(dest, n.nodetype, n.name, 
+#             				[ nmap[n2] for n2 in n.parents ])
+#             nmap[n] = nn
+#         else
+#             if haskey(smap, n)
+#                 nmap[n] = smap[ n ]
+#             else
+# 	            nn = add_node(dest, n.nodetype, n.name, [])
+# 	            nmap[n] = nn
+
+#                 warn("unmapped symbol in source graph $(n.name)")
+#             end
+#         end
+#     end
+
+#     nmap
+# end
+
+function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
     evalsort!(src)
-    # exitnode2
     nmap = Dict()
     for n in src.nodes  #  n = src[1]  
         if n.nodetype != :external 
@@ -212,8 +235,8 @@ function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
             				[ nmap[n2] for n2 in n.parents ])
             nmap[n] = nn
         else
-            if haskey(smap, n)
-                nmap[n] = smap[ n ]
+            if haskey(smap, n.name)
+                nmap[n] = smap[n.name]
             else
 	            nn = add_node(dest, n.nodetype, n.name, [])
 	            nmap[n] = nn

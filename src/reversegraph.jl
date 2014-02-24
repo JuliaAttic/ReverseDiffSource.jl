@@ -24,18 +24,21 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 		# Array of Real
 		elseif any( map(t->isa(n.value,t), [Array{Float64}, Array{Int}]) )
 			v1 = add_node(g2, :call, :size, [n])
-			vdict[n] = add_node(g2, :alloc, :zeros, [v1])  # TODO : alloc necessary only if diffsym ?
+			vdict[n] = add_node(g2, :alloc, :zeros, [v1])  
+			# TODO : alloc necessary only if diffsym ?
 
 		# Composite type
 		elseif haskey(tdict, typeof(n.value))   # composite type
 			v1 = add_node(g2, :constant, tdict[typeof(n.value)])
-			vdict[n] = add_node(g2, :alloc, :zeros, [v1])  # TODO : alloc necessary only if diffsym ?
+			vdict[n] = add_node(g2, :alloc, :zeros, [v1])  
+			# TODO : alloc necessary only if diffsym ?
 
 		# Array of composite type
 		elseif isa( n.value, Array) && haskey(tdict, eltype(n.value))  
 			v1 = add_node(g2, :call, :size, [n])
 			# TODO : alloc necessary only if diffsym ?
-			aa = ExNode[ add_node(g2, :alloc, :zeros, [v1]) for i in 1:(tdict[eltype(n.value)]) ]
+			aa = ExNode[ add_node(g2, :alloc, :zeros, [v1]) 
+			               for i in 1:(tdict[eltype(n.value)]) ]
 			vdict[n] = add_node(g2, :call, :vcat, aa)  
 
 		else
@@ -52,10 +55,9 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	            if !in(arg.nodetype, [:constant, :comp])
 
 	            	fn = dfuncname(n.name, index)
-	            	(dg, dd, de) = rdict[ eval(Expr(:call, fn, vargs...)) ]
+	            	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
 	            	smap = Dict( dd, [n.parents, vdict[n]])
-	            	delete!(smap, nothing)
 
 	            	nmap = add_graph!(dg, g2, smap)
 

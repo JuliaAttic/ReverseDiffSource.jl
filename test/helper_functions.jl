@@ -11,13 +11,8 @@ ERROR_THRESHOLD = 2e-2
 good_enough(x,y) = isfinite(x) ? (abs(x-y) / max(ERROR_THRESHOLD, abs(x))) < ERROR_THRESHOLD : isequal(x,y) 
 good_enough(t::Tuple) = good_enough(t[1], t[2])
 
-
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
-
-x0 = 1.0
-ReverseDiffSource.reversediff( :(res=sum(a+x)), :res, x=x0)
-ex=:(x*tz) ; x0= [-3., 2, 0]
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
 	println("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  

@@ -9,7 +9,7 @@ module ReverseDiffSource
   import Base.show
 
   # naming conventions
-  const TEMP_NAME = "_tmp"     # prefix of new variables
+  const TEMP_NAME = "_tmp"   # prefix of new variables
   const DERIV_PREFIX = "d"   # prefix of gradient variables
 
   ## misc functions

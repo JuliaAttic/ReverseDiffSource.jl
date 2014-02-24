@@ -38,12 +38,12 @@ testedmod = ReverseDiffSource
 ## expression to graph testing
 
 function transform(ex, outsym=nothing)
-    g, d, exitnode = testedmod.tograph(ex)
+    g, sv, ext, exitnode = testedmod.tograph(ex)
     if exitnode==nothing
         if outsym==nothing
-            exitnode = last(collect(values(d))) # pick at random
+            exitnode = last(collect(values(sv))) # pick at random
         else
-            exitnode = d[outsym]
+            exitnode = sv[outsym]
         end
     end
     g.exitnodes = { :out => exitnode }
