@@ -105,8 +105,6 @@ function tograph(s,
 	end
 
 	function explore(ex::ExFor)
-		nn = length(g.nodes)
-
 		# explore the for block as a separate graph 
 		# (with external references and setvars of enclosing graph passed as externals)
 		g2, sv2, ext2, exitnode = tograph(ex.args[2])

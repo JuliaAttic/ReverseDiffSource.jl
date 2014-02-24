@@ -473,13 +473,6 @@ include("ReverseDiffSource.jl")
     sv
     ext
 
-    collect(keys(d))
-g.exitnodes = { :res => d[:acc] }
-    ReverseDiffSource.tocode(g)
-
-    d
-    dump(:( for i in 1:10 ; a = a + b[i] ; end )) 
-
 
 ################### testing graph-code conversion for refs & dots  ###################
     module Proto
