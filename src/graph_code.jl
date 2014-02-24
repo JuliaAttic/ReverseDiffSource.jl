@@ -105,6 +105,7 @@ function tograph(s,
 	end
 
 	function explore(ex::ExFor)
+		nn = length(g.nodes)
 		# explore the for block as a separate graph 
 		# (with external references and setvars of enclosing graph passed as externals)
 		g2, sv2, ext2, exitnode = tograph(ex.args[2])
@@ -197,9 +198,10 @@ function tocode(g::ExGraph)
 	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
 
 	    elseif n.nodetype == :forindex
-	    	nb = filter(n2 -> in(n, n2.parents) & (n.nodetype!=:forblock), g.nodes)
-	    	fb = tocode( ExGraph(nb, n.name[3]) )
-	    	push!(out, Expr(:for, Expr(:(=), n.name[1], n.name[2]), fb) )
+	    	fb = filter(n2 -> in(n, n2.parents) & (n2.nodetype==:forblock), g.nodes)[1]
+	    	nb = filter(n2 -> n.nodetype!=:forindex, fb.parents)
+	    	outf = tocode( ExGraph(nb, n.name[3]) )
+	    	push!(out, Expr(:for, Expr(:(=), n.name[1], n.name[2]), outf) )
 	    	# append!( out, fb.args )
 	        n.value = nothing
 
