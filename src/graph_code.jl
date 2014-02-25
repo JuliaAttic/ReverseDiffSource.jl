@@ -54,10 +54,7 @@ substSymbols(ex::Symbol, smap::Dict)  = get(smap, ex, ex)
 
 	
 ######## maps expr to a ExNode graph ###################
-function tograph(s, 
-	             g::ExGraph = ExGraph(), 
-	             setvars::Dict = Dict(),
-	             externals::Dict = Dict() )
+function tograph(s, externals::Dict = Dict() )
 
 	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
 	explore(ex::Expr)      = explore(toExH(ex))
@@ -105,25 +102,36 @@ function tograph(s,
 	end
 
 	function explore(ex::ExFor)
-		nn = length(g.nodes)
+		# nn = length(g.nodes)
+		# # explore the for block as a separate graph 
+		# # (with external references and setvars of enclosing graph passed as externals)
+		# g2, sv2, ext2, exitnode = tograph(ex.args[2])
+		# # ,ExGraph(), Dict(), merge(externals, setvars))
+
+		# # now include the new graph
+		# nmap = add_graph!(g2, g, ext2)
+
+		# ni = add_node(g, :forindex, (ex.args[1].args[1], 
+		# 	                         ex.args[1].args[2], 
+		# 	                         { v => nmap[ sv2[v]] for v in keys(sv2) } ) )
+		# nb = add_node(g, :forblock, nothing, [ni, g.nodes[(nn+1):end]])
+
+		# # n = add_node(g, :for, ex.args[1], 
+		# # 			 g.nodes[(nn+1):end]  ) # mark dependency
+
+		# for k in keys(sv2)
+		# 	setvars[ k ] = nb
+		# end
+
 		# explore the for block as a separate graph 
-		# (with external references and setvars of enclosing graph passed as externals)
-		g2, sv2, ext2, exitnode = tograph(ex.args[2])
-		# ,ExGraph(), Dict(), merge(externals, setvars))
+		g2, sv2, ext2, exitnode = tograph(ex.args[2], merge(externals, setvars))
+		# g2.exitnodes = sv2
 
-		# now include the new graph
-		nmap = add_graph!(g2, g, ext2)
-
-		ni = add_node(g, :forindex, (ex.args[1].args[1], 
-			                         ex.args[1].args[2], 
-			                         { v => nmap[ sv2[v]] for v in keys(sv2) } ) )
-		nb = add_node(g, :forblock, nothing, [ni, g.nodes[(nn+1):end]])
-
-		# n = add_node(g, :for, ex.args[1], 
-		# 			 g.nodes[(nn+1):end]  ) # mark dependency
+		# create "for" node, containing the subgraph
+		nf = add_node(g, :for, (ex.args[1], g2, ext2), collect(values(ext2)))
 
 		for k in keys(sv2)
-			setvars[ k ] = nb
+			setvars[ k ] = sv2[k]
 		end
 	end
 
@@ -150,6 +158,9 @@ function tograph(s,
 		end
 		return nothing
 	end
+
+    g = ExGraph()
+	setvars = Dict()
 
 	exitnode = explore(s)  
 	# exitnode = nothing if only variable assigments in expression
@@ -197,12 +208,18 @@ function tocode(g::ExGraph)
 	    elseif n.nodetype == :alloc
 	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
 
-	    elseif n.nodetype == :forindex
-	    	fb = filter(n2 -> in(n, n2.parents) & (n2.nodetype==:forblock), g.nodes)[1]
-	    	nb = filter(n2 -> n.nodetype!=:forindex, fb.parents)
-	    	outf = tocode( ExGraph(nb, n.name[3]) )
-	    	push!(out, Expr(:for, Expr(:(=), n.name[1], n.name[2]), outf) )
-	    	# append!( out, fb.args )
+	    # elseif n.nodetype == :forindex
+	    # 	fb = filter(n2 -> in(n, n2.parents) & (n2.nodetype==:forblock), g.nodes)[1]
+	    # 	nb = filter(n2 -> n.nodetype!=:forindex, fb.parents)
+	    # 	outf = tocode( ExGraph(nb, n.name[3]) )
+	    # 	push!(out, Expr(:for, Expr(:(=), n.name[1], n.name[2]), outf) )
+	    # 	# append!( out, fb.args )
+	    #     n.value = nothing
+
+	    elseif n.nodetype == :for
+	    	fb = tocode(n.name[2])
+	    	ne = Expr(:for, n.name[1], fb)
+	    	push!(out, ne)
 	        n.value = nothing
 
 	    end
@@ -228,7 +245,6 @@ function tocode(g::ExGraph)
 
 	        push!(out, :( $lhs = $(n.value) ))
 	        n.value = lhs
-
 	    end
 
 	end 

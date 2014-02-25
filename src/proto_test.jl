@@ -7,91 +7,6 @@ cd("ReverseDiffSource.jl")
 
 include("ReverseDiffSource.jl")
 
-########### load and reload  ##########
-
-    module Proto
-        include("src/proto.jl")
-        include("src/graph_funcs.jl")
-        include("src/reversegraph.jl")
-        include("src/graph_code.jl")
-        include("src/proto_rules.jl")
-    end
-
-    function reversediff(ex, paramsym::Vector{Symbol}, outsym=nothing)
-        Proto.resetvar()
-
-        g, d, exitnode = Proto.tograph(ex)
-        (outsym != nothing) && !haskey(d, outsym) && error("can't find output var $outsym")
-        (outsym == nothing) && (exitnode == nothing) && error("can't identify expression's output")
-        
-        (exitnode, outsym) = outsym == nothing ? (exitnode, :res) : ( d[outsym], outsym) 
-
-        g.exitnodes = { outsym => exitnode }
-
-        Proto.splitnary!(g)
-        Proto.dedup!(g)
-        Proto.simplify!(g)
-        Proto.prune!(g)
-        Proto.evalsort!(g)
-        Proto.calc!(g)
-
-        dg, dnodes = Proto.reversegraph(g, g.exitnodes[outsym], paramsym)
-        g.nodes = [g.nodes, dg]
-        for i in 1:length(paramsym)
-            g.exitnodes[Proto.dprefix(paramsym[i])] = dnodes[i]
-        end
-        # println(g.nodes)
-
-        # g.exitnodes[:dy] == g.nodes[4]
-        # g.exitnodes[:dx] == g.nodes[4]
-        # g.exitnodes[:res] == g.nodes[3]
-        # println(g.nodes)
-
-        # (g2, length(g2))
-        Proto.splitnary!(g)
-        Proto.dedup!(g)
-        Proto.evalconstants!(g)
-        Proto.simplify!(g)
-        Proto.prune!(g)
-        #  (g2, length(g2))
-        Proto.evalsort!(g)
-
-        # println(g.nodes)
-        Proto.tocode(g)
-    end
-
-########### array results  ##########
-
-    a = [1,2,3]
-    x = 1.
-    ex = :( y = a .* x ; o1 = y[1] ; o2 = y[2] ; o3 = y[3])
-
-    g, d, exitnode = Proto.tograph(ex)
-    g.exitnodes = { :out1 => d[:o1],  :out2 => d[:o2], :out3 => d[:o3] }
-
-    Proto.splitnary!(g); Proto.evalconstants!(g); Proto.dedup!(g); 
-    Proto.simplify!(g); Proto.prune!(g); Proto.calc!(g)
-
-    dg1, dnodes = Proto.reversegraph(g, g.exitnodes[:out1], [:x])
-    g.exitnodes[Proto.dprefix(:x1)] = dnodes[1]
-    dg2, dnodes = Proto.reversegraph(g, g.exitnodes[:out2], [:x])
-    g.exitnodes[Proto.dprefix(:x2)] = dnodes[1]
-    dg3, dnodes = Proto.reversegraph(g, g.exitnodes[:out3], [:x])
-    g.exitnodes[Proto.dprefix(:x3)] = dnodes[1]
-
-    g.nodes = [g.nodes, dg1, dg2, dg3]
-    # g.nodes[1:20]
-    # g.nodes = [g.nodes, dg1]
-
-    Proto.evalconstants!(g); Proto.dedup!(g); 
-    Proto.tocode(g); g2 = copy(g.nodes)
-    Proto.simplify!(g); 
-    Proto.tocode(g)
-    Proto.prune!(g); Proto.calc!(g)
-
-    g.nodes
-    Proto.tocode(g)
-
 ########### testing big func  ##########
     x = 1.5
     a = -4.
@@ -137,53 +52,7 @@ include("ReverseDiffSource.jl")
     [ myf(x0,y0)[2]  (myf(x0+delta,y0)[1]- myf(x0,y0)[1])/delta ; 
         myf(x0,y0)[3]  (myf(x0,y0+delta)[1]- myf(x0,y0)[1])/delta]
 
-##############   tests for derivation     #####################
-
-    x = 1.5
-    reversediff(:( res = sin(x)), [:x], :res)
-    reversediff(:( sin(x)), [:x]) 
-    reversediff(:( res = sin(x)), [:x], :y)  # fails and it's ok
-    reversediff(:( res = sin(x)), [:x])  # fails and it's ok
-    reversediff(:( sin(x)), [:x], :res) # fails and it's ok
-
-    reversediff(:( res = 2^x ), [:x], :res)
-    reversediff(:( 2^x ), [:x] )
-    reversediff(:( res = x^2 ), [:x], :res)
-
-    a = [1,2,3]
-    reversediff(:( res = x * a[2] ), [:x], :res)
-    reversediff(:( res = x * a[2] ), [:a], :res)
-    reversediff(:( a[2] ), [:a])    
-    reversediff(:( x*a[2] ), [:a])  
-    reversediff(:( res = a[2] ), [:a], :res)
-
-    x = 2. ; y = 1.
-    reversediff(:( x + y ), [:x, :y] )
-    x = zeros(2)
-    reversediff(:( x[1] + x[2] ), [:x])
-    x = zeros(3)
-    reversediff(:( x[1]^2 + ( x[2] - 2x[3] )^4 ), [:x] )
-
-    x = 1
-    reversediff(:( (x>2) * y ), [:x, :y] )
-    x = 3
-    reversediff(:( (x>2) * y ), [:x, :y] )
-
-
-    x, y, z = 1.1, 2.3, 1
-    reversediff(:( x^2 + ( y - 2z )^4 ), [:x, :y, :z] )
-
-    x = [1.,2,3] ; a = [3.,4,4]
-    out = reversediff(:( sum( a .* x) ), [:x] ) # lourd mais juste
-    out = reversediff(:( sum( a .* x) ), [:x, :a] ) # lourd mais juste
-    @eval test2(x) = ( $out ; (res, dx))
-    test2(x)
-
-    a
-    reversediff(:( sum(a*x') ), [:x] )
-
 ##############   tests for composite types    #####################
-
     type Test1
         x
         y
@@ -453,66 +322,28 @@ include("ReverseDiffSource.jl")
     [ bar(1.0)[2] (bar(1.001)[1]-bar(1.)[1]) / 0.001 ]
 
 ################## for loops  #######################
+    cd("ReverseDiffSource.jl/src")
     include("ReverseDiffSource.jl")
 
     ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
     ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end )
+    ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
+    ex = :( a=zeros(10) ; z = sum(a) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
     dump(ex)
-
-    g, sv, ext, outsym = ReverseDiffSource.tograph(ex.args[2])
-    g.nodes
-    sv
-    ext
-
 
     g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
     g.nodes
+    g.exitnodes[:a] = sv[:a]
+    g.exitnodes[:z] = sv[:z]
+
     out = ReverseDiffSource.tocode(g) 
-    out
-    dump(ReverseDiffSource.tocode(g))
+    dump(out)
+    dump(out.args[1])
+    dump(ReverseDiffSource.tocode(g),7)
+    dump(ReverseDiffSource.tocode(g).args[1].args[2])
     sv
     ext
+5+6
 
 
-################### testing graph-code conversion for refs & dots  ###################
-    module Proto
-        include("src/reverse/proto.jl")
-        include("src/reverse/graph_funcs.jl")
-        include("src/reverse/reversegraph.jl")
-        include("src/reverse/graph_code.jl")
-        include("src/reverse/proto_rules.jl")
-    end
-
-    function trans(ex)
-        g, d, exitnode = Proto.tograph(ex)
-        g.exitnodes = { :out => exitnode }
-
-        Proto.splitnary!(g)
-        Proto.dedup!(g)
-        Proto.evalconstants!(g)
-        Proto.simplify!(g)
-        Proto.prune!(g)
-
-        println(g.nodes)
-        Proto.tocode(g)
-    end
-
-    trans(:( a[2] ))
-    trans(:( y = a[2] ; y ))
-    trans(:( y = a[2] ; y[1] ))
-    trans(:( y[1] = a[2] ; y[1] ))
-    trans(:( y = a+1 ; y[2]+y[1] ))
-    trans(:( a[2] = x ; a[3] )) 
-    trans(:( a[2] = x ; y=a[3] ; y ))  
-    trans(:( b = a ; b[2] = x; 1 + b[2] ))
-    trans(:( b = a ; b[2] = x; 1 + b[1] ))
-    trans(:( a[1] + a[2] ))
-
-    trans(:( a.x ))
-    trans(:( y = a.x ; y ))
-    trans(:( y = a.x + 1 ; y.b + y.c ))
-    trans(:( a.x = x ; a[3] )) 
-    trans(:( a.x = x ; y = a.y ; y ))  
-    trans(:( b = a ; b.x = x ; 1 + b.y ))
-    trans(:( a.x + a.y ))
 
