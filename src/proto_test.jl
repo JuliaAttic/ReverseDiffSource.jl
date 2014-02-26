@@ -328,22 +328,59 @@ include("ReverseDiffSource.jl")
     ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
     ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end )
     ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
+    ex = :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end )
     ex = :( a=zeros(10) ; z = sum(a) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
     dump(ex)
 
     g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
     g.nodes
+    ReverseDiffSource.evalsort!(g)
     g.exitnodes[:a] = sv[:a]
     g.exitnodes[:z] = sv[:z]
 
+    g.nodes[5].name[2].nodes
+    g.nodes[5].name[2].exitnodes
+    ReverseDiffSource.tocode(g.nodes[5].name[2]) 
+
     out = ReverseDiffSource.tocode(g) 
-    dump(out)
-    dump(out.args[1])
-    dump(ReverseDiffSource.tocode(g),7)
-    dump(ReverseDiffSource.tocode(g).args[1].args[2])
-    sv
-    ext
-5+6
+
+    ex = quote
+        a = zeros(10)
+        for i in 1:10
+            t = zeros(5)
+            for j in 1:5
+                t[j] = sin(j)
+            end
+            a[i] = sum(t)
+        end
+    end
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    g.nodes
+    g.exitnodes[:a] = sv[:a]
+    out = ReverseDiffSource.tocode(g) 
+    
+    ex = quote
+        a = zeros(10)
+        for i in 1:10
+            t = zeros(5)
+            for j in 1:5
+                t[j] = sin(j+i)
+            end
+            a[i] = sum(t)
+        end
+    end
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    g.nodes
+    g.exitnodes[:a] = sv[:a]
+    out = ReverseDiffSource.tocode(g) 
+
+    g.nodes[5].name[2].nodes[3].name[2].nodes
+    g.nodes[5].name[2].nodes[2].parents[1].value
 
 
+    ex = :( a = 2 +b ; z = sum(a))
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    g.exitnodes[:a] = sv[:a]
+    g.exitnodes[:z] = sv[:z]
+    out = ReverseDiffSource.tocode(g) 
 

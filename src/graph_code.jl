@@ -102,37 +102,44 @@ function tograph(s, externals::Dict = Dict() )
 	end
 
 	function explore(ex::ExFor)
-		# nn = length(g.nodes)
-		# # explore the for block as a separate graph 
-		# # (with external references and setvars of enclosing graph passed as externals)
-		# g2, sv2, ext2, exitnode = tograph(ex.args[2])
-		# # ,ExGraph(), Dict(), merge(externals, setvars))
-
-		# # now include the new graph
-		# nmap = add_graph!(g2, g, ext2)
-
-		# ni = add_node(g, :forindex, (ex.args[1].args[1], 
-		# 	                         ex.args[1].args[2], 
-		# 	                         { v => nmap[ sv2[v]] for v in keys(sv2) } ) )
-		# nb = add_node(g, :forblock, nothing, [ni, g.nodes[(nn+1):end]])
-
-		# # n = add_node(g, :for, ex.args[1], 
-		# # 			 g.nodes[(nn+1):end]  ) # mark dependency
-
-		# for k in keys(sv2)
-		# 	setvars[ k ] = nb
-		# end
+		is = ex.args[1].args[1]
+		isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
 
 		# explore the for block as a separate graph 
 		g2, sv2, ext2, exitnode = tograph(ex.args[2], merge(externals, setvars))
 		# g2.exitnodes = sv2
 
-		# create "for" node, containing the subgraph
-		nf = add_node(g, :for, (ex.args[1], g2, ext2), collect(values(ext2)))
+		#  find nodes dependant on indexing variable
+		gi = ExNode[]
+		for n2 in g2.nodes
+			if (in(n2.nodetype, [:ref, :subref]) && in(is, n2.name)) ||
+				( n2.nodetype == :external && n2.name == is) 
+				push!(gi, n2)
+			end
+		end
+		g2in = ExNode[]; g2out = ExNode[]
+		for n2 in g2.nodes
+			if length(intersect(ancestors(n2), gi)) > 0
+				push!(g2in, n2)
+			else
+				push!(g2out, n2)
+			end
+		end
+
+		# independant nodes can be outside of loop
+		append!(g.nodes, g2out)
+
+		# create "for" node, "in" nodes being marked as parents
+		fp = ExNode[]
+		for n2 in g2in
+			fp = union(fp, setdiff(n2.parents, g2in))
+		end
+		nf = add_node( g, :for, (ex.args[1], ExGraph(g2in, Dict())), fp )
 
 		for k in keys(sv2)
 			setvars[ k ] = sv2[k]
 		end
+
 	end
 
 	function explore(ex::ExEqual) 
@@ -208,31 +215,29 @@ function tocode(g::ExGraph)
 	    elseif n.nodetype == :alloc
 	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
 
-	    # elseif n.nodetype == :forindex
-	    # 	fb = filter(n2 -> in(n, n2.parents) & (n2.nodetype==:forblock), g.nodes)[1]
-	    # 	nb = filter(n2 -> n.nodetype!=:forindex, fb.parents)
-	    # 	outf = tocode( ExGraph(nb, n.name[3]) )
-	    # 	push!(out, Expr(:for, Expr(:(=), n.name[1], n.name[2]), outf) )
-	    # 	# append!( out, fb.args )
-	    #     n.value = nothing
-
 	    elseif n.nodetype == :for
 	    	fb = tocode(n.name[2])
 	    	ne = Expr(:for, n.name[1], fb)
 	    	push!(out, ne)
+	    	# force assignement of exitnodes set in loop
+	    	for (k,v) in g.exitnodes
+	    		if in(v, n.name[2].nodes) && k != v.value
+	    			push!(out, :( $k = $(v.value) ))
+	    		end
+	    	end
 	        n.value = nothing
 
 	    end
 
 	    # variable name(s) for this node
 	    nvn = collect(keys( filter( (k,v) -> v == n, g.exitnodes) ) ) 
-        # number of times n is a parent
-        np = mapreduce(n1 -> count(n2->n2==n, n1.parents), +, g.nodes)
+        # number of times n is a parent (count multiple times if "for" loop)
+        np = mapreduce(n1 -> sum(n1.parents .== n) * (n1.nodetype==:for ? 2 : 1), +, g.nodes)
 
 		# create an assignment statement if...        
         if ( length(nvn) > 0 ) |                 # is an exit node
-        	( n.nodetype ==:alloc ) |            # is an allocation
-        	((np > 1) & (n.nodetype == :call))   # has several children
+        	# ( n.nodetype ==:alloc ) |            # is an allocation
+        	((np > 1) & in(n.nodetype, [:call, :alloc]) )   # has several children
 
         	if length(nvn) > 0
 	        	lhs = nvn[1]

@@ -46,9 +46,9 @@ module ReverseDiffSource
   ExNode(typ::Symbol, name, parents) = ExNode(typ, name, parents, NaN)
 
   function show(io::IO, res::ExNode)
-    pl = join( map(x->string(x.name), res.parents) , " / ")
-    print(io, "[$(res.nodetype)] $(res.name) ($(res.value))")
-    length(pl) > 0 && print(io, ", in = $pl")
+    pl = join( map(x->repr(x.name), res.parents) , " / ")
+    print(io, "[$(res.nodetype)] $(repr(res.name)) ($(res.value))")
+    length(pl) > 0 && print(io, ", from = $pl")
   end
 
   typealias ExNodes Vector{ExNode}
