@@ -101,47 +101,6 @@ function tograph(s, externals::Dict = Dict() )
 	    end
 	end
 
-	function explore(ex::ExFor)
-		is = ex.args[1].args[1]
-		isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
-
-		# explore the for block as a separate graph 
-		g2, sv2, ext2, exitnode = tograph(ex.args[2], merge(externals, setvars))
-		# g2.exitnodes = sv2
-
-		#  find nodes dependant on indexing variable
-		gi = ExNode[]
-		for n2 in g2.nodes
-			if (in(n2.nodetype, [:ref, :subref]) && in(is, n2.name)) ||
-				( n2.nodetype == :external && n2.name == is) 
-				push!(gi, n2)
-			end
-		end
-		g2in = ExNode[]; g2out = ExNode[]
-		for n2 in g2.nodes
-			if length(intersect(ancestors(n2), gi)) > 0
-				push!(g2in, n2)
-			else
-				push!(g2out, n2)
-			end
-		end
-
-		# independant nodes can be outside of loop
-		append!(g.nodes, g2out)
-
-		# create "for" node, "in" nodes being marked as parents
-		fp = ExNode[]
-		for n2 in g2in
-			fp = union(fp, setdiff(n2.parents, g2in))
-		end
-		nf = add_node( g, :for, (ex.args[1], ExGraph(g2in, Dict())), fp )
-
-		for k in keys(sv2)
-			setvars[ k ] = sv2[k]
-		end
-
-	end
-
 	function explore(ex::ExEqual) 
 		lhs = ex.args[1]
 		
@@ -166,6 +125,60 @@ function tograph(s, externals::Dict = Dict() )
 		return nothing
 	end
 
+	function explore(ex::ExFor)
+		is = ex.args[1].args[1]
+		isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
+
+		# explore the for block as a separate graph 
+		g2, sv2, ext2, exitnode = tograph(ex.args[2], merge(externals, setvars))
+
+		# update externals if new symbol found inside loop
+		for (k,v) in ext2
+			if !in(k, keys(setvars)) && 
+				!in(k, keys(externals)) && (k != is) 
+				externals[k] = v
+			end
+		end
+
+		#  find nodes dependant on indexing variable
+		gi = ExNode[]
+		for n2 in g2.nodes
+			if (in(n2.nodetype, [:ref, :subref]) && in(is, n2.name)) ||
+				( n2.nodetype == :external && n2.name == is) 
+				push!(gi, n2)
+			end
+		end
+		g2in = ExNode[]; g2out = ExNode[]
+		for n2 in g2.nodes
+			if length(intersect(ancestors(n2), gi)) > 0
+				push!(g2in, n2)
+			else
+				push!(g2out, n2)
+			end
+		end
+
+		# independant nodes can be outside of loop
+		append!(g.nodes, g2out)
+
+		# create "for" node parent list
+		fp = mapreduce(n2->n2.parents, union, g2in)
+		fp = setdiff(fp, g2in)
+
+		# create "for" node, "in" nodes being stored in parent field
+		nf = add_node(g, :for, 
+			          (ex.args[1], ExGraph(g2in, Dict()), sv2), 
+			          fp )
+
+		# update setvars
+		for (k,v) in sv2
+			if in(v, g2out)
+				setvars[k] = sv2[k]
+			else
+				setvars[k] = nf
+			end
+		end
+	end
+
     g = ExGraph()
 	setvars = Dict()
 
@@ -178,6 +191,14 @@ end
 
 ###### builds expr from graph  ######
 function tocode(g::ExGraph)
+
+	function valueof(n::ExNode)
+		if n.nodetype == :for
+			return ?????
+		else
+			return n.value
+		end
+	end
 
 	evalsort!(g)
 	out = Expr[]
