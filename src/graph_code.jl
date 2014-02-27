@@ -93,8 +93,8 @@ function tograph(s, externals::Dict = Dict() )
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
-			# add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
-			add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  
+			add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
+			# add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  
 			# TODO : decide what to do here
 	    else
 	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
@@ -144,7 +144,8 @@ function tograph(s, externals::Dict = Dict() )
 		gi = ExNode[]
 		for n2 in g2.nodes
 			if (in(n2.nodetype, [:ref, :subref]) && in(is, n2.name)) ||
-				( n2.nodetype == :external && n2.name == is) 
+				( n2.nodetype == :external && n2.name == is) ||
+				( n2.nodetype == :alloc)
 				push!(gi, n2)
 			end
 		end
@@ -164,9 +165,9 @@ function tograph(s, externals::Dict = Dict() )
 		fp = mapreduce(n2->n2.parents, union, g2in)
 		fp = setdiff(fp, g2in)
 
-		# create "for" node, "in" nodes being stored in parent field
+		# create "for" node
 		nf = add_node(g, :for, 
-			          (ex.args[1], ExGraph(g2in, Dict()), sv2), 
+			          (ex.args[1], ExGraph(g2in, sv2)), 
 			          fp )
 
 		# update setvars
@@ -174,7 +175,7 @@ function tograph(s, externals::Dict = Dict() )
 			if in(v, g2out)
 				setvars[k] = sv2[k]
 			else
-				setvars[k] = nf
+				setvars[k] = add_node(g, :within, sv2[k], [nf]) 
 			end
 		end
 	end
@@ -194,7 +195,7 @@ function tocode(g::ExGraph)
 
 	function valueof(n::ExNode)
 		if n.nodetype == :for
-			return ?????
+			return nothing
 		else
 			return n.value
 		end
@@ -241,12 +242,15 @@ function tocode(g::ExGraph)
 	    	ne = Expr(:for, n.name[1], fb)
 	    	push!(out, ne)
 	    	# force assignement of exitnodes set in loop
-	    	for (k,v) in g.exitnodes
-	    		if in(v, n.name[2].nodes) && k != v.value
-	    			push!(out, :( $k = $(v.value) ))
-	    		end
-	    	end
+	    	# for (k,v) in g.exitnodes
+	    	# 	if in(v, n.name[2].nodes) && k != v.value
+	    	# 		push!(out, :( $k = $(v.value) ))
+	    	# 	end
+	    	# end
 	        n.value = nothing
+
+	    elseif n.nodetype == :within
+	    	n.value = n.name.value
 
 	    end
 
