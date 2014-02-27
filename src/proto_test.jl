@@ -348,6 +348,7 @@ include("ReverseDiffSource.jl")
     g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
     g.exitnodes[:a] = sv[:a]
     out = ReverseDiffSource.tocode(g) 
+    g.nodes[4].name[2].nodes
 
     g.nodes
     ReverseDiffSource.evalsort!(g)

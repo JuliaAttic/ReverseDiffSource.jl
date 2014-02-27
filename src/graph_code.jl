@@ -244,7 +244,19 @@ function tocode(g::ExGraph)
 	    nvn = collect(keys( filter( (k,v) -> v == n, g.exitnodes) ) ) 
         # number of times n is a parent (force np> 1 if used in "for" loop, ref, dot)
         # np = mapreduce(n1 -> sum(n1.parents .== n) * (in(n1.nodetype, [:for, :subref, :subdot]) ? 2 : 1), +, g.nodes)
-        np = mapreduce(n1 -> sum(n1.parents .== n) * (in(n1.nodetype, [:for]) ? 2 : 1), +, g.nodes)
+        function usecount(ntest::ExNode, nref::ExNode)
+        	all(ntest.parents .!= nref) && return 0
+
+        	if ntest.nodetype==:for
+        		return 2
+        	elseif in(ntest.nodetype, [:subref, :subdot]) && ntest.parents[1] == nref
+        		return 2
+        	else
+        		return sum(ntest.parents .== nref)
+        	end
+        end
+
+        np = mapreduce(n1 -> usecount(n1, n), +, g.nodes )
 
 		# create an assignment statement if...        
         if ( length(nvn) > 0 ) |                 # is an exit node
