@@ -167,7 +167,8 @@ function tograph(s, externals::Dict = Dict() )
 
 		# create "for" node
 		nf = add_node(g, :for, 
-			          (ex.args[1], ExGraph(g2in, sv2)), 
+			          # (ex.args[1], ExGraph(g2in, sv2)), 
+			          (ex.args[1], ExGraph(g2in, Dict())), 
 			          fp )
 
 		# update setvars
@@ -192,14 +193,6 @@ end
 
 ###### builds expr from graph  ######
 function tocode(g::ExGraph)
-
-	function valueof(n::ExNode)
-		if n.nodetype == :for
-			return nothing
-		else
-			return n.value
-		end
-	end
 
 	evalsort!(g)
 	out = Expr[]
@@ -239,14 +232,7 @@ function tocode(g::ExGraph)
 
 	    elseif n.nodetype == :for
 	    	fb = tocode(n.name[2])
-	    	ne = Expr(:for, n.name[1], fb)
-	    	push!(out, ne)
-	    	# force assignement of exitnodes set in loop
-	    	# for (k,v) in g.exitnodes
-	    	# 	if in(v, n.name[2].nodes) && k != v.value
-	    	# 		push!(out, :( $k = $(v.value) ))
-	    	# 	end
-	    	# end
+	    	push!(out, Expr(:for, n.name[1], fb))
 	        n.value = nothing
 
 	    elseif n.nodetype == :within
@@ -256,8 +242,9 @@ function tocode(g::ExGraph)
 
 	    # variable name(s) for this node
 	    nvn = collect(keys( filter( (k,v) -> v == n, g.exitnodes) ) ) 
-        # number of times n is a parent (count multiple times if "for" loop)
-        np = mapreduce(n1 -> sum(n1.parents .== n) * (n1.nodetype==:for ? 2 : 1), +, g.nodes)
+        # number of times n is a parent (force np> 1 if used in "for" loop, ref, dot)
+        # np = mapreduce(n1 -> sum(n1.parents .== n) * (in(n1.nodetype, [:for, :subref, :subdot]) ? 2 : 1), +, g.nodes)
+        np = mapreduce(n1 -> sum(n1.parents .== n) * (in(n1.nodetype, [:for]) ? 2 : 1), +, g.nodes)
 
 		# create an assignment statement if...        
         if ( length(nvn) > 0 ) |                 # is an exit node

@@ -325,7 +325,20 @@ include("ReverseDiffSource.jl")
     cd("ReverseDiffSource.jl/src")
     include("ReverseDiffSource.jl")
 
-    ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )
+
+    g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = zeros(10) ; a[i] = 5))
+    g.exitnodes[:a] = sv[:a]
+    out = ReverseDiffSource.tocode(g) 
+
+    g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = [1,1] * 2 ; a[2] = 5 ; z = sum(a)))
+    g.exitnodes[:z] = sv[:z]
+    out = ReverseDiffSource.tocode(g) 
+
+    g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = [1,1] * 2 ; a[2] = 5 ))
+    g.exitnodes[:a] = sv[:a]
+    out = ReverseDiffSource.tocode(g) 
+
+    ex = :( acc = 0. ; for i in 1:10 ; acc += b[i] ; end ; acc  )   # fails
     ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end )
     ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
     ex = :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end )
@@ -333,16 +346,16 @@ include("ReverseDiffSource.jl")
     dump(ex)
 
     g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    g.exitnodes[:a] = sv[:a]
+    out = ReverseDiffSource.tocode(g) 
+
     g.nodes
     ReverseDiffSource.evalsort!(g)
-    g.exitnodes[:a] = sv[:a]
     g.exitnodes[:z] = sv[:z]
-
     g.nodes[5].name[2].nodes
     g.nodes[5].name[2].exitnodes
     ReverseDiffSource.tocode(g.nodes[5].name[2]) 
 
-    out = ReverseDiffSource.tocode(g) 
 
     ex = quote
         a = zeros(10)
@@ -388,7 +401,7 @@ include("ReverseDiffSource.jl")
     ex = quote
         a = zeros(10)
         for i in 1:10
-            t = 0.
+            t = 0.     #  pas reproduit
             for j in 1:5
                 t += sin(j+i)
             end
@@ -399,3 +412,16 @@ include("ReverseDiffSource.jl")
     g.nodes
     g.exitnodes[:a] = sv[:a]
     out = ReverseDiffSource.tocode(g) 
+
+    ex = quote
+        t = 0.     #  pas reproduit
+        for j in 1:5
+            t += sin(j)
+        end
+        a = t*2
+    end
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    g.nodes
+    g.exitnodes[:a] = sv[:a]
+    out = ReverseDiffSource.tocode(g) 
+
