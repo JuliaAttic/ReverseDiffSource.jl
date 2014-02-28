@@ -130,12 +130,11 @@ function tograph(s, externals::Dict = Dict() )
 		isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
 
 		# explore the for block as a separate graph 
-		g2, sv2, ext2, exitnode = tograph(ex.args[2], merge(externals, setvars))
+		g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, setvars))
 
 		# update externals if new symbol found inside loop
 		for (k,v) in ext2
-			if !in(k, keys(setvars)) && 
-				!in(k, keys(externals)) && (k != is) 
+			if !haskey(setvars,k) && !haskey(externals,k) && (k != is) 
 				externals[k] = v
 			end
 		end
@@ -167,19 +166,38 @@ function tograph(s, externals::Dict = Dict() )
 
 		# create "for" node
 		nf = add_node(g, :for, 
-			          # (ex.args[1], ExGraph(g2in, sv2)), 
 			          (ex.args[1], ExGraph(g2in, Dict())), 
 			          fp )
 
+
 		# update setvars
 		for (k,v) in sv2
+			ni = sv2[k]
 			if in(v, g2out)
-				setvars[k] = sv2[k]
+				setvars[k] = ni
 			else
-				setvars[k] = add_node(g, :within, sv2[k], [nf]) 
-				(sv2[k].nodetype != :subref) && (nf.name[2].exitnodes[k] = v)
+				# var set repeatedly ?
+				if ni.nodetype != :subref || !in(is, ni.name)
+					print("$k set repeatedly,")
+
+					svaext = merge(setvars, externals)
+
+					if (ni.nodetype == :call) &&
+					   (ni.name == :+) &&
+					   (in(svaext[k], ni.parents))
+					   println("may be it's ok")
+					else
+						println("there is a problem, really !")
+					end
+
+				end
+				setvars[k] = add_node(g, :within, ni, [nf]) 
+
+				ni.nodetype != :subref && (nf.name[2].exitnodes[k] = v)
+
 			end
 		end
+
 	end
 
     g = ExGraph()
@@ -243,6 +261,7 @@ function tocode(g::ExGraph)
 
 	    # variable name(s) for this node
 	    nvn = collect(keys( filter( (k,v) -> v == n, g.exitnodes) ) ) 
+
         # number of times n is a parent (force np> 1 if used in "for" loop, ref, dot)
         # np = mapreduce(n1 -> sum(n1.parents .== n) * (in(n1.nodetype, [:for, :subref, :subdot]) ? 2 : 1), +, g.nodes)
         function usecount(ntest::ExNode, nref::ExNode)

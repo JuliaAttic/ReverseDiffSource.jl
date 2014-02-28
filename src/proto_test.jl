@@ -338,7 +338,15 @@ include("ReverseDiffSource.jl")
     g.exitnodes[:a] = sv[:a]
     out = ReverseDiffSource.tocode(g) 
 
-    ex = :( a = 0. ; for i in 1:10 ; a += b[i] ; end )   # fails
+    ex = :( a = 0. ; for i in 1:10 ; a += b[i] ; end )   # ok
+    ex = :( a = 0. ; for i in 1:10 ; a = a+b[i] ; end )   # ok
+    ex = :( for i in 1:10 ; a = a+b[i] ; end )   # ok
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+    ex = :( for i in 1:10 ; a = a*b[i] ; end )   # doesn't pass, ok
+    ex = :( a = 0 ; for i in 1:10 ; a = a*b[i] ; end )   # doesn't pass, ok
+    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
+
+
     ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end )
     ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
     ex = :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end )
@@ -351,9 +359,14 @@ include("ReverseDiffSource.jl")
     out = ReverseDiffSource.tocode(g) 
 
     g.nodes
-    ReverseDiffSource.evalsort!(g)
+    collect(keys(sv))
+    sv[:a].name
+
+    
     g.exitnodes[:z] = sv[:z]
-    g.nodes[5].name[2].nodes
+    g.nodes[3].name[2].nodes
+    g.nodes[3].name[2].exitnodes
+    g.nodes[3].parents
     g.nodes[5].name[2].exitnodes
     ReverseDiffSource.tocode(g.nodes[5].name[2]) 
 
