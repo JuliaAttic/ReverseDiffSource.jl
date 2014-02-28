@@ -16,7 +16,7 @@ function deriv1( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) 
 	println("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
-	ex1, ex2, outsym = AutoDiff.reversediff( :( res = sum($ex)), :res, x=x0	)
+	ex1, ex2, outsym = ReverseDiffSource.reversediff( :( res = sum($ex)), :res, x=x0	)
 	fsym = gensym()
 	@eval let 
 		global $fsym
@@ -50,7 +50,7 @@ end
 # ##  tests derivation on all parameters, for all combinations of arguments dimensions
 macro test_combin(func::Expr, constraints...)
 	constraints = collect(constraints)
-	parnames = collect(AutoDiff.getSymbols(func))
+	parnames = collect(ReverseDiffSource.getSymbols(func))
 
 	#  args to derive against
 	dargs = filter(ex->isa(ex,Symbol), constraints)
@@ -79,7 +79,7 @@ macro test_combin(func::Expr, constraints...)
 		end
 
 		# reject combination if one of rules fails
-		if all( [ eval( AutoDiff.substSymbols(r, Dict(parnames, par))) for r in rules] )
+		if all( [ eval( ReverseDiffSource.substSymbols(r, Dict(parnames, par))) for r in rules] )
 			# println("## combin = $(combin[ic,:])")
 			# apply transformations on args
 			for t in trans
@@ -94,7 +94,7 @@ macro test_combin(func::Expr, constraints...)
 			for p in dargs 
 				tpar = copy(par)
 				tpar[p .== parnames] = :x  # replace tested args with parameter symbol :x for deriv1 testing func
-				fex = AutoDiff.substSymbols(func, Dict( parnames, tpar))
+				fex = ReverseDiffSource.substSymbols(func, Dict( parnames, tpar))
 				# println("##+## $fex  $(Dict( parnames, tpar))")
 				x0 = eval(par[p .== parnames][1])  # set x0 for deriv 1
 				# println("##-## $fex  ##-##   $x0")

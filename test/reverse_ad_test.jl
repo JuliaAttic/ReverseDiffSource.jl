@@ -2,7 +2,7 @@
 #    testing script for gradients calculated by reversediff()
 #########################################################################
 
-using AutoDiff
+include("../src/ReverseDiffSource.jl")
 
 include("helper_functions.jl")
 
