@@ -13,6 +13,10 @@ function splitnary!(g::ExGraph)
 
 	        nn = add_node(g, :call, n.name, n.parents[2:end] )
 	        n.parents = [n.parents[1], nn]  
+	    
+	    elseif n.nodetype == :for
+	    	splitnary!(n.name[2])
+
 	    end
 	end
 end
@@ -47,7 +51,7 @@ function dedup!(g::ExGraph)
 	    for j in (i+1):(length(g.nodes))
 	        pg2 = g.nodes[j]
 		    sig2 = (pg2.name, pg2.nodetype, pg2.parents)
-	        if (sig == sig2) &
+	        if (sig == sig2) & 
 	        	(pg2.nodetype != :alloc)  # do not fuse allocations !
 
 	            fusenodes(g, pg, pg2)
@@ -60,6 +64,9 @@ function dedup!(g::ExGraph)
 
 	    i = restart ? 1 : (i + 1)
 	end
+
+	# separate pass on subgraphs
+	map( n -> dedup!(n.name[2]), filter(n->n.nodetype==:for, g.nodes))
 end
 
 ####### evaluate operators on constants  ###########
@@ -75,6 +82,10 @@ function evalconstants!(g::ExGraph, emod = Main)
 			n.nodetype = :constant
 			n.parents = ExNode[]
 			n.name = res
+	    
+	    elseif n.nodetype == :for
+	    	evalconstants!(n.name[2], emod)
+
 		end
 	end
 end
@@ -141,12 +152,20 @@ function simplify!(g::ExGraph)
 
 	    i = restart ? 1 : (i + 1)
 	end
+
+	# separate pass on subgraphs
+	map( n -> simplify!(n.name[2]), filter(n->n.nodetype==:for, g.nodes))
+
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
 function prune!(g::ExGraph)
 	g2 = ancestors(collect(values(g.exitnodes)))
 	filter!(n -> in(n, g2), g.nodes)
+
+	# separate pass on subgraphs
+	map( n -> prune!(n.name[2]), filter(n->n.nodetype==:for, g.nodes))
+
 end
 
 ####### sort graph to an evaluable order ###########
@@ -165,6 +184,7 @@ function evalsort!(g::ExGraph)
 	end
 
 	g.nodes = g2
+
 end
 
 ####### calculate the value of each node  ###########
@@ -195,37 +215,18 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 
 	    elseif in(n.nodetype, [:subref, :subdot])
 	    	n.value = n.parents[1].value  
+	    
+	    elseif n.nodetype == :for
+	    	calc!(n.name[2])
+
+	    elseif n.nodetype == :within
+	    	n.value = nothing 
 
 	    end
 	end
 end
 
 ###### inserts graph src into dest  ######
-# function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
-
-#     evalsort!(src)
-#     # exitnode2
-#     nmap = Dict()
-#     for n in src.nodes  #  n = src[1]  
-#         if n.nodetype != :external 
-#             nn = add_node(dest, n.nodetype, n.name, 
-#             				[ nmap[n2] for n2 in n.parents ])
-#             nmap[n] = nn
-#         else
-#             if haskey(smap, n)
-#                 nmap[n] = smap[ n ]
-#             else
-# 	            nn = add_node(dest, n.nodetype, n.name, [])
-# 	            nmap[n] = nn
-
-#                 warn("unmapped symbol in source graph $(n.name)")
-#             end
-#         end
-#     end
-
-#     nmap
-# end
-
 function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
     evalsort!(src)
     nmap = Dict()

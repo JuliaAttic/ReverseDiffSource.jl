@@ -177,6 +177,7 @@ function tograph(s, externals::Dict = Dict() )
 				setvars[k] = sv2[k]
 			else
 				setvars[k] = add_node(g, :within, sv2[k], [nf]) 
+				(sv2[k].nodetype != :subref) && (nf.name[2].exitnodes[k] = v)
 			end
 		end
 	end
@@ -272,7 +273,8 @@ function tocode(g::ExGraph)
         		lhs = newvar()
         	end
 
-	        push!(out, :( $lhs = $(n.value) ))
+        	# create assgnmt if code not redundant
+	        lhs != n.value && push!(out, :( $lhs = $(n.value) ))
 	        n.value = lhs
 	    end
 
