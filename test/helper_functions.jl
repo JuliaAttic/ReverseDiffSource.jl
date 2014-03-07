@@ -19,6 +19,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 
 	# ex1, ex2, outsym = ReverseDiffSource.reversediff( :(res = sum($ex)), :res, x=x0	)
 	ex2 = ReverseDiffSource.reversediff( :(res=sum($ex)), :res, x=x0 )
+
 	fsym = gensym()
 	@eval let 
 		global $fsym
