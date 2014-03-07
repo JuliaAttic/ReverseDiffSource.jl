@@ -19,7 +19,7 @@ module ReverseDiffSource
   isDot(ex)      = isa(ex, Expr) && ex.head == :.   && isa(ex.args[1], Symbol)
   isRef(ex)      = isa(ex, Expr) && ex.head == :ref && isa(ex.args[1], Symbol)
 
-  ## var name generator
+  ## temp var name generator
   let
     vcount = Dict()
     global newvar

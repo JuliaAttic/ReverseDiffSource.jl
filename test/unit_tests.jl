@@ -7,38 +7,38 @@
 using Base.Test
 
 include("../src/ReverseDiffSource.jl")
-testedmod = ReverseDiffSource
+tmod = ReverseDiffSource
 
 
-@test testedmod.isSymbol(:a)            == true
-@test testedmod.isSymbol(:(a[1]))       == false
-@test testedmod.isSymbol(:(a.b))        == false
-@test testedmod.isSymbol(:(exp(a)))     == false
+@test tmod.isSymbol(:a)            == true
+@test tmod.isSymbol(:(a[1]))       == false
+@test tmod.isSymbol(:(a.b))        == false
+@test tmod.isSymbol(:(exp(a)))     == false
 
-@test testedmod.isRef(:a)            == false
-@test testedmod.isRef(:(a[1]))       == true
-@test testedmod.isRef(:(a[x]))       == true
-@test testedmod.isRef(:(a.b))        == false
-@test testedmod.isRef(:(a.b[end]))   == false
-@test testedmod.isRef(:(a[end].b))   == false
-@test testedmod.isRef(:(exp(a)))     == false
+@test tmod.isRef(:a)            == false
+@test tmod.isRef(:(a[1]))       == true
+@test tmod.isRef(:(a[x]))       == true
+@test tmod.isRef(:(a.b))        == false
+@test tmod.isRef(:(a.b[end]))   == false
+@test tmod.isRef(:(a[end].b))   == false
+@test tmod.isRef(:(exp(a)))     == false
 
-@test testedmod.isDot(:a)           == false
-@test testedmod.isDot(:(a[1]))      == false
-@test testedmod.isDot(:(a[x]))      == false
-@test testedmod.isDot(:(a.b))       == true
-@test testedmod.isDot(:(a.b[end]))  == false
-@test testedmod.isDot(:(a[end].b))  == false
-@test testedmod.isDot(:(exp(a)))    == false
+@test tmod.isDot(:a)           == false
+@test tmod.isDot(:(a[1]))      == false
+@test tmod.isDot(:(a[x]))      == false
+@test tmod.isDot(:(a.b))       == true
+@test tmod.isDot(:(a.b[end]))  == false
+@test tmod.isDot(:(a[end].b))  == false
+@test tmod.isDot(:(exp(a)))    == false
 
-@test testedmod.dprefix("coucou")            == :dcoucou
-@test testedmod.dprefix(:tr)                 == :dtr
+@test tmod.dprefix("coucou")            == :dcoucou
+@test tmod.dprefix(:tr)                 == :dtr
 
 
 ## expression to graph testing
 
 function transform(ex, outsym=nothing)
-    g, sv, ext, exitnode = testedmod.tograph(ex)
+    g, sv, ext, exitnode = tmod.tograph(ex)
     if exitnode==nothing
         if outsym==nothing
             exitnode = last(collect(values(sv))) # pick at random
@@ -48,14 +48,14 @@ function transform(ex, outsym=nothing)
     end
     g.exitnodes = { :out => exitnode }
 
-    testedmod.splitnary!(g)
-    testedmod.dedup!(g)
-    testedmod.evalconstants!(g)
-    testedmod.simplify!(g)
-    testedmod.prune!(g)
+    tmod.splitnary!(g)
+    tmod.dedup!(g)
+    tmod.evalconstants!(g)
+    tmod.simplify!(g)
+    tmod.prune!(g)
 
-    testedmod.resetvar()
-    testedmod.tocode(g)
+    tmod.resetvar()
+    tmod.tocode(g)
 end
 
 @test transform(:( a = b+6 ))       == Expr(:block, :(out = b+6) )  # syntax problem here with :(---- ;)

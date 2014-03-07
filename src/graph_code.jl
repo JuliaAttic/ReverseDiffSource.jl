@@ -185,7 +185,7 @@ function tograph(s, externals::Dict = Dict() )
 					if (ni.nodetype == :call) &&
 					   (ni.name == :+) &&
 					   (in(svaext[k], ni.parents))
-					   println("may be it's ok")
+					   	println("but may be it's ok")
 					else
 						println("there is a problem, really !")
 					end

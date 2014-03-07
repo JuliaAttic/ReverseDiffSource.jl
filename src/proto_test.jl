@@ -1,9 +1,9 @@
 pwd()
 cd("..")
+cd("ReverseDiffSource.jl")
 cd("src")
 cd("ReverseDiffSource.jl/src")
 cd("/home/fred/devl")
-cd("ReverseDiffSource.jl")
 
 include("ReverseDiffSource.jl")
 
@@ -324,7 +324,7 @@ include("ReverseDiffSource.jl")
 ################## for loops  #######################
     cd("ReverseDiffSource.jl/src")
     include("ReverseDiffSource.jl")
-
+    tm = ReverseDiffSource
 
     g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = zeros(10) ; a[i] = 5))
     g.exitnodes[:a] = sv[:a]
@@ -356,6 +356,15 @@ include("ReverseDiffSource.jl")
 
     g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
     g.exitnodes[:a] = sv[:a]
+    g.nodes
+    tm.splitnary!(g)
+
+    tm.dedup!(g)
+    tm.evalconstants!(g)
+    tm.simplify!(g)
+    tm.prune!(g)    # plante
+
+
     out = ReverseDiffSource.tocode(g) 
 
     g.nodes
