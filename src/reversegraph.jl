@@ -54,7 +54,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 			for (index, arg) in zip(1:length(n.parents), n.parents)
 	            if !in(arg.nodetype, [:constant, :comp])
 
-	            	fn = dfuncname(n.name, index)
+	            	fn = dfuncname(n.main, index)
 	            	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
 	            	smap = Dict( dd, [n.parents, vdict[n]])
@@ -68,21 +68,21 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	        end
 	    
 	    elseif n.nodetype == :ref
-	        v2 = add_node(g2, :ref, n.name, [vdict[n.parents[1]]])
+	        v2 = add_node(g2, :ref, n.main, [vdict[n.parents[1]]])
 	        v3 = add_node(g2, :call, :+, [v2, vdict[n]])
-			v4 = add_node(g2, :subref, n.name, [vdict[n.parents[1]], v3])
+			v4 = add_node(g2, :subref, n.main, [vdict[n.parents[1]], v3])
 			vdict[n.parents[1]] = v4
 
 	    elseif n.nodetype == :dot
-	        v2 = add_node(g2, :., n.name, [vdict[n.parents[1]]])
+	        v2 = add_node(g2, :., n.main, [vdict[n.parents[1]]])
 	        v3 = add_node(g2, :call, :+, [v2, vdict[n]])
-			v4 = add_node(g2, :subdot, n.name, [vdict[n.parents[1]], v3])
+			v4 = add_node(g2, :subdot, n.main, [vdict[n.parents[1]], v3])
 			vdict[n.parents[1]] = v4
 
 	    end
 	end
 
-    diffn = [ filter(n -> (n.nodetype==:external) & (n.name==ds), g.nodes)[1] for ds in diffsym]
+    diffn = [ filter(n -> (n.nodetype==:external) & (n.main==ds), g.nodes)[1] for ds in diffsym]
     dnodes = map(n -> vdict[n], diffn)
     (g2.nodes, dnodes)
 end

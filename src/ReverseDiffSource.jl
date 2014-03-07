@@ -35,19 +35,33 @@ module ReverseDiffSource
   end
 
   #####  ExNode type  ######
-  type ExNode
-    nodetype::Symbol
-    name
+  type ExNode{T}
+    main
     parents::Vector
-    value
+    val
   end
 
-  ExNode(typ::Symbol, name) = ExNode(typ, name, ExNode[], NaN)
-  ExNode(typ::Symbol, name, parents) = ExNode(typ, name, parents, NaN)
+  ExNode(typ::Symbol, main)          = ExNode{typ}(main, ExNode[], NaN)
+  ExNode(typ::Symbol, main, parents) = ExNode{typ}(main, parents,  NaN)
+
+  typealias NConst     ExNode{:constant}
+  typealias NExt       ExNode{:external}
+  typealias NCall      ExNode{:call}
+  typealias NComp      ExNode{:comp}
+  typealias NRef       ExNode{:ref}
+  typealias NDot       ExNode{:dot}
+  typealias NSRef      ExNode{:subref}
+  typealias NSDot      ExNode{:subdot}
+  typealias NExt       ExNode{:external}
+  typealias NAlloc     ExNode{:alloc}
+  typealias NFor       ExNode{:for}
+  typealias NIn        ExNode{:within}
+
 
   function show(io::IO, res::ExNode)
-    pl = join( map(x->repr(x.name), res.parents) , " / ")
-    print(io, "[$(res.nodetype)] $(repr(res.name)) ($(res.value))")
+    pl = join( map(x->repr(x.main), res.parents) , " / ")
+    # print(io, "[$(res.nodetype)] $(repr(res.name)) ($(res.value))")
+    print(io, "[$(typeof(res))] $(repr(res.main)) ($(res.value))")
     length(pl) > 0 && print(io, ", from = $pl")
   end
 
@@ -70,6 +84,56 @@ module ReverseDiffSource
 
   ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
   ancestors(n::Vector) = union( map(ancestors, n)... )
+
+
+  ##########  Parameterized type to ease AST exploration  ############
+  type ExH{H}
+    head::Symbol
+    args::Vector
+    typ::Any
+  end
+  toExH(ex::Expr) = ExH{ex.head}(ex.head, ex.args, ex.typ)
+  toExpr(ex::ExH) = Expr(ex.head, ex.args...)
+
+  typealias ExEqual    ExH{:(=)}
+  typealias ExDColon   ExH{:(::)}
+  typealias ExPEqual   ExH{:(+=)}
+  typealias ExMEqual   ExH{:(-=)}
+  typealias ExTEqual   ExH{:(*=)}
+  typealias ExTrans    ExH{symbol("'")} 
+  typealias ExCall     ExH{:call}
+  typealias ExBlock  ExH{:block}
+  typealias ExLine     ExH{:line}
+  typealias ExVcat     ExH{:vcat}
+  typealias ExFor      ExH{:for}
+  typealias ExRef      ExH{:ref}
+  typealias ExIf       ExH{:if}
+  typealias ExComp     ExH{:comparison}
+  typealias ExDot      ExH{:.}
+
+  # variable symbol sampling functions
+  getSymbols(ex::Any)    = Set{Symbol}()
+  getSymbols(ex::Symbol) = Set{Symbol}(ex)
+  getSymbols(ex::Array)  = mapreduce(getSymbols, union, ex)
+  getSymbols(ex::Expr)   = getSymbols(toExH(ex))
+  getSymbols(ex::ExH)    = mapreduce(getSymbols, union, ex.args)
+  getSymbols(ex::ExCall) = mapreduce(getSymbols, union, ex.args[2:end])  # skip function name
+  getSymbols(ex::ExRef)  = setdiff(mapreduce(getSymbols, union, ex.args), Set(:(:), symbol("end")) )# ':'' and 'end' do not count
+  getSymbols(ex::ExDot)  = Set{Symbol}(ex.args[1])  # return variable, not fields
+  getSymbols(ex::ExComp) = setdiff(mapreduce(getSymbols, union, ex.args), 
+    Set(:(>), :(<), :(>=), :(<=), :(.>), :(.<), :(.<=), :(.>=), :(==)) )
+
+  ## variable symbol substitution functions
+  substSymbols(ex::Any, smap::Dict)     = ex
+  substSymbols(ex::Expr, smap::Dict)    = substSymbols(toExH(ex), smap::Dict)
+  substSymbols(ex::Vector, smap::Dict)  = map(e -> substSymbols(e, smap), ex)
+  substSymbols(ex::ExH, smap::Dict)     = Expr(ex.head, map(e -> substSymbols(e, smap), ex.args)...)
+  substSymbols(ex::ExCall, smap::Dict)  = Expr(:call, ex.args[1], map(e -> substSymbols(e, smap), ex.args[2:end])...)
+  substSymbols(ex::ExDot, smap::Dict)   = (ex = toExpr(ex) ; ex.args[1] = substSymbols(ex.args[1], smap) ; ex)
+  substSymbols(ex::Symbol, smap::Dict)  = get(smap, ex, ex)
+
+
+
 
   ######  Includes  ######
   include("graph_funcs.jl")

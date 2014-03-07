@@ -8,14 +8,14 @@
 function splitnary!(g::ExGraph)
 	for n in g.nodes
 	    if (n.nodetype == :call) &
-	        in(n.name, [:+, :*, :sum, :min, :max]) & 
+	        in(n.main, [:+, :*, :sum, :min, :max]) & 
 	        (length(n.parents) > 2 )
 
-	        nn = add_node(g, :call, n.name, n.parents[2:end] )
+	        nn = add_node(g, :call, n.main, n.parents[2:end] )
 	        n.parents = [n.parents[1], nn]  
 	    
 	    elseif n.nodetype == :for
-	    	splitnary!(n.name[2])
+	    	splitnary!(n.main[2])
 
 	    end
 	end
@@ -45,12 +45,12 @@ function dedup!(g::ExGraph)
 	i = 1 
 	while i < length(g.nodes) 
 	    pg = g.nodes[i]
-	    sig = (pg.name, pg.nodetype, pg.parents)
+	    sig = (pg.main, pg.nodetype, pg.parents)
 
 	    restart = false
 	    for j in (i+1):(length(g.nodes))
 	        pg2 = g.nodes[j]
-		    sig2 = (pg2.name, pg2.nodetype, pg2.parents)
+		    sig2 = (pg2.main, pg2.nodetype, pg2.parents)
 	        if (sig == sig2) & 
 	        	(pg2.nodetype != :alloc)  # do not fuse allocations !
 
@@ -66,7 +66,7 @@ function dedup!(g::ExGraph)
 	end
 
 	# separate pass on subgraphs
-	map( n -> dedup!(n.name[2]), filter(n->n.nodetype==:for, g.nodes))
+	map( n -> dedup!(n.main[2]), filter(n->n.nodetype==:for, g.nodes))
 end
 
 ####### evaluate operators on constants  ###########
@@ -74,17 +74,17 @@ function evalconstants!(g::ExGraph, emod = Main)
 	for n in g.nodes
 		if (n.nodetype == :call) & 
 			all( map(n->n.nodetype, n.parents) .== :constant) &
-			!in(n.name, [:zeros, :ones, :vcat])
-			res = invoke(emod.eval(n.name), 
-	            tuple([ typeof(x.name) for x in n.parents]...),
-	            [ x.name for x in n.parents]...)
+			!in(n.main, [:zeros, :ones, :vcat])
+			res = invoke(emod.eval(n.main), 
+	            tuple([ typeof(x.main) for x in n.parents]...),
+	            [ x.main for x in n.parents]...)
 
 			n.nodetype = :constant
 			n.parents = ExNode[]
-			n.name = res
+			n.main = res
 	    
 	    elseif n.nodetype == :for
-	    	evalconstants!(n.name[2], emod)
+	    	evalconstants!(n.main[2], emod)
 
 		end
 	end
@@ -100,7 +100,7 @@ function simplify!(g::ExGraph)
 		if (n.nodetype == :call) & (length(n.parents) == 2) # restricted to binary ops
 
 			if n.parents[1].nodetype == :constant
-				sig = (n.name, n.parents[1].name)
+				sig = (n.main, n.parents[1].main)
 				if in(sig, [(:+, 0), (:*, 1), (:+, 0.), (:*, 1.),
 					        (:.*, 1), (:.*, 1.)]) 
 					restart = true
@@ -110,12 +110,12 @@ function simplify!(g::ExGraph)
 					            (:.*, 0), (:.*, 0.), (:./, 0), (:./, 0.)]) 
 					restart = true
 					n.nodetype = :constant
-					n.name = 0.0
+					n.main = 0.0
 					n.parents = ExNode[]
 				end
 
 			elseif n.parents[2].nodetype == :constant
-				sig = (n.name, n.parents[2].name)	
+				sig = (n.main, n.parents[2].main)	
 
 				if in(sig, [(:+, 0), (:-, 0), (:*, 1), (:/, 1), (:^, 1),
 					        (:+, 0.), (:-, 0.), (:*, 1.), (:/, 1.), (:^, 1.),
@@ -127,14 +127,14 @@ function simplify!(g::ExGraph)
 				elseif in(sig, [(:*, 0), (:*, 0.), (:.*, 0), (:.*, 0.)])
 					restart = true
 					n.nodetype = :constant
-					n.name = 0.0
+					n.main = 0.0
 					n.parents = ExNode[]
 				end
 			end
 
 		elseif (n.nodetype == :subref) &&
 			   (n.parents[2].nodetype == :ref) &&
-			   (n.name == n.parents[2].name) &&
+			   (n.main == n.parents[2].main) &&
 			   (n.parents[1] == n.parents[2].parents[1])
 
 			restart = true
@@ -142,7 +142,7 @@ function simplify!(g::ExGraph)
 
 		elseif (n.nodetype == :subdot) &&
 			   (n.parents[2].nodetype == :dot) &&
-			   (n.name == n.parents[2].name) &&
+			   (n.main == n.parents[2].main) &&
 			   (n.parents[1] == n.parents[2].parents[1])
 
 			restart = true
@@ -154,7 +154,7 @@ function simplify!(g::ExGraph)
 	end
 
 	# separate pass on subgraphs
-	map( n -> simplify!(n.name[2]), filter(n->n.nodetype==:for, g.nodes))
+	map( n -> simplify!(n.main[2]), filter(n->n.nodetype==:for, g.nodes))
 
 end
 
@@ -164,7 +164,7 @@ function prune!(g::ExGraph)
 	filter!(n -> in(n, g2), g.nodes)
 
 	# separate pass on subgraphs
-	map( n -> prune!(n.name[2]), filter(n->n.nodetype==:for, g.nodes))
+	map( n -> prune!(n.main[2]), filter(n->n.nodetype==:for, g.nodes))
 
 end
 
@@ -193,23 +193,23 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 	evalsort!(g)
 	for n in g.nodes
 	    if n.nodetype==:external
-	    	if isa(params, Dict) && haskey(params, n.name)
-	        	n.value = params[n.name]
+	    	if isa(params, Dict) && haskey(params, n.main)
+	        	n.value = params[n.main]
 	        else
-	        	n.value = emod.eval(n.name) # TODO : catch error if undefined
+	        	n.value = emod.eval(n.main) # TODO : catch error if undefined
 	        end
 
 	    elseif n.nodetype == :constant
-	        n.value = emod.eval(n.name)
+	        n.value = emod.eval(n.main)
 
 	    elseif n.nodetype == :ref
-	        n.value = emod.eval( Expr(:ref, n.parents[1].value, n.name...) )
+	        n.value = emod.eval( Expr(:ref, n.parents[1].value, n.main...) )
 
 	    elseif n.nodetype == :dot
-	        n.value = emod.eval( Expr(:., n.parents[1].value, n.name) )
+	        n.value = emod.eval( Expr(:., n.parents[1].value, n.main) )
 
 	    elseif in(n.nodetype, [:call, :alloc])
-	        n.value = invoke(emod.eval(n.name), 
+	        n.value = invoke(emod.eval(n.main), 
 	            tuple([ typeof(x.value) for x in n.parents]...),
 	            [ x.value for x in n.parents]...)
 
@@ -217,7 +217,7 @@ function calc!(g::ExGraph; params=nothing, emod = Main)
 	    	n.value = n.parents[1].value  
 	    
 	    elseif n.nodetype == :for
-	    	calc!(n.name[2])
+	    	calc!(n.main[2])
 
 	    elseif n.nodetype == :within
 	    	n.value = nothing 
@@ -232,17 +232,17 @@ function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
     nmap = Dict()
     for n in src.nodes  #  n = src[1]  
         if n.nodetype != :external 
-            nn = add_node(dest, n.nodetype, n.name, 
+            nn = add_node(dest, n.nodetype, n.main, 
             				[ nmap[n2] for n2 in n.parents ])
             nmap[n] = nn
         else
-            if haskey(smap, n.name)
-                nmap[n] = smap[n.name]
+            if haskey(smap, n.main)
+                nmap[n] = smap[n.main]
             else
-	            nn = add_node(dest, n.nodetype, n.name, [])
+	            nn = add_node(dest, n.nodetype, n.main, [])
 	            nmap[n] = nn
 
-                warn("unmapped symbol in source graph $(n.name)")
+                warn("unmapped symbol in source graph $(n.main)")
             end
         end
     end

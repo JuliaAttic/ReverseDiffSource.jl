@@ -3,55 +3,6 @@
 #   Expression to graph, graph to expression functions
 #
 #########################################################################
-
-
-##########  Parameterized type to ease AST exploration  ############
-type ExH{H}
-	head::Symbol
-	args::Vector
-	typ::Any
-end
-toExH(ex::Expr) = ExH{ex.head}(ex.head, ex.args, ex.typ)
-toExpr(ex::ExH) = Expr(ex.head, ex.args...)
-
-typealias ExEqual    ExH{:(=)}
-typealias ExDColon   ExH{:(::)}
-typealias ExPEqual   ExH{:(+=)}
-typealias ExMEqual   ExH{:(-=)}
-typealias ExTEqual   ExH{:(*=)}
-typealias ExTrans    ExH{symbol("'")} 
-typealias ExCall     ExH{:call}
-typealias ExBlock	 ExH{:block}
-typealias ExLine     ExH{:line}
-typealias ExVcat     ExH{:vcat}
-typealias ExFor      ExH{:for}
-typealias ExRef      ExH{:ref}
-typealias ExIf       ExH{:if}
-typealias ExComp     ExH{:comparison}
-typealias ExDot      ExH{:.}
-
-# variable symbol sampling functions
-getSymbols(ex::Any)    = Set{Symbol}()
-getSymbols(ex::Symbol) = Set{Symbol}(ex)
-getSymbols(ex::Array)  = mapreduce(getSymbols, union, ex)
-getSymbols(ex::Expr)   = getSymbols(toExH(ex))
-getSymbols(ex::ExH)    = mapreduce(getSymbols, union, ex.args)
-getSymbols(ex::ExCall) = mapreduce(getSymbols, union, ex.args[2:end])  # skip function name
-getSymbols(ex::ExRef)  = setdiff(mapreduce(getSymbols, union, ex.args), Set(:(:), symbol("end")) )# ':'' and 'end' do not count
-getSymbols(ex::ExDot)  = Set{Symbol}(ex.args[1])  # return variable, not fields
-getSymbols(ex::ExComp) = setdiff(mapreduce(getSymbols, union, ex.args), 
-	Set(:(>), :(<), :(>=), :(<=), :(.>), :(.<), :(.<=), :(.>=), :(==)) )
-
-## variable symbol substitution functions
-substSymbols(ex::Any, smap::Dict)     = ex
-substSymbols(ex::Expr, smap::Dict)    = substSymbols(toExH(ex), smap::Dict)
-substSymbols(ex::Vector, smap::Dict)  = map(e -> substSymbols(e, smap), ex)
-substSymbols(ex::ExH, smap::Dict)     = Expr(ex.head, map(e -> substSymbols(e, smap), ex.args)...)
-substSymbols(ex::ExCall, smap::Dict)  = Expr(:call, ex.args[1], map(e -> substSymbols(e, smap), ex.args[2:end])...)
-substSymbols(ex::ExDot, smap::Dict)   = (ex = toExpr(ex) ; ex.args[1] = substSymbols(ex.args[1], smap) ; ex)
-substSymbols(ex::Symbol, smap::Dict)  = get(smap, ex, ex)
-
-
 	
 ######## maps expr to a ExNode graph ###################
 function tograph(s, externals::Dict = Dict() )
@@ -142,9 +93,9 @@ function tograph(s, externals::Dict = Dict() )
 		#  find nodes dependant on indexing variable
 		gi = ExNode[]
 		for n2 in g2.nodes
-			if (in(n2.nodetype, [:ref, :subref]) && in(is, n2.name)) ||
-				( n2.nodetype == :external && n2.name == is) ||
-				( n2.nodetype == :alloc)
+			if (isa(n2, Union(NRef, NSRef)) && in(is, n2.main)) ||
+				( isa(n2, NExt) && n2.main == is) ||
+				( isa(n2, NAlloc) )
 				push!(gi, n2)
 			end
 		end
@@ -177,13 +128,13 @@ function tograph(s, externals::Dict = Dict() )
 				setvars[k] = ni
 			else
 				# var set repeatedly ?
-				if ni.nodetype != :subref || !in(is, ni.name)
+				if !isa(ni, NSRef) || !in(is, ni.main)
 					print("$k set repeatedly,")
 
 					svaext = merge(setvars, externals)
 
-					if (ni.nodetype == :call) &&
-					   (ni.name == :+) &&
+					if (isa(ni, NCall) &&
+					   (ni.main == :+) &&
 					   (in(svaext[k], ni.parents))
 					   	println("but may be it's ok")
 					else
@@ -193,7 +144,7 @@ function tograph(s, externals::Dict = Dict() )
 				end
 				setvars[k] = add_node(g, :within, ni, [nf]) 
 
-				ni.nodetype != :subref && (nf.name[2].exitnodes[k] = v)
+				!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
 
 			end
 		end
@@ -213,49 +164,47 @@ end
 ###### builds expr from graph  ######
 function tocode(g::ExGraph)
 
+	function process!(n::NConst)
+        if isa(n.main, Real)
+        	n.value = n.main
+        elseif isa(n.main, Expr)
+        	n.value = n.main
+        end
+	end 
+
+	process!(n::NExt)  = n.value = n.main 
+	process!(n::NCall) = n.value = Expr(:call, n.main, { x.value for x in n.parents}...)
+	process!(n::NComp) = n.value = Expr(:comparison, { n.parents[1].value, n.main, n.parents[2].value }...)
+
 	evalsort!(g)
 	out = Expr[]
 	for n in g.nodes # n = g.nodes[4]
-	    if n.nodetype == :constant
-	        if isa(n.name, Real)
-	        	n.value = n.name
-	        elseif isa(n.name, Expr)
-	        	n.value = n.name
-	        end
 
-	    elseif n.nodetype == :external
-	        n.value = n.name 
-
-	    elseif n.nodetype == :call
-	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
-
-	    elseif n.nodetype == :comp
-	        n.value = Expr(:comparison, { n.parents[1].value, n.name, n.parents[2].value }...)
 
 	    elseif n.nodetype == :ref
-	        n.value = Expr(:ref, n.parents[1].value, n.name...)
+	        n.value = Expr(:ref, n.parents[1].value, n.main...)
 
 	    elseif n.nodetype == :dot
-	        n.value = Expr(:(.), n.parents[1].value, n.name)
+	        n.value = Expr(:(.), n.parents[1].value, n.main)
 
 	    elseif n.nodetype == :subref
-	    	push!(out, :( $(Expr(:ref, n.parents[1].value, n.name...)) = $(n.parents[2].value) ) ) # an assign is necessary
+	    	push!(out, :( $(Expr(:ref, n.parents[1].value, n.main...)) = $(n.parents[2].value) ) ) # an assign is necessary
 	        n.value = n.parents[1].value
 
 	    elseif n.nodetype == :subdot
-	    	push!(out, :( $(Expr(:., n.parents[1].value, n.name)) = $(n.parents[2].value) ) ) # an assign is necessary
+	    	push!(out, :( $(Expr(:., n.parents[1].value, n.main)) = $(n.parents[2].value) ) ) # an assign is necessary
 	        n.value = n.parents[1].value
 
 	    elseif n.nodetype == :alloc
-	        n.value = Expr(:call, n.name, { x.value for x in n.parents}...)
+	        n.value = Expr(:call, n.main, { x.value for x in n.parents}...)
 
 	    elseif n.nodetype == :for
-	    	fb = tocode(n.name[2])
-	    	push!(out, Expr(:for, n.name[1], fb))
+	    	fb = tocode(n.main[2])
+	    	push!(out, Expr(:for, n.main[1], fb))
 	        n.value = nothing
 
 	    elseif n.nodetype == :within
-	    	n.value = n.name.value
+	    	n.value = n.main.value
 
 	    end
 
@@ -267,9 +216,9 @@ function tocode(g::ExGraph)
         function usecount(ntest::ExNode, nref::ExNode)
         	all(ntest.parents .!= nref) && return 0
 
-        	if ntest.nodetype==:for
+        	if isa(ntest, NFor)
         		return 2
-        	elseif in(ntest.nodetype, [:subref, :subdot]) && ntest.parents[1] == nref
+        	elseif isa(ntest, Union(NSRef, NSDot)) && ntest.parents[1] == nref
         		return 2
         	else
         		return sum(ntest.parents .== nref)
@@ -281,7 +230,7 @@ function tocode(g::ExGraph)
 		# create an assignment statement if...        
         if ( length(nvn) > 0 ) |                 # is an exit node
         	# ( n.nodetype ==:alloc ) |            # is an allocation
-        	((np > 1) & in(n.nodetype, [:call, :alloc]) )   # has several children
+        	((np > 1) & isa(n, Union(NCall, NAlloc)) )   # has several children
 
         	if length(nvn) > 0
 	        	lhs = nvn[1]
