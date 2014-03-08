@@ -133,9 +133,9 @@ function tograph(s, externals::Dict = Dict() )
 
 					svaext = merge(setvars, externals)
 
-					if (isa(ni, NCall) &&
+					if isa(ni, NCall) &&
 					   (ni.main == :+) &&
-					   (in(svaext[k], ni.parents))
+					   in(svaext[k], ni.parents)
 					   	println("but may be it's ok")
 					else
 						println("there is a problem, really !")
@@ -164,55 +164,50 @@ end
 ###### builds expr from graph  ######
 function tocode(g::ExGraph)
 
-	function process!(n::NConst)
-        if isa(n.main, Real)
-        	n.value = n.main
-        elseif isa(n.main, Expr)
-        	n.value = n.main
-        end
-	end 
+	translate(n::NConst) = n.main
+	translate(n::NExt)   = n.main 
+	translate(n::NCall)  = Expr(:call, n.main, 
+		                       { x.val for x in n.parents}...)
+	translate(n::NComp)  = Expr(:comparison, 
+		                       { n.parents[1].val, n.main, n.parents[2].val }...)
 
-	process!(n::NExt)  = n.value = n.main 
-	process!(n::NCall) = n.value = Expr(:call, n.main, { x.value for x in n.parents}...)
-	process!(n::NComp) = n.value = Expr(:comparison, { n.parents[1].value, n.main, n.parents[2].value }...)
+	translate(n::NRef)   = Expr(:ref, n.parents[1].val, n.main...)
+	translate(n::NDot)   = Expr(:(.), n.parents[1].val, n.main)
+	translate(n::NIn)    = n.main.val
+	translate(n::NAlloc) = Expr(:call, n.main, 
+		                        { x.val for x in n.parents}...)
+
+	function translate(n::NSRef)
+		np = n.parents
+    	# an assign is necessary
+    	push!(out, :( $(Expr(:ref, np[1].val, n.main...)) = $(np[2].val) ) ) 
+        n.parents[1].val
+	end
+
+	function translate(n::NSDot)
+		np = n.parents
+    	# an assign is necessary
+    	push!(out, :( $(Expr(:., np[1].val, n.main)) = $(np[2].val) ) )
+        n.parents[1].val
+	end
+
+	function translate(n::NFor)
+    	fb = tocode(n.main[2])
+    	push!(out, Expr(:for, n.main[1], fb))
+        nothing
+	end
+
 
 	evalsort!(g)
 	out = Expr[]
 	for n in g.nodes # n = g.nodes[4]
-
-
-	    elseif n.nodetype == :ref
-	        n.value = Expr(:ref, n.parents[1].value, n.main...)
-
-	    elseif n.nodetype == :dot
-	        n.value = Expr(:(.), n.parents[1].value, n.main)
-
-	    elseif n.nodetype == :subref
-	    	push!(out, :( $(Expr(:ref, n.parents[1].value, n.main...)) = $(n.parents[2].value) ) ) # an assign is necessary
-	        n.value = n.parents[1].value
-
-	    elseif n.nodetype == :subdot
-	    	push!(out, :( $(Expr(:., n.parents[1].value, n.main)) = $(n.parents[2].value) ) ) # an assign is necessary
-	        n.value = n.parents[1].value
-
-	    elseif n.nodetype == :alloc
-	        n.value = Expr(:call, n.main, { x.value for x in n.parents}...)
-
-	    elseif n.nodetype == :for
-	    	fb = tocode(n.main[2])
-	    	push!(out, Expr(:for, n.main[1], fb))
-	        n.value = nothing
-
-	    elseif n.nodetype == :within
-	    	n.value = n.main.value
-
-	    end
+		n.val = translate(n)
 
 	    # variable name(s) for this node
 	    nvn = collect(keys( filter( (k,v) -> v == n, g.exitnodes) ) ) 
 
-        # number of times n is a parent (force np> 1 if used in "for" loop, ref, dot)
-        # np = mapreduce(n1 -> sum(n1.parents .== n) * (in(n1.nodetype, [:for, :subref, :subdot]) ? 2 : 1), +, g.nodes)
+        # number of times n is a parent (force np> 1 if 
+        #   used in "for" loop, ref, dot)
         function usecount(ntest::ExNode, nref::ExNode)
         	all(ntest.parents .!= nref) && return 0
 
@@ -228,9 +223,9 @@ function tocode(g::ExGraph)
         np = mapreduce(n1 -> usecount(n1, n), +, g.nodes )
 
 		# create an assignment statement if...        
-        if ( length(nvn) > 0 ) |                 # is an exit node
-        	# ( n.nodetype ==:alloc ) |            # is an allocation
-        	((np > 1) & isa(n, Union(NCall, NAlloc)) )   # has several children
+        if ( length(nvn) > 0 ) |                       # is an exit node
+        	# isa(n, NAlloc) |                         # is an allocation
+        	((np > 1) & isa(n, Union(NCall, NAlloc)) ) # has several children
 
         	if length(nvn) > 0
 	        	lhs = nvn[1]
@@ -242,8 +237,8 @@ function tocode(g::ExGraph)
         	end
 
         	# create assgnmt if code not redundant
-	        lhs != n.value && push!(out, :( $lhs = $(n.value) ))
-	        n.value = lhs
+	        lhs != n.val && push!(out, :( $lhs = $(n.val) ))
+	        n.val = lhs
 	    end
 
 	end 

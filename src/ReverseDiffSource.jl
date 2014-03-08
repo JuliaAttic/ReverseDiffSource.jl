@@ -61,7 +61,7 @@ module ReverseDiffSource
   function show(io::IO, res::ExNode)
     pl = join( map(x->repr(x.main), res.parents) , " / ")
     # print(io, "[$(res.nodetype)] $(repr(res.name)) ($(res.value))")
-    print(io, "[$(typeof(res))] $(repr(res.main)) ($(res.value))")
+    print(io, "[$(typeof(res))] $(repr(res.main)) ($(res.val))")
     length(pl) > 0 && print(io, ", from = $pl")
   end
 
@@ -102,7 +102,7 @@ module ReverseDiffSource
   typealias ExTEqual   ExH{:(*=)}
   typealias ExTrans    ExH{symbol("'")} 
   typealias ExCall     ExH{:call}
-  typealias ExBlock  ExH{:block}
+  typealias ExBlock    ExH{:block}
   typealias ExLine     ExH{:line}
   typealias ExVcat     ExH{:vcat}
   typealias ExFor      ExH{:for}
