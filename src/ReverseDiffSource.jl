@@ -6,7 +6,7 @@
 
 module ReverseDiffSource
 
-  import Base.show
+  import Base.show, Base.isequal, Base.copy
 
   # naming conventions
   const TEMP_NAME = "_tmp"   # prefix of new variables
@@ -33,57 +33,6 @@ module ReverseDiffSource
       vcount = Dict()
     end
   end
-
-  #####  ExNode type  ######
-  type ExNode{T}
-    main
-    parents::Vector
-    val
-  end
-
-  ExNode(typ::Symbol, main)          = ExNode{typ}(main, ExNode[], NaN)
-  ExNode(typ::Symbol, main, parents) = ExNode{typ}(main, parents,  NaN)
-
-  typealias NConst     ExNode{:constant}
-  typealias NExt       ExNode{:external}
-  typealias NCall      ExNode{:call}
-  typealias NComp      ExNode{:comp}
-  typealias NRef       ExNode{:ref}
-  typealias NDot       ExNode{:dot}
-  typealias NSRef      ExNode{:subref}
-  typealias NSDot      ExNode{:subdot}
-  typealias NExt       ExNode{:external}
-  typealias NAlloc     ExNode{:alloc}
-  typealias NFor       ExNode{:for}
-  typealias NIn        ExNode{:within}
-
-
-  function show(io::IO, res::ExNode)
-    pl = join( map(x->repr(x.main), res.parents) , " / ")
-    # print(io, "[$(res.nodetype)] $(repr(res.name)) ($(res.value))")
-    print(io, "[$(typeof(res))] $(repr(res.main)) ($(res.val))")
-    length(pl) > 0 && print(io, ", from = $pl")
-  end
-
-  typealias ExNodes Vector{ExNode}
-
-  #####  ExGraph type  ######
-  type ExGraph
-    nodes::ExNodes
-    exitnodes::Dict
-  end
-
-  ExGraph() = ExGraph(ExNode[], Dict{Symbol, ExNode}())
-
-  ######  Graph functions  ######
-  function add_node(g::ExGraph, nargs...)
-    v = ExNode(nargs...)
-    push!(g.nodes, v)
-    v
-  end
-
-  ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
-  ancestors(n::Vector) = union( map(ancestors, n)... )
 
 
   ##########  Parameterized type to ease AST exploration  ############
@@ -136,7 +85,9 @@ module ReverseDiffSource
 
 
   ######  Includes  ######
+  include("graph_defs.jl")
   include("graph_funcs.jl")
+  include("simplify.jl")
   include("graph_code.jl")
   include("reversegraph.jl")
   include("deriv_rules.jl")

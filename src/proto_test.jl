@@ -8,8 +8,6 @@ cd("/home/fred/devl")
 include("ReverseDiffSource.jl")
 
 ########### testing big func  ##########
-    x = 1.5
-    a = -4.
     ex = quote
         y = x * a * 1
         y2 = (x * a) + 0
@@ -447,4 +445,44 @@ include("ReverseDiffSource.jl")
     g.nodes
     g.exitnodes[:a] = sv[:a]
     out = ReverseDiffSource.tocode(g) 
+
+
+######################" misc "  ########################
+    include("ReverseDiffSource.jl")
+    tm = ReverseDiffSource
+
+
+a = tm.ExNode(:test, 12)
+b = tm.ExNode(:tes, 12)
+c = tm.ExNode(:tes, 12)
+a==b
+isequal(a,b)
+b==c
+isequal(b,c)
+
+d = copy(b)
+
+isequal(b.main, c.main)
+isequal(b.parents, c.parents)
+
+dump(b)
+dump(c)
+
+type Test2
+    a
+    b
+end
+
+a = Test2(2,3)
+b = Test2(2,4)
+c = Test2(2,3)
+
+a==b
+isequal(a,b)
+b==c
+isequal(b,c)
+a==c
+isequal(a,c)
+
+
 

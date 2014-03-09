@@ -204,7 +204,7 @@ function tocode(g::ExGraph)
 		n.val = translate(n)
 
 	    # variable name(s) for this node
-	    nvn = collect(keys( filter( (k,v) -> v == n, g.exitnodes) ) ) 
+	    nvn = collect(keys( filter( (k,v) -> is(v, n), g.exitnodes) ) ) 
 
         # number of times n is a parent (force np> 1 if 
         #   used in "for" loop, ref, dot)
@@ -213,10 +213,10 @@ function tocode(g::ExGraph)
 
         	if isa(ntest, NFor)
         		return 2
-        	elseif isa(ntest, Union(NSRef, NSDot)) && ntest.parents[1] == nref
+        	elseif isa(ntest, Union(NSRef, NSDot)) && is(ntest.parents[1], nref)
         		return 2
         	else
-        		return sum(ntest.parents .== nref)
+        		return sum(ntest.parents .=== nref)
         	end
         end
 
