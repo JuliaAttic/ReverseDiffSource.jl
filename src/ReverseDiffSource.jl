@@ -86,9 +86,10 @@ module ReverseDiffSource
 
   ######  Includes  ######
   include("graph_defs.jl")
-  include("graph_funcs.jl")
   include("simplify.jl")
-  include("graph_code.jl")
+  include("graph_funcs.jl")
+  include("tograph.jl")
+  include("tocode.jl")
   include("reversegraph.jl")
   include("deriv_rules.jl")
   include("reversediff.jl")

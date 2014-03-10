@@ -7,11 +7,11 @@
 ######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ###### 
 function splitnary!(g::ExGraph)
 	for n in g.nodes
-	    if isa(n, NCall) &
-	        in(n.main, [:+, :*, :sum, :min, :max]) & 
+	    if isa(n, NCall) &&
+	        in(n.main, [:+, :*, :sum, :min, :max]) && 
 	        (length(n.parents) > 2 )
 
-	        nn = add_node(g, :call, n.main, n.parents[2:end] )
+	        nn = add_node(g, NCall( n.main, n.parents[2:end] ) )
 	        n.parents = [n.parents[1], nn]  
 	    
 	    elseif isa(n, NFor)
@@ -27,8 +27,10 @@ end
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 
 	# replace references to nr by nk in parents of other nodes
-    for n in filter(n -> !in(n,[nr,nk]), g.nodes)  
-        n.parents[ n.parents .=== nr] = nk
+    for n in filter(n -> !is(n,nr) & !is(n,nk), g.nodes)
+    	for i in 1:length(n.parents)
+    		is(n.parents[i], nr) && (n.parents[i] = nk)
+    	end
     end
 
 	# replace references to nr in exitnodes dictionnary
@@ -57,7 +59,7 @@ function evalconstants!(g::ExGraph, emod = Main)
 	            [ x.main for x in n.parents]...)
 
 			# create a new constant node and replace n with it
-			nn = add_node(g, :constant, res)
+			nn = add_node(g, NConst(res) )
 			fusenodes(g, nn, n) 
 
             restart = true  

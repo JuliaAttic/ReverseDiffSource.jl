@@ -53,11 +53,6 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
 
     #### make the graph
     g, vd, exts, exitnode = tograph( diff )
-    # vmap = Union(ExNode, Nothing)[]
-    # for v in argsn
-    #     pos = find( n -> (n.nodetype==:external) & (n.name == v) , g.nodes)
-    #     push!(vmap, length(pos) == 0 ? nothing : g.nodes[pos[1]])
-    # end
 
     #### store graph, build proxy function
     rn = gensym("rule")

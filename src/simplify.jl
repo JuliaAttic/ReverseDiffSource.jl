@@ -3,7 +3,7 @@
 #    Graph simplification
 #      Walks the tree to 
 #           - fuse duplicates
-#           - apply  simplification rules  
+#           - apply simplification rules  
 #            #TODO : organize simplification rules
 #
 #########################################################################
@@ -42,7 +42,7 @@ function simplify!(g::ExGraph)
 					elseif in(sig, [(:*, 0), (:*, 0.), (:/, 0), (:/, 0.),
 						            (:.*, 0), (:.*, 0.), (:./, 0), (:./, 0.)]) 
 						restart = true
-						nn = add_node(g, :constant, 0.0)
+						nn = add_node(g, NConst(0.0) )
 						fusenodes(g, nn, n) 
 
 					end
@@ -59,7 +59,7 @@ function simplify!(g::ExGraph)
 
 					elseif in(sig, [(:*, 0), (:*, 0.), (:.*, 0), (:.*, 0.)])
 						restart = true
-						nn = add_node(g, :constant, 0.0)
+						nn = add_node(g, NConst(0.0) )
 						fusenodes(g, nn, n) 
 
 					end

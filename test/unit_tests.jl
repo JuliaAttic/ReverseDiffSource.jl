@@ -49,7 +49,6 @@ function transform(ex, outsym=nothing)
     g.exitnodes = { :out => exitnode }
 
     tmod.splitnary!(g)
-    tmod.dedup!(g)
     tmod.evalconstants!(g)
     tmod.simplify!(g)
     tmod.prune!(g)
@@ -87,6 +86,10 @@ end
 
 @test transform(:( a = b.f[i]))        == Expr(:block, :(out = b.f[i]) )
 @test transform(:( a = b[j].f[i]))     == Expr(:block, :(out = b[j].f[i]) )
+
+
+
+
 
 
 

@@ -1,10 +1,9 @@
 #########################################################################
 #
-#   Expression to graph, graph to expression functions
+#   Expression to graph conversion
 #
 #########################################################################
 	
-######## maps expr to a ExNode graph ###################
 function tograph(s, externals::Dict = Dict() )
 
 	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
@@ -21,15 +20,14 @@ function tograph(s, externals::Dict = Dict() )
 	explore(ex::ExMEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :-, args[1], args[2])) ) )
 	explore(ex::ExTEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :*, args[1], args[2])) ) )
 
-	explore(ex::Real)      = add_node(g, :constant, ex)
+	explore(ex::Real)      = add_node(g, NConst(ex))
 
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
 
-	explore(ex::ExRef)     = add_node(g, :ref, ex.args[2:end], [ explore(ex.args[1]) ])
-	explore(ex::ExDot)     = add_node(g, :dot, ex.args[2], [ explore(ex.args[1]) ])
+	explore(ex::ExRef)     = add_node(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
+	explore(ex::ExDot)     = add_node(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
 
-	explore(ex::ExComp)    = add_node(g, :comp, ex.args[2], 
-										[ explore(ex.args[1]), explore(ex.args[3])])
+	explore(ex::ExComp)    = add_node(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	function explore(ex::Symbol)
 		if haskey(setvars, ex) # var already set in expression
@@ -37,18 +35,18 @@ function tograph(s, externals::Dict = Dict() )
 		elseif haskey(externals, ex) # external ref already turned into a node
 			return externals[ex]
 		else # symbol neither set var nor known external
-			externals[ex] = add_node(g, :external, ex)  # create external node for this var
+			externals[ex] = add_node(g, NExt(ex))  # create external node for this var
 			return externals[ex]
 		end
 	end
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
-			add_node(g, :alloc, ex.args[1], map(explore, ex.args[2:end]) )
+			add_node(g, NAlloc(ex.args[1], map(explore, ex.args[2:end]) ))
 			# add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  
 			# TODO : decide what to do here
 	    else
-	    	add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )
+	    	add_node(g, NCall( ex.args[1], map(explore, ex.args[2:end]) ))
 	    end
 	end
 
@@ -59,15 +57,15 @@ function tograph(s, externals::Dict = Dict() )
 			setvars[lhs] = explore(ex.args[2])
 
 		elseif isRef(lhs)
-			v2 = add_node(g, :subref, lhs.args[2:end], 
-							[ explore(lhs.args[1]),  # var whose subpart is assigned
-							  explore(ex.args[2])] ) # assigned value
+			v2 = add_node(g, NSRef(lhs.args[2:end], 
+							       [ explore(lhs.args[1]),   # var whose subpart is assigned
+							         explore(ex.args[2])] )) # assigned value
 			setvars[lhs.args[1]] = v2
 
 		elseif isDot(lhs)
-			v2 = add_node(g, :subdot, lhs.args[2], 
-							[ explore(lhs.args[1]),  # var whose subpart is assigned
-							  explore(ex.args[2])] ) # assigned value
+			v2 = add_node(g, NSDot(lhs.args[2], 
+								   [ explore(lhs.args[1]),   # var whose subpart is assigned
+							         explore(ex.args[2])] )) # assigned value
 			setvars[lhs.args[1]] = v2
 
 		else
@@ -116,9 +114,8 @@ function tograph(s, externals::Dict = Dict() )
 		fp = setdiff(fp, g2in)
 
 		# create "for" node
-		nf = add_node(g, :for, 
-			          (ex.args[1], ExGraph(g2in, Dict())), 
-			          fp )
+		nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2in, Dict()) ), 
+			          		   fp ) )
 
 
 		# update setvars
@@ -142,7 +139,7 @@ function tograph(s, externals::Dict = Dict() )
 					end
 
 				end
-				setvars[k] = add_node(g, :within, ni, [nf]) 
+				setvars[k] = add_node(g, NIn(ni, [nf]) )
 
 				!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
 
@@ -160,88 +157,3 @@ function tograph(s, externals::Dict = Dict() )
 
 	(g, setvars, externals, exitnode)
 end
-
-###### builds expr from graph  ######
-function tocode(g::ExGraph)
-
-	translate(n::NConst) = n.main
-	translate(n::NExt)   = n.main 
-	translate(n::NCall)  = Expr(:call, n.main, 
-		                       { x.val for x in n.parents}...)
-	translate(n::NComp)  = Expr(:comparison, 
-		                       { n.parents[1].val, n.main, n.parents[2].val }...)
-
-	translate(n::NRef)   = Expr(:ref, n.parents[1].val, n.main...)
-	translate(n::NDot)   = Expr(:(.), n.parents[1].val, n.main)
-	translate(n::NIn)    = n.main.val
-	translate(n::NAlloc) = Expr(:call, n.main, 
-		                        { x.val for x in n.parents}...)
-
-	function translate(n::NSRef)
-		np = n.parents
-    	# an assign is necessary
-    	push!(out, :( $(Expr(:ref, np[1].val, n.main...)) = $(np[2].val) ) ) 
-        n.parents[1].val
-	end
-
-	function translate(n::NSDot)
-		np = n.parents
-    	# an assign is necessary
-    	push!(out, :( $(Expr(:., np[1].val, n.main)) = $(np[2].val) ) )
-        n.parents[1].val
-	end
-
-	function translate(n::NFor)
-    	fb = tocode(n.main[2])
-    	push!(out, Expr(:for, n.main[1], fb))
-        nothing
-	end
-
-
-	evalsort!(g)
-	out = Expr[]
-	for n in g.nodes # n = g.nodes[4]
-		n.val = translate(n)
-
-	    # variable name(s) for this node
-	    nvn = collect(keys( filter( (k,v) -> is(v, n), g.exitnodes) ) ) 
-
-        # number of times n is a parent (force np> 1 if 
-        #   used in "for" loop, ref, dot)
-        function usecount(ntest::ExNode, nref::ExNode)
-        	all(ntest.parents .!= nref) && return 0
-
-        	if isa(ntest, NFor)
-        		return 2
-        	elseif isa(ntest, Union(NSRef, NSDot)) && is(ntest.parents[1], nref)
-        		return 2
-        	else
-        		return sum(ntest.parents .=== nref)
-        	end
-        end
-
-        np = mapreduce(n1 -> usecount(n1, n), +, g.nodes )
-
-		# create an assignment statement if...        
-        if ( length(nvn) > 0 ) |                       # is an exit node
-        	# isa(n, NAlloc) |                         # is an allocation
-        	((np > 1) & isa(n, Union(NCall, NAlloc)) ) # has several children
-
-        	if length(nvn) > 0
-	        	lhs = nvn[1]
-	        	for nv in nvn[2:end]
-	        		lhs = :( $nv = $lhs )
-	        	end
-        	else
-        		lhs = newvar()
-        	end
-
-        	# create assgnmt if code not redundant
-	        lhs != n.val && push!(out, :( $lhs = $(n.val) ))
-	        n.val = lhs
-	    end
-
-	end 
-
-	return Expr(:block, out...)
-end 

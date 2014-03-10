@@ -6,6 +6,7 @@ cd("ReverseDiffSource.jl/src")
 cd("/home/fred/devl")
 
 include("ReverseDiffSource.jl")
+tm = ReverseDiffSource
 
 ########### testing big func  ##########
     ex = quote
@@ -15,6 +16,26 @@ include("ReverseDiffSource.jl")
         y3 = x * a
         y + y2 + y3 + 12
     end
+
+    g, sv, ext, exitnode = tm.tograph(ex)
+    g.exitnodes[:out] = exitnode
+    out = tm.tocode(g) 
+
+    tm.splitnary!(g)
+    tm.tocode(g) 
+
+    g.nodes
+    tm.dedup!(g)
+    tm.tocode(g) 
+
+    tm.simplify!(g)
+    g.nodes
+    tm.tocode(g) 
+
+    tm.evalconstants!(g)
+    g.nodes
+    tm.tocode(g) 
+
 
     out = ReverseDiffSource.reversediff(ex, x=1.5, a=-4 )
 
@@ -27,8 +48,6 @@ include("ReverseDiffSource.jl")
     myf(1.5001)
 
 ########### testing big func 2 ##########
-    x = 1.5
-    y = -4.
     ex = quote
         a = x * y + exp(-sin(4x))
         b = 1 + log(-a)
@@ -451,6 +470,8 @@ include("ReverseDiffSource.jl")
     include("ReverseDiffSource.jl")
     tm = ReverseDiffSource
 
+tm.@deriv_rule +(x::Real         , y::Real )            x     ds
+tm.deriv_rule(:(+(x::Real         , y::Real )),:x, :(ds))
 
 a = tm.ExNode(:test, 12)
 b = tm.ExNode(:tes, 12)
@@ -459,6 +480,10 @@ a==b
 isequal(a,b)
 b==c
 isequal(b,c)
+is(b,c)
+is(b,b)
+b===c
+in(b,[a,c])
 
 d = copy(b)
 
@@ -485,4 +510,16 @@ a==c
 isequal(a,c)
 
 
+tm.NCall(:sin,[],NaN)
+
+tm.NConst(0,[],NaN)
+tm.NConst(0,[])
+tm.NConst(0)
+tm.NConst(0, tm.ExNode[ tm.NCall(:+), tm.NConst(4)])
+tm.ExNode(0)
+
+
+z = push!({:b}, :a)
+
+z
 
