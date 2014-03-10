@@ -25,9 +25,10 @@ function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
     g.exitnodes = { outsym => exitnode }
 
     splitnary!(g)
-    dedup!(g)
+    evalconstants!(g)
     simplify!(g)
     prune!(g)
+
     evalsort!(g)
     # println(Dict(paramsym, paramvalues))
     calc!(g, params=Dict(paramsym, paramvalues))
@@ -39,11 +40,9 @@ function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
     end
 
     splitnary!(g)
-    dedup!(g)
     evalconstants!(g)
     simplify!(g)
     prune!(g)
-    evalsort!(g)
 
     resetvar()
     tocode(g)

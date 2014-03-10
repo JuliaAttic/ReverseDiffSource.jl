@@ -88,9 +88,17 @@ end
 @test transform(:( a = b[j].f[i]))     == Expr(:block, :(out = b[j].f[i]) )
 
 
+#  test evalconstants, simplify
+ex = quote
+    y = x * a * 1
+    y2 = (x * a) + 0 + 3
+    x += 1
+    y3 = x * a
+    y + y2 + y3 + 12
+end
 
+res = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
 
-
-
+@test transform(ex) == res
 
 

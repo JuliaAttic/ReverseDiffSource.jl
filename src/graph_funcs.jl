@@ -39,7 +39,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     end
 
     # remove node nr in g
-    filter!(n -> n != nr, g.nodes)
+    filter!(n -> !is(n,nr), g.nodes)
 end
 
 ####### evaluate operators on constants  ###########

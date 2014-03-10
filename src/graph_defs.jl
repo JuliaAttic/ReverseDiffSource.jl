@@ -8,18 +8,12 @@
 
 type ExNode{T}
   main
-  parents::Vector
+  parents::Vector{Any}
   val
 
   ExNode(main)         = new(main, {}, NaN)
   ExNode(main,parents) = new(main, parents, NaN)
 end
-
-# ExNode(::T, main)                = ExNode{T}(main, ExNode[], NaN)
-# ExNode(::T, main, parents)       = ExNode{T}(main, parents, NaN)
-
-# ExNode(typ::Symbol, main)          = ExNode{typ}(main, ExNode[], NaN)
-# ExNode(typ::Symbol, main, parents) = ExNode{typ}(main, parents,  NaN)
 
 isequal{T}(x::ExNode{T}, y::ExNode{T}) = 
   isequal(x.main, y.main) && isequal(x.parents,y.parents)

@@ -11,31 +11,11 @@ tm = ReverseDiffSource
 ########### testing big func  ##########
     ex = quote
         y = x * a * 1
-        y2 = (x * a) + 0
+        y2 = (x * a) + 0 + 3
         x += 1
         y3 = x * a
         y + y2 + y3 + 12
     end
-
-    g, sv, ext, exitnode = tm.tograph(ex)
-    g.exitnodes[:out] = exitnode
-    out = tm.tocode(g) 
-
-    tm.splitnary!(g)
-    tm.tocode(g) 
-
-    g.nodes
-    tm.dedup!(g)
-    tm.tocode(g) 
-
-    tm.simplify!(g)
-    g.nodes
-    tm.tocode(g) 
-
-    tm.evalconstants!(g)
-    g.nodes
-    tm.tocode(g) 
-
 
     out = ReverseDiffSource.reversediff(ex, x=1.5, a=-4 )
 
@@ -54,7 +34,7 @@ tm = ReverseDiffSource
         b ^ a 
     end
 
-    out = reversediff(ex, [:x, :y])
+    out = tm.reversediff(ex, [:x, :y])
 
     @eval function myf(x, y)
             $out
@@ -470,56 +450,4 @@ tm = ReverseDiffSource
     include("ReverseDiffSource.jl")
     tm = ReverseDiffSource
 
-tm.@deriv_rule +(x::Real         , y::Real )            x     ds
-tm.deriv_rule(:(+(x::Real         , y::Real )),:x, :(ds))
-
-a = tm.ExNode(:test, 12)
-b = tm.ExNode(:tes, 12)
-c = tm.ExNode(:tes, 12)
-a==b
-isequal(a,b)
-b==c
-isequal(b,c)
-is(b,c)
-is(b,b)
-b===c
-in(b,[a,c])
-
-d = copy(b)
-
-isequal(b.main, c.main)
-isequal(b.parents, c.parents)
-
-dump(b)
-dump(c)
-
-type Test2
-    a
-    b
-end
-
-a = Test2(2,3)
-b = Test2(2,4)
-c = Test2(2,3)
-
-a==b
-isequal(a,b)
-b==c
-isequal(b,c)
-a==c
-isequal(a,c)
-
-
-tm.NCall(:sin,[],NaN)
-
-tm.NConst(0,[],NaN)
-tm.NConst(0,[])
-tm.NConst(0)
-tm.NConst(0, tm.ExNode[ tm.NCall(:+), tm.NConst(4)])
-tm.ExNode(0)
-
-
-z = push!({:b}, :a)
-
-z
 
