@@ -18,8 +18,6 @@ function preCalculate(m::ParsingStruct, evalmod=Main)
 
 	# build and evaluate the let block containing the function and external vars hooks
 	# Note that evaluation takes place in the parent module (where extra functions are defined)
-	println(header, body)
-	println("====== emod = $evalmod =========")
 	try
 		vhint = eval(evalmod, Expr(:let, Expr(:block, vcat(header, :(vhint=Dict() ), body, :vhint)...) ))
 	catch e

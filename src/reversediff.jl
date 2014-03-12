@@ -165,8 +165,6 @@ function reversediff(model::Expr, out::Symbol, skipgradient=false, evalmod=Main;
 				else
 					push!(body, :($dsym = 0.) )
 				end			
-			# elseif 	isa(vh, LLAcc)
-			# 	push!(body, :($(symbol("$dsym.1")) = 0.) )
 			elseif 	isa(vh, Array{Float64})
 				#  FIXME : inactivated to avoid having gradient vars rewritten on each call
 				# push!(header, :( local $dsym = Array(Float64, $(Expr(:tuple,size(vh)...)))) )
@@ -180,9 +178,10 @@ function reversediff(model::Expr, out::Symbol, skipgradient=false, evalmod=Main;
 				push!(header, :( local $(symbol("$dsym.2")) = Array(Float64, $(Expr(:tuple,size(vh)...)) ) ) )
 				push!(body, :( fill!($(symbol("$dsym.1")), 0.) ) )
 				push!(body, :( fill!($(symbol("$dsym.2")), 0.) ) )
-			else
-				warn("[diff] unknown type $(typeof(vh)), assuming associated gradient is Float64")
-				push!(body, :($dsym = 0.) )
+			else  # probably a composite type, FIXME : better prior declaration of types
+				# warn("[diff] unknown type $(typeof(vh)), assuming associated gradient is Float64")
+				# push!(body, :($dsym = 0.) )
+                push!(body, :($(symbol("$dsym.1")) = 0.) )
 			end
 		end
 
