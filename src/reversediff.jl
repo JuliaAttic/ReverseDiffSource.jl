@@ -7,9 +7,6 @@
 #
 ############################################################################
 
-# where the derived functions are to be evaluated : the parent module of Autodiff
-const parent_mod = Base.module_parent(current_module())
-
 # naming conventions
 const TEMP_NAME = "tmp"     # prefix of new variables
 const DERIV_PREFIX = "d"   # prefix of gradient variables
