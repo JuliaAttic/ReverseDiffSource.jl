@@ -121,7 +121,7 @@ include("pass2.jl")
 #  Main function definition
 ############################################################################
 
-function reversediff(model::Expr, out::Symbol, skipgradient=false; init...)
+function reversediff(model::Expr, out::Symbol, skipgradient=false, evalmod=Main; init...)
 
    	length(init)>=1 || error("There should be at least one parameter specified, none found")
 
@@ -152,7 +152,7 @@ function reversediff(model::Expr, out::Symbol, skipgradient=false; init...)
 	body = copy(m.exprs)
 
 	if !skipgradient
-		preCalculate(m)
+		preCalculate(m, evalmod)
 		backwardSweep!(m)
 		avars = activeVars(m) # active vars
 

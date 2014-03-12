@@ -1,7 +1,9 @@
 ######### evaluates once all variables to give type hints for derivation ############
 #  most gradient calculation statements depend on the type of variables (Scalar or Array)
 #  this is where they are evaluated (with values stored in global Dict 'vhint' )
-function preCalculate(m::ParsingStruct)
+#  External vars should be resolvable in Main
+#  Evaluation module is specified by the optionnal evalmod parameter
+function preCalculate(m::ParsingStruct, evalmod=Main)
     global vhint = Dict()
 
     body = Expr[ [ :( $(p[1]) = $(p[2]) ) for p in zip(m.insyms, m.init)]..., 
@@ -16,8 +18,10 @@ function preCalculate(m::ParsingStruct)
 
 	# build and evaluate the let block containing the function and external vars hooks
 	# Note that evaluation takes place in the parent module (where extra functions are defined)
+	println(header, body)
+	println("====== emod = $evalmod =========")
 	try
-		vhint = eval(parent_mod, Expr(:let, Expr(:block, vcat(header, :(vhint=Dict() ), body, :vhint)...) ))
+		vhint = eval(evalmod, Expr(:let, Expr(:block, vcat(header, :(vhint=Dict() ), body, :vhint)...) ))
 	catch e
 		rethrow(e)
 		# error("Model fails to evaluate for initial values given")
