@@ -5,7 +5,7 @@
 ##########################################################################################
 # TODO : add operators : hcat, vcat, ? : , map, mapreduce, if else 
 
-#########   function to declare a new type in Autodiff (for extensibility)  ######
+#########   function to declare a new type to the module      ######
 declareType(a::Type, na::Symbol) = eval(:( $na = $a ))
 
 #########   macro and function to simplify derivation rules creation  ###########
