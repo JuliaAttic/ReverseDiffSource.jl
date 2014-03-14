@@ -1,9 +1,9 @@
 
 include("../src/ReverseDiffSource.jl")
-
+using ReverseDiffSource
 
 ex = :( res = x + y )
-ex1, ex2, outsym = AutoDiff.reversediff(tex, :res, x=1.0, y=2.0)
+ex1, ex2, outsym = reversediff(ex, :res, x=1.0, y=2.0)
 ex2
 # quote 
 #     res = +(x,y)
@@ -15,7 +15,7 @@ ex2
 # end
 
 ex = :( res = x[1]^2 + (x[2]-2x[3])^4 )
-ex1, ex2, outsym = AutoDiff.reversediff(ex, :res, x=zeros(3))   # x is vector
+ex1, ex2, outsym = reversediff(ex, :res, x=zeros(3))   # x is vector
 ex2
 # quote 
 #     tmp_1 = x[1]
@@ -53,7 +53,7 @@ ex2
 foo(x) = sin(x) * exp(-x*x)
 
 # tell reversediff() how to handle foo when deriving against x
-AutoDiff.@deriv_rule  foo(x) x  dx += ( cos(x)*exp(-x*x) - 2x * sin(x) * exp(-x*x) ) * ds
+@deriv_rule  foo(x) x  dx += ( cos(x)*exp(-x*x) - 2x * sin(x) * exp(-x*x) ) * ds
 
 ex = quote
 	y = foo(x)
@@ -61,7 +61,7 @@ ex = quote
 	res = log(z)
 end
 
-ex1, ex2, outsym = AutoDiff.reversediff(ex, :res, x=1.0)
+ex1, ex2, outsym = reversediff(ex, :res, x=1.0)
 ex2
 # quote 
 #     y = foo(x)
