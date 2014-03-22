@@ -134,7 +134,7 @@ function varGraph(vex::Vector{Expr})
 	vgi = Dict{Symbol, Set}()
 	for (k,v) in vg
 		for s in v
-			haskey(vgi,s) ? push!(vgi[s], k) : (vgi[s] = Set(k))
+			haskey(vgi,s) ? push!(vgi[s], k) : (vgi[s] = Set([k]))
 		end
 	end
 

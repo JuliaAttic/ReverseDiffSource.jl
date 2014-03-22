@@ -37,15 +37,15 @@ typealias ExDot      ExH{:.}
 
 ## variable symbol sampling functions
 getSymbols(ex::Any)    = Set{Symbol}()
-getSymbols(ex::Symbol) = Set{Symbol}(ex)
+getSymbols(ex::Symbol) = Set{Symbol}([ex])
 getSymbols(ex::Array)  = mapreduce(getSymbols, union, ex)
 getSymbols(ex::Expr)   = getSymbols(toExH(ex))
 getSymbols(ex::ExH)    = mapreduce(getSymbols, union, ex.args)
 getSymbols(ex::ExCall) = mapreduce(getSymbols, union, ex.args[2:end])  # skip function name
-getSymbols(ex::ExRef)  = setdiff(mapreduce(getSymbols, union, ex.args), Set(:(:), symbol("end")) )# ':'' and 'end' do not count
-getSymbols(ex::ExDot)  = Set{Symbol}(ex.args[1])  # return variable, not fields
+getSymbols(ex::ExRef)  = setdiff(mapreduce(getSymbols, union, ex.args), Set([:(:), symbol("end")]) )# ':'' and 'end' do not count
+getSymbols(ex::ExDot)  = Set{Symbol}([ex.args[1]])  # return variable, not fields
 getSymbols(ex::ExComp) = setdiff(mapreduce(getSymbols, union, ex.args), 
-	Set(:(>), :(<), :(>=), :(<=), :(.>), :(.<), :(.<=), :(.>=), :(==)) )
+	Set([:(>), :(<), :(>=), :(<=), :(.>), :(.<), :(.<=), :(.>=), :(==)]) )
 
 
 ## variable symbol subsitution functions
@@ -105,10 +105,10 @@ relations(vs::Vector, g) = union( map( s->relations(s,g) , vs)... )
 relations(vs::Set, g)    = union( map( s->relations(s,g) , [vs...])... )
 
 # active variables whose gradient need to be calculated
-activeVars(m::ParsingStruct) = intersect(union(Set(m.outsym), relations(m.outsym, m.ag)), 
-	                                     union(Set(m.insyms...), relations(m.insyms, m.dg)) )
+activeVars(m::ParsingStruct) = intersect(union(Set([m.outsym]), relations(m.outsym, m.ag)), 
+	                                     union(Set([m.insyms...]), relations(m.insyms, m.dg)) )
 # variables that are not defined in expression and are not input variables
-external(m::ParsingStruct) = setdiff(union(values(m.ag)...), union(Set(keys(m.ag)...), Set(m.insyms...)))
+external(m::ParsingStruct) = setdiff(union(values(m.ag)...), union(Set(keys(m.ag)), Set([m.insyms...])))
 
 ##### now include parsing and derivation functions
 include("deriv_rules.jl")
@@ -140,7 +140,7 @@ function reversediff(model::Expr, out::Symbol, skipgradient=false, evalmod=Main;
 	### controls 
 	relations(m.outsym, m.ag) == Set() && error("outcome variable is not set or is constant")
 
-	ui = setdiff(Set(m.insyms...), relations(m.outsym, m.ag))
+	ui = setdiff(Set([m.insyms...]), relations(m.outsym, m.ag))
 	ui != Set() && error("some input variables ($(collect(ui))) do not influence outcome")
 
 	# now generate 

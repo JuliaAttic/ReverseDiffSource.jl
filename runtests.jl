@@ -1,6 +1,6 @@
 using Base.Test
 
-my_tests = ["test/reverse_ad_tests.jl"]
+my_tests = ["test/reverse_ad_test.jl"]
 
 println("Running tests:")
 
