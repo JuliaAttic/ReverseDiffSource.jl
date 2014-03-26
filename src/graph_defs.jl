@@ -54,6 +54,6 @@ ExGraph() = ExGraph(ExNode[], Dict{Symbol, ExNode}())
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
-ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
+ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) )
 ancestors(n::Vector) = union( map(ancestors, n)... )
 

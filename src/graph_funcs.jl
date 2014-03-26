@@ -154,3 +154,41 @@ function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
 
     nmap
 end
+
+
+###### plots graph using GraphViz
+function plot(g::ExGraph)
+
+	nn = Dict()
+	for i in 1:length(g.nodes)
+		ln = gensym()
+		nn[g.nodes[i]] = "n$i"
+	end
+
+	out = ""
+	for (k,v) in nn
+	    label = "$(k.main)"
+	    if isa(k, NExt)
+	        shape = "circle" ; fillcolor="orange"
+	    elseif isa(k, NCall)
+	        shape = "box" ; fillcolor="lightblue"
+	    elseif isa(k, NConst)
+	        shape = "square" ; fillcolor="lightgreen"
+	    end
+
+	    out = out * "$v [label=\"$label\", shape=\"$shape\", style=filled, fillcolor=\"$fillcolor\"];"
+	end
+
+	for n in g.nodes
+	    for p in n.parents
+	        out = out * "$(nn[p]) -> $(nn[n]);"
+	    end
+	end
+
+	for (el, en) in g.exitnodes
+	    out = out * "n$el [label=\"$el\", shape=\"note\", stype=filled, fillcolor=\"lightgrey\"];"
+	    out = out * "$(nn[en]) -> n$el [ style=dotted];"
+	end
+
+	Graph("digraph gp {layout=dot; $out}")
+end
