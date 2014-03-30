@@ -159,30 +159,68 @@ end
 ###### plots graph using GraphViz
 function plot(g::ExGraph)
 
-	nn = Dict()
-	for i in 1:length(g.nodes)
-		ln = gensym()
-		nn[g.nodes[i]] = "n$i"
-	end
+	gshow(n::NConst) = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"square\", style=filled, fillcolor=\"lightgreen\"];"
+	gshow(n::NExt)   = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"circle\", style=filled, fillcolor=\"orange\"];"
+	gshow(n::NCall)  = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"box\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NComp)  = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"box\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NRef)   = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"rarrow\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NDot)   = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"rarrow\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NSRef)  = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"larrow\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NSDot)  = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"larrow\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NAlloc) = 
+		"$(nn[n]) [label=\"$(n.main)\", shape=\"parallelogram\", style=filled, fillcolor=\"lightblue\"];"
+	gshow(n::NIn)    = 
+		"$(nn[n]) [label=\"in\", shape=\"box3d\", style=filled, fillcolor=\"pink\"];"
 
+	nn = Dict() # node names for GraphViz
+	i = 1
 	out = ""
-	for (k,v) in nn
-	    label = "$(k.main)"
-	    if isa(k, NExt)
-	        shape = "circle" ; fillcolor="orange"
-	    elseif isa(k, NCall)
-	        shape = "box" ; fillcolor="lightblue"
-	    elseif isa(k, NConst)
-	        shape = "square" ; fillcolor="lightgreen"
-	    end
+	for n in g.nodes
 
-	    out = out * "$v [label=\"$label\", shape=\"$shape\", style=filled, fillcolor=\"$fillcolor\"];"
+		if isa(n, NFor)  # FIXME : will fail for nested for loops
+			nn[n] = "cluster_$i"
+			i += 1
+			out = out * """
+	    		subgraph $(nn[n]) { label=\"for $(n.main[1])\" ; 
+					style=filled; color=pink;
+				"""
+
+			for n2 in n.main[2].nodes
+			    nn[n2] = "n$i"
+				i += 1
+				out = out * gshow(n2)
+			end
+			out = out * "};"
+		else
+			nn[n] = "n$i"
+			i += 1
+			out = out * gshow(n)
+		end	
 	end
 
-	for n in g.nodes
+	for n in g.nodes #filter(n-> !isa(n,NFor) & !isa(n,NIn), g.nodes)
 	    for p in n.parents
 	        out = out * "$(nn[p]) -> $(nn[n]);"
 	    end
+		if isa(n, NFor)  # FIXME : will fail for nested for loops
+			for n2 in n.main[2].nodes
+			    for p in n2.parents
+			    	if in(p, n.main[2].nodes)
+			    		out = out * "$(nn[p]) -> $(nn[n2]);"
+			    	else
+			        	out = out * "$(nn[p]) -> $(nn[n2]) [style=dotted];"
+			        end
+			    end
+			end
+		end	
 	end
 
 	for (el, en) in g.exitnodes
@@ -190,5 +228,6 @@ function plot(g::ExGraph)
 	    out = out * "$(nn[en]) -> n$el [ style=dotted];"
 	end
 
-	Graph("digraph gp {layout=dot; $out}")
+	println(out)
+	Graph("digraph gp {layout=dot; fontsize=10; $out}")
 end
