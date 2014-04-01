@@ -4,10 +4,12 @@
 #
 #########################################################################
 
-function tocode(g::ExGraph)
+# g   : ExGraph to translate to code
+# pgs : vector of enclosing graphs to search for external references
+function tocode(g::ExGraph, pgs::Vector{ExGraph}=ExGraph[])
 
 	translate(n::NConst) = n.main
-	translate(n::NExt)   = n.main 
+	translate(n::NExt) = n.main
 	translate(n::NCall)  = Expr(:call, n.main, 
 		                       { x.val for x in n.parents}...)
 	translate(n::NComp)  = Expr(:comparison, 
@@ -34,13 +36,23 @@ function tocode(g::ExGraph)
 	end
 
 	function translate(n::NFor)
-    	fb = tocode(n.main[2])
+		# we have to set all the externals of the 'for' subgraph
+		#  that have an evaluated value in the enclosing graphs
+		# FIXME : fusenodes() will not update inner-outter map
+		g2 = n.main[2]
+		mp = n.main[3]
+		for n2 in filter(n -> isa(n, NExt), g2.nodes)
+			n2.val = mp[n2].val
+		end
+
+		g2 = ExGraph(filter(n -> !isa(n, NExt), g2.nodes), Dict())
+    	fb = tocode(g2, vcat(g, pgs))
     	push!(out, Expr(:for, n.main[1], fb))
         nothing
 	end
 
 
-	evalsort!(g)
+	evalsort!(g)  # order is important
 	out = Expr[]
 	for n in g.nodes # n = g.nodes[4]
 		n.val = translate(n)

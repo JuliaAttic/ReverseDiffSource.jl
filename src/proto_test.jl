@@ -5,7 +5,7 @@ cd("src")
 cd("ReverseDiffSource.jl/src")
 cd("/home/fred/devl")
 
-include("ReverseDiffSource.jl")
+reload("ReverseDiffSource")
 tm = ReverseDiffSource
 
 ########### testing big func  ##########
@@ -320,20 +320,32 @@ tm = ReverseDiffSource
 
 ################## for loops  #######################
     cd("ReverseDiffSource.jl/src")
-    include("ReverseDiffSource.jl")
+    reload("ReverseDiffSource")
     tm = ReverseDiffSource
 
-    g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = zeros(10) ; a[i] = 5))
-    g.exitnodes[:a] = sv[:a]
-    out = ReverseDiffSource.tocode(g) 
+    function fullloop(ex, sym::Symbol=:a)
+        g, sv, ext, outsym = tm.tograph(ex)
+        g.exitnodes[sym] = sv[sym]
+        tm.tocode(g)
+    end
 
-    g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = [1,1] * 2 ; a[2] = 5 ; z = sum(a)))
-    g.exitnodes[:z] = sv[:z]
-    out = ReverseDiffSource.tocode(g) 
+    tmod.prune!(g); tm.tocode(g)
 
-    g, sv, ext, outsym = ReverseDiffSource.tograph(:( a = [1,1] * 2 ; a[2] = 5 ))
-    g.exitnodes[:a] = sv[:a]
-    out = ReverseDiffSource.tocode(g) 
+    tmod.resetvar()
+    tmod.tocode(g)
+
+    fullloop( :( for i in 1:10 ; a[i] = b[i]+2 ; end ) )
+    fullloop( :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end ) )
+    g, sv, ext, outsym = tm.tograph( :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end ) )
+    g.nodes[4].main[2].nodes
+    g.nodes[4].main[3]
+
+
+    fullloop( :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end ) )
+    fullloop( :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+x*z ; end ) )
+    fullloop( :( a=zeros(10) ; z = sum(a) ; for i in 1:10 ; a[i] = b[i]+2 ; end ) )
+    fullloop( :( a=zeros(10) ; z = sum(a) ; for i in 1:10 ; a[i] = b[i]+2 ; end ), :z )
+    fullloop( :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end; z = sum(a) ), :z )
 
     ex = :( a = 0. ; for i in 1:10 ; a += b[i] ; end )   # ok
     ex = :( a = 0. ; for i in 1:10 ; a = a+b[i] ; end )   # ok
@@ -344,17 +356,7 @@ tm = ReverseDiffSource
     g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
 
 
-    ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end )
-    ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
-    ex = :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end )
-    ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+x*z ; end )
-    ex = :( a=zeros(10) ; z = sum(a) ; for i in 1:10 ; a[i] = b[i]+2 ; end )
-    dump(ex)
-
-    g, sv, ext, outsym = ReverseDiffSource.tograph(ex)
-    g.exitnodes[:a] = sv[:a]
-    g.nodes
-    tm.splitnary!(g)
+    tm.splitnary!(g) ; tm.tocode(g)
 
     tm.dedup!(g)
     tm.evalconstants!(g)
@@ -447,7 +449,13 @@ tm = ReverseDiffSource
 
 
 ######################" misc "  ########################
-    include("ReverseDiffSource.jl")
+pwd()
+    reload("ReverseDiffSource")
     tm = ReverseDiffSource
 
 
+    g, sv, ext, outsym = tm.tograph(:(  foo(x,y)))
+
+    g.nodes
+
+    g, sv, ext, outsym = tm.tograph(:(  foo(x::Real,y)))

@@ -74,77 +74,160 @@ function tograph(s, externals::Dict = Dict() )
 		return nothing
 	end
 
+	# function explore(ex::ExFor)
+	# 	is = ex.args[1].args[1]
+	# 	isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
+
+	# 	# explore the for block as a separate graph 
+	# 	g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, setvars))
+
+	# 	# update externals if new symbol found inside loop
+	# 	for (k,v) in ext2
+	# 		if !haskey(setvars,k) && !haskey(externals,k) && (k != is) 
+	# 			externals[k] = v
+	# 		end
+	# 	end
+
+	# 	#  find nodes dependant on indexing variable
+	# 	gi = ExNode[]
+	# 	for n2 in g2.nodes
+	# 		if (isa(n2, Union(NRef, NSRef)) && in(is, n2.main)) ||
+	# 			( isa(n2, NExt) && n2.main == is) ||
+	# 			( isa(n2, NAlloc) )
+	# 			push!(gi, n2)
+	# 		end
+	# 	end
+	# 	g2in = ExNode[]; g2out = ExNode[]
+	# 	for n2 in g2.nodes
+	# 		if length(intersect(ancestors(n2), gi)) > 0
+	# 			push!(g2in, n2)
+	# 		else
+	# 			push!(g2out, n2)
+	# 		end
+	# 	end
+
+	# 	# independant nodes can be outside of loop
+	# 	append!(g.nodes, g2out)
+
+	# 	# create "for" node parent list
+	# 	fp = mapreduce(n2->n2.parents, union, g2in)
+	# 	fp = setdiff(fp, g2in)
+
+	# 	# create "for" node
+	# 	nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2in, Dict()) ), 
+	# 		          		   fp ) )
+
+
+	# 	# update setvars
+	# 	for (k,v) in sv2
+	# 		ni = sv2[k]
+	# 		if in(v, g2out)
+	# 			setvars[k] = ni
+	# 		else
+	# 			# var set repeatedly ?
+	# 			if !isa(ni, NSRef) || !in(is, ni.main)
+	# 				print("$k set repeatedly,")
+
+	# 				svaext = merge(setvars, externals)
+
+	# 				if isa(ni, NCall) &&
+	# 				   (ni.main == :+) &&
+	# 				   in(svaext[k], ni.parents)
+	# 				   	println("but may be it's ok")
+	# 				else
+	# 					println("there is a problem, really !")
+	# 				end
+
+	# 			end
+	# 			setvars[k] = add_node(g, NIn(ni, [nf]) )
+
+	# 			!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
+
+	# 		end
+	# 	end
+
 	function explore(ex::ExFor)
 		is = ex.args[1].args[1]
 		isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
 
 		# explore the for block as a separate graph 
-		g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, setvars))
+		g2, sv2, ext2, exit2 = tograph(ex.args[2])
 
-		# update externals if new symbol found inside loop
+		mp = Dict{ExNode, ExNode}()  # inner nodes to outer nodes map
 		for (k,v) in ext2
-			if !haskey(setvars,k) && !haskey(externals,k) && (k != is) 
-				externals[k] = v
+			# update map except if variable is the 'for' variable
+			if k != is
+				mp[v] = explore(k)
 			end
+
+			#externals/setvars if new symbol found inside loop
+			# if !haskey(setvars,k) && !haskey(externals,k) && (k != is) 
+			# 	externals[k] = v
+			# elseif haskey(setvars,k) && (k != is) # FIXME : will fail for nested loops
+			# 	mp[v] = setvars[k]
+			# elseif haskey(externals,k) && (k != is) # FIXME : will fail for nested loops
+			# 	mp[v] = externals[k]
+			# end
 		end
 
 		#  find nodes dependant on indexing variable
-		gi = ExNode[]
-		for n2 in g2.nodes
-			if (isa(n2, Union(NRef, NSRef)) && in(is, n2.main)) ||
-				( isa(n2, NExt) && n2.main == is) ||
-				( isa(n2, NAlloc) )
-				push!(gi, n2)
-			end
-		end
-		g2in = ExNode[]; g2out = ExNode[]
-		for n2 in g2.nodes
-			if length(intersect(ancestors(n2), gi)) > 0
-				push!(g2in, n2)
-			else
-				push!(g2out, n2)
-			end
-		end
+		# gi = ExNode[]
+		# for n2 in g2.nodes
+		# 	if (isa(n2, Union(NRef, NSRef)) && in(is, n2.main)) ||
+		# 		( isa(n2, NExt) && n2.main == is) ||
+		# 		( isa(n2, NAlloc) )
+		# 		push!(gi, n2)
+		# 	end
+		# end
+		# g2in = ExNode[]; g2out = ExNode[]
+		# for n2 in g2.nodes
+		# 	if length(intersect(ancestors(n2), gi)) > 0
+		# 		push!(g2in, n2)
+		# 	else
+		# 		push!(g2out, n2)
+		# 	end
+		# end
 
 		# independant nodes can be outside of loop
-		append!(g.nodes, g2out)
+		# append!(g.nodes, g2out)
 
 		# create "for" node parent list
-		fp = mapreduce(n2->n2.parents, union, g2in)
-		fp = setdiff(fp, g2in)
+		# fp = mapreduce(n2->n2.parents, union, g2in)
+		# fp = setdiff(fp, g2in)
 
 		# create "for" node
-		nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2in, Dict()) ), 
-			          		   fp ) )
+		nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2.nodes, sv2), mp ), 
+			collect(values(mp)) ) )
 
 
 		# update setvars
-		for (k,v) in sv2
-			ni = sv2[k]
-			if in(v, g2out)
-				setvars[k] = ni
-			else
-				# var set repeatedly ?
-				if !isa(ni, NSRef) || !in(is, ni.main)
-					print("$k set repeatedly,")
+		# for (k,v) in sv2
+		# 	ni = sv2[k]
+		# 	if in(v, g2out)
+		# 		setvars[k] = ni
+		# 	else
+		# 		# var set repeatedly ?
+		# 		if !isa(ni, NSRef) || !in(is, ni.main)
+		# 			print("$k set repeatedly,")
 
-					svaext = merge(setvars, externals)
+		# 			svaext = merge(setvars, externals)
 
-					if isa(ni, NCall) &&
-					   (ni.main == :+) &&
-					   in(svaext[k], ni.parents)
-					   	println("but may be it's ok")
-					else
-						println("there is a problem, really !")
-					end
+		# 			if isa(ni, NCall) &&
+		# 			   (ni.main == :+) &&
+		# 			   in(svaext[k], ni.parents)
+		# 			   	println("but may be it's ok")
+		# 			else
+		# 				println("there is a problem, really !")
+		# 			end
 
-				end
-				setvars[k] = add_node(g, NIn(ni, [nf]) )
+		# 		end
+		# 		setvars[k] = add_node(g, NIn(ni, [nf]) )
 
-				!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
+		# 		!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
 
-			end
-		end
+		# 	end
+		# end
+
 
 	end
 

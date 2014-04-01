@@ -7,6 +7,8 @@
 reversediff(ex; init...) = reversediff(ex, nothing; init...)
 function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
 
+    println("=== $init")
+
     length(init)>=1 || 
         error("There should be at least one parameter specified, none found")
 
