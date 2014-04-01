@@ -38,7 +38,7 @@ function tocode(g::ExGraph, pgs::Vector{ExGraph}=ExGraph[])
 	function translate(n::NFor)
 		# we have to set all the externals of the 'for' subgraph
 		#  that have an evaluated value in the enclosing graphs
-		# FIXME : fusenodes() will not update inner-outter map
+		# FIXME : fusenodes() will not update inner-outer map
 		g2 = n.main[2]
 		mp = n.main[3]
 		for n2 in filter(n -> isa(n, NExt), g2.nodes)

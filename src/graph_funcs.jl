@@ -184,20 +184,20 @@ function plot(g::ExGraph)
 	i = 1
 	out = ""
 	for n in g.nodes
-
 		if isa(n, NFor)  # FIXME : will fail for nested for loops
 			nn[n] = "cluster_$i"
 			i += 1
 			out = out * """
 	    		subgraph $(nn[n]) { label=\"for $(n.main[1])\" ; 
-					style=filled; color=pink;
+					color=pink;
 				"""
 
-			for n2 in n.main[2].nodes
+			for n2 in filter(n -> !isa(n, NExt), n.main[2].nodes)
 			    nn[n2] = "n$i"
 				i += 1
 				out = out * gshow(n2)
 			end
+
 			out = out * "};"
 		else
 			nn[n] = "n$i"
@@ -206,20 +206,22 @@ function plot(g::ExGraph)
 		end	
 	end
 
-	for n in g.nodes #filter(n-> !isa(n,NFor) & !isa(n,NIn), g.nodes)
-	    for p in n.parents
-	        out = out * "$(nn[p]) -> $(nn[n]);"
-	    end
+	for n in g.nodes 
 		if isa(n, NFor)  # FIXME : will fail for nested for loops
-			for n2 in n.main[2].nodes
+			mp = n.main[3]
+			for n2 in filter(n -> !isa(n, NExt), n.main[2].nodes)
 			    for p in n2.parents
-			    	if in(p, n.main[2].nodes)
-			    		out = out * "$(nn[p]) -> $(nn[n2]);"
+			    	if isa(p, NExt)
+			        	out = out * "$(nn[mp[p]]) -> $(nn[n2]) [style=dotted];"
 			    	else
-			        	out = out * "$(nn[p]) -> $(nn[n2]) [style=dotted];"
+			    		out = out * "$(nn[p]) -> $(nn[n2]);"
 			        end
 			    end
 			end
+		else
+		    for p in n.parents
+		        out = out * "$(nn[p]) -> $(nn[n]);"
+		    end
 		end	
 	end
 
@@ -228,6 +230,5 @@ function plot(g::ExGraph)
 	    out = out * "$(nn[en]) -> n$el [ style=dotted];"
 	end
 
-	println(out)
-	Graph("digraph gp {layout=dot; fontsize=10; $out}")
+	Graph("digraph gp {layout=dot; labeldistance=5; scale=0.5 ; $out }")
 end

@@ -153,21 +153,23 @@ function tograph(s, externals::Dict = Dict() )
 		# explore the for block as a separate graph 
 		g2, sv2, ext2, exit2 = tograph(ex.args[2])
 
-		mp = Dict{ExNode, ExNode}()  # inner nodes to outer nodes map
-		for (k,v) in ext2
-			# update map except if variable is the 'for' variable
-			if k != is
-				mp[v] = explore(k)
-			end
+		# create "for" node
+		nf = add_node(g, NFor( [ ex.args[1], ExGraph(g2.nodes)] ))
 
-			#externals/setvars if new symbol found inside loop
-			# if !haskey(setvars,k) && !haskey(externals,k) && (k != is) 
-			# 	externals[k] = v
-			# elseif haskey(setvars,k) && (k != is) # FIXME : will fail for nested loops
-			# 	mp[v] = setvars[k]
-			# elseif haskey(externals,k) && (k != is) # FIXME : will fail for nested loops
-			# 	mp[v] = externals[k]
-			# end
+		# inner nodes to outer nodes map for loop input
+		mp = Dict{ExNode, ExNode}()  
+		for (k,v) in filter((k,v) -> k != is, ext2)
+			mp[v] = explore(k)
+		end
+
+		push!(nf.main, mp)
+		nf.parents = collect(values(mp))
+
+		# inner nodes to outer nodes map for loop output
+		for (k,v) in sv2
+			if haskey(setvars, k)
+				setvars[k] = add_node(g, NIn((k, v), [nf]) )
+			end
 		end
 
 		#  find nodes dependant on indexing variable
@@ -191,13 +193,6 @@ function tograph(s, externals::Dict = Dict() )
 		# independant nodes can be outside of loop
 		# append!(g.nodes, g2out)
 
-		# create "for" node parent list
-		# fp = mapreduce(n2->n2.parents, union, g2in)
-		# fp = setdiff(fp, g2in)
-
-		# create "for" node
-		nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2.nodes, sv2), mp ), 
-			collect(values(mp)) ) )
 
 
 		# update setvars

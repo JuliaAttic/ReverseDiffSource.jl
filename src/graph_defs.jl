@@ -49,7 +49,8 @@ type ExGraph
   exitnodes::Dict
 end
 
-ExGraph() = ExGraph(ExNode[], Dict{Symbol, ExNode}())
+ExGraph()                   = ExGraph(ExNode[], Dict{Symbol, ExNode}())
+ExGraph(vn::Vector{ExNode}) = ExGraph(vn, Dict{Symbol, ExNode}())
 
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
