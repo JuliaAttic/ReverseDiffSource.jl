@@ -30,8 +30,8 @@ function tograph(s, externals::Dict = Dict() )
 	explore(ex::ExComp)    = add_node(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	function explore(ex::Symbol)
-		if haskey(setvars, ex) # var already set in expression
-			return setvars[ex]
+		if haskey(g.setmap, ex) # var already set in expression
+			return g.setmap[ex]
 		elseif haskey(externals, ex) # external ref already turned into a node
 			return externals[ex]
 		else # symbol neither set var nor known external
@@ -57,7 +57,7 @@ function tograph(s, externals::Dict = Dict() )
 			haskey(externals, lhs) && 
 				warning("$lhs is used as an external reference and then set within the expression")
 
-			setvars[lhs] = explore(ex.args[2])
+			g.setmap[lhs] = explore(ex.args[2])
 
 		elseif isRef(lhs)
 			haskey(externals, lhs.args[1]) && 
@@ -66,7 +66,7 @@ function tograph(s, externals::Dict = Dict() )
 			v2 = add_node(g, NSRef(lhs.args[2:end], 
 							       [ explore(lhs.args[1]),   # var whose subpart is assigned
 							         explore(ex.args[2])] )) # assigned value
-			setvars[lhs.args[1]] = v2
+			g.setmap[lhs.args[1]] = v2
 
 		elseif isDot(lhs)
 			haskey(externals, lhs.args[1]) && 
@@ -75,7 +75,7 @@ function tograph(s, externals::Dict = Dict() )
 			v2 = add_node(g, NSDot(lhs.args[2], 
 								   [ explore(lhs.args[1]),   # var whose subpart is assigned
 							         explore(ex.args[2])] )) # assigned value
-			setvars[lhs.args[1]] = v2
+			g.setmap[lhs.args[1]] = v2
 
 		else
 			error("[tograph] not a symbol on LHS of assigment $(toExpr(ex))")
@@ -88,11 +88,11 @@ function tograph(s, externals::Dict = Dict() )
 	# 	isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
 
 	# 	# explore the for block as a separate graph 
-	# 	g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, setvars))
+	# 	g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, g.setmap))
 
 	# 	# update externals if new symbol found inside loop
 	# 	for (k,v) in ext2
-	# 		if !haskey(setvars,k) && !haskey(externals,k) && (k != is) 
+	# 		if !haskey(g.setmap,k) && !haskey(externals,k) && (k != is) 
 	# 			externals[k] = v
 	# 		end
 	# 	end
@@ -127,17 +127,17 @@ function tograph(s, externals::Dict = Dict() )
 	# 		          		   fp ) )
 
 
-	# 	# update setvars
+	# 	# update g.setmap
 	# 	for (k,v) in sv2
 	# 		ni = sv2[k]
 	# 		if in(v, g2out)
-	# 			setvars[k] = ni
+	# 			g.setmap[k] = ni
 	# 		else
 	# 			# var set repeatedly ?
 	# 			if !isa(ni, NSRef) || !in(is, ni.main)
 	# 				print("$k set repeatedly,")
 
-	# 				svaext = merge(setvars, externals)
+	# 				svaext = merge(g.setmap, externals)
 
 	# 				if isa(ni, NCall) &&
 	# 				   (ni.main == :+) &&
@@ -148,7 +148,7 @@ function tograph(s, externals::Dict = Dict() )
 	# 				end
 
 	# 			end
-	# 			setvars[k] = add_node(g, NIn(ni, [nf]) )
+	# 			g.setmap[k] = add_node(g, NIn(ni, [nf]) )
 
 	# 			!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
 
@@ -163,12 +163,12 @@ function tograph(s, externals::Dict = Dict() )
 		g2, sv2, ext2, exit2 = tograph(ex.args[2])
 
 		# create "for" node
-		nf = add_node(g, NFor( [ ex.args[1], ExGraph(g2.nodes)] ))
+		nf = add_node(g, NFor( [ ex.args[1], g2 ] ))
 
 		# inner nodes to outer nodes map for loop input
 		mp = Dict{ExNode, ExNode}()  
 		for (k,v) in filter((k,v) -> k != is, ext2)
-			mp[v] = explore(k)
+			g2.inmap[v] = explore(k)
 		end
 
 		push!(nf.main, mp)
@@ -176,18 +176,32 @@ function tograph(s, externals::Dict = Dict() )
 
 		# inner nodes to outer nodes map for loop output
 		for (k,v) in sv2
-			if haskey(setvars, k)
-				setvars[k] = add_node(g, NIn((k, v), [nf]) )
+			if haskey(g.setmap, k)
+				g.setmap[k] = add_node(g, NIn((k, v), [nf]) )
 			end
 		end
 	end
 
     g = ExGraph()
-	setvars = Dict()
+	g.setmap = Dict()
 
 	exitnode = explore(s)  
 	# exitnode = nothing if only variable assigments in expression
 	#          = ExNode of last calc otherwise
 
-	(g, setvars, externals, exitnode)
+	# setmap key is 'nothing' for unnassigned last statement
+	exitnode!=nothing && (g.setmap[nothing] = exitnode) 
+
+
+	# inmap field can only be fully known at the parent level (if there is one)
+	# only the partial information will set here
+	g.inmap  = Dict{ExNode, ExNode}(collect(values(externals)), 
+									ExNode[ NExt(sym) for sym in keys(externals) ])  # dummy nodes
+
+	# same for outmap
+	g.outmap = Dict{ExNode, ExNode}(collect(values(g.setmap)), 
+									[ NExt(sym) for sym in keys(g.setmap) ])  # dummy nodes
+
+
+	g
 end
