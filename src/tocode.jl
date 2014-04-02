@@ -6,10 +6,9 @@
 
 # g   : ExGraph to translate to code
 # pgs : vector of enclosing graphs to search for external references
-function tocode(g::ExGraph, pgs::Vector{ExGraph}=ExGraph[])
+function tocode(g::ExGraph)
 
 	translate(n::NConst) = n.main
-	translate(n::NExt) = n.main
 	translate(n::NCall)  = Expr(:call, n.main, 
 		                       { x.val for x in n.parents}...)
 	translate(n::NComp)  = Expr(:comparison, 
@@ -17,9 +16,16 @@ function tocode(g::ExGraph, pgs::Vector{ExGraph}=ExGraph[])
 
 	translate(n::NRef)   = Expr(:ref, n.parents[1].val, n.main...)
 	translate(n::NDot)   = Expr(:(.), n.parents[1].val, n.main)
-	translate(n::NIn)    = n.main.val
+	translate(n::NIn)    = n.main[1]
 	translate(n::NAlloc) = Expr(:call, n.main, 
 		                        { x.val for x in n.parents}...)
+
+	function translate(n::NExt)
+		g.inmap[n] != nothing && ( return g.inmap[n].val )
+
+		n.val = n.main
+		return n.val
+	end
 
 	function translate(n::NSRef)
 		np = n.parents
@@ -36,17 +42,7 @@ function tocode(g::ExGraph, pgs::Vector{ExGraph}=ExGraph[])
 	end
 
 	function translate(n::NFor)
-		# we have to set all the externals of the 'for' subgraph
-		#  that have an evaluated value in the enclosing graphs
-		# FIXME : fusenodes() will not update inner-outer map
-		g2 = n.main[2]
-		mp = n.main[3]
-		for n2 in filter(n -> isa(n, NExt), g2.nodes)
-			n2.val = mp[n2].val
-		end
-
-		g2 = ExGraph(filter(n -> !isa(n, NExt), g2.nodes), Dict())
-    	fb = tocode(g2, vcat(g, pgs))
+    	fb = tocode(n.main[2])
     	push!(out, Expr(:for, n.main[1], fb))
         nothing
 	end
@@ -58,7 +54,7 @@ function tocode(g::ExGraph, pgs::Vector{ExGraph}=ExGraph[])
 		n.val = translate(n)
 
 	    # variable name(s) for this node
-	    nvn = collect(keys( filter( (k,v) -> is(v, n), g.exitnodes) ) ) 
+	    nvn = collect(keys( filter( (k,v) -> is(v, n), g.setmap) ) ) 
 
         # number of times n is a parent (force np> 1 if 
         #   used in "for" loop, sref, sdot)

@@ -52,11 +52,11 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
     index = find(dv .== argsn)[1] # TODO : add error message if not found
 
     #### make the graph
-    g, vd, exts, exitnode = tograph( diff )
+    g = tograph( diff )
 
     #### store graph, build proxy function
     rn = gensym("rule")
-    rdict[rn] = (g, argsn, exitnode)
+    rdict[rn] = (g, argsn, g.setmap[nothing])
 
     # diff function name
     fn = dfuncname(func.args[1], index)
@@ -86,6 +86,8 @@ end
 ####################  rules  ######################################
 
 # addition
+deriv_rule(:(+(x::Real         , y::Real )), :x, :(ds))
+
 @deriv_rule +(x::Real         , y::Real )            x     ds
 @deriv_rule +(x::Real         , y::AbstractArray)    x     sum(ds)
 @deriv_rule +(x::AbstractArray, y       )            x     ds

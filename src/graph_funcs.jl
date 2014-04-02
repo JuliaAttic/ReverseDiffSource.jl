@@ -216,11 +216,11 @@ function plot(g::ExGraph)
 
 	for n in g.nodes 
 		if isa(n, NFor)  # FIXME : will fail for nested for loops
-			mp = n.main[3]
-			for n2 in filter(n -> !isa(n, NExt), n.main[2].nodes)
+			g2 = n.main[2]
+			for n2 in filter(n -> !isa(n, NExt), g2.nodes)
 			    for p in n2.parents
-			    	if isa(p, NExt)
-			        	out = out * "$(nn[mp[p]]) -> $(nn[n2]) [style=dotted];"
+			    	if in(p, keys(g2.inmap))
+			        	out = out * "$(nn[g2.inmap[p]]) -> $(nn[n2]) [style=dotted];"
 			    	else
 			    		out = out * "$(nn[p]) -> $(nn[n2]);"
 			        end
@@ -233,7 +233,7 @@ function plot(g::ExGraph)
 		end	
 	end
 
-	for (el, en) in g.exitnodes
+	for (el, en) in g.setmap
 	    out = out * "n$el [label=\"$el\", shape=\"note\", stype=filled, fillcolor=\"lightgrey\"];"
 	    out = out * "$(nn[en]) -> n$el [ style=dotted];"
 	end

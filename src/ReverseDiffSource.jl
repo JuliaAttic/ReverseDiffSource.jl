@@ -6,7 +6,7 @@
 
 module ReverseDiffSource
 
-  # using GraphViz
+  using GraphViz
   
   import Base.show, Base.isequal, Base.copy
 

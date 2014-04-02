@@ -8,11 +8,12 @@
 
 type ExNode{T}
   main
-  parents::Vector{Any}
+  parents::Vector
   val
 
-  ExNode(main)         = new(main, {}, NaN)
-  ExNode(main,parents) = new(main, parents, NaN)
+  ExNode()             = new(nothing,      {}, NaN)
+  ExNode(main)         = new(   main,      {}, NaN)
+  ExNode(main,parents) = new(   main, parents, NaN)
 end
 
 isequal{T}(x::ExNode{T}, y::ExNode{T}) = 
@@ -45,17 +46,14 @@ end
 #####  ExGraph type  ######
 
 type ExGraph
-  nodes::Vector{ExNode}          # nodes in this graph
-  inmap::Dict{ExNode, ExNode}    # map of external graph nodes to parent graph nodes
-  outmap::Dict{ExNode, ExNode}   # map of calc nodes to dependant parent graph nodes
-  setmap::Dict{Symbol, ExNode}   # map of symbols to calc node that set them
+  nodes::Vector{ExNode}  # nodes in this graph
+  inmap::Dict            # map of external graph nodes to parent graph nodes
+  outmap::Dict           # map of calc nodes to dependant parent graph nodes
+  setmap::Dict           # map of symbols to calc node that set them
 end
 
 ExGraph()                   = ExGraph(ExNode[])
-ExGraph(vn::Vector{ExNode}) = ExGraph(vn, 
-                                      Dict{ExNode, ExNode}(), 
-                                      Dict{ExNode, ExNode}(), 
-                                      Dict{Symbol, ExNode}())
+ExGraph(vn::Vector{ExNode}) = ExGraph(vn, Dict(), Dict(), Dict())
 
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
