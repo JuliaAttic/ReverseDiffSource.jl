@@ -21,7 +21,7 @@ function splitnary!(g::ExGraph)
 	end
 end
 
-####### fuses nodes n1 and n2  ########
+####### fuses nodes nr and nk  ########
 # removes node nr and keeps node nk 
 #  updates parent links to nr, and references in exitnodes
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
@@ -36,6 +36,14 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 	# replace references to nr in exitnodes dictionnary
     for (k,v) in g.exitnodes
         is(v, nr) && (g.exitnodes[k] = nk)
+    end
+
+	# replace references to nr in subgraphs (for loops)
+    for n in filter(n -> isa(n, NFor), g.nodes)
+    	mp = n.main[3]
+    	for (k,v) in mp
+    		is(v, nr) && (mp[k] = nk)
+    	end
     end
 
     # remove node nr in g

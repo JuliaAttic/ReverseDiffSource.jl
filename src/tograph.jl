@@ -54,15 +54,24 @@ function tograph(s, externals::Dict = Dict() )
 		lhs = ex.args[1]
 		
 		if isSymbol(lhs)
+			haskey(externals, lhs) && 
+				warning("$lhs is used as an external reference and then set within the expression")
+
 			setvars[lhs] = explore(ex.args[2])
 
 		elseif isRef(lhs)
+			haskey(externals, lhs.args[1]) && 
+				warning("$(lhs.args[1]) is used as an external reference and then set within the expression")
+
 			v2 = add_node(g, NSRef(lhs.args[2:end], 
 							       [ explore(lhs.args[1]),   # var whose subpart is assigned
 							         explore(ex.args[2])] )) # assigned value
 			setvars[lhs.args[1]] = v2
 
 		elseif isDot(lhs)
+			haskey(externals, lhs.args[1]) && 
+				warning("$(lhs.args[1]) is used as an external reference and then set within the expression")
+
 			v2 = add_node(g, NSDot(lhs.args[2], 
 								   [ explore(lhs.args[1]),   # var whose subpart is assigned
 							         explore(ex.args[2])] )) # assigned value
@@ -171,59 +180,6 @@ function tograph(s, externals::Dict = Dict() )
 				setvars[k] = add_node(g, NIn((k, v), [nf]) )
 			end
 		end
-
-		#  find nodes dependant on indexing variable
-		# gi = ExNode[]
-		# for n2 in g2.nodes
-		# 	if (isa(n2, Union(NRef, NSRef)) && in(is, n2.main)) ||
-		# 		( isa(n2, NExt) && n2.main == is) ||
-		# 		( isa(n2, NAlloc) )
-		# 		push!(gi, n2)
-		# 	end
-		# end
-		# g2in = ExNode[]; g2out = ExNode[]
-		# for n2 in g2.nodes
-		# 	if length(intersect(ancestors(n2), gi)) > 0
-		# 		push!(g2in, n2)
-		# 	else
-		# 		push!(g2out, n2)
-		# 	end
-		# end
-
-		# independant nodes can be outside of loop
-		# append!(g.nodes, g2out)
-
-
-
-		# update setvars
-		# for (k,v) in sv2
-		# 	ni = sv2[k]
-		# 	if in(v, g2out)
-		# 		setvars[k] = ni
-		# 	else
-		# 		# var set repeatedly ?
-		# 		if !isa(ni, NSRef) || !in(is, ni.main)
-		# 			print("$k set repeatedly,")
-
-		# 			svaext = merge(setvars, externals)
-
-		# 			if isa(ni, NCall) &&
-		# 			   (ni.main == :+) &&
-		# 			   in(svaext[k], ni.parents)
-		# 			   	println("but may be it's ok")
-		# 			else
-		# 				println("there is a problem, really !")
-		# 			end
-
-		# 		end
-		# 		setvars[k] = add_node(g, NIn(ni, [nf]) )
-
-		# 		!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
-
-		# 	end
-		# end
-
-
 	end
 
     g = ExGraph()

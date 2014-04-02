@@ -18,7 +18,7 @@ function simplify!(g::ExGraph)
 		###### duplicates ?
 	    for j in (i+1):(length(g.nodes))
 	        n2 = g.nodes[j]
-	        if isequal(n,n2) & !isa(n2, NAlloc)  # do not fuse allocations !
+	        if isequal(n,n2) & !isa(n2, NAlloc)  # do not fuse allocations
 
 	            fusenodes(g, n, n2)
 
