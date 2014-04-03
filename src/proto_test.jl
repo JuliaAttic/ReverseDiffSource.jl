@@ -1,12 +1,23 @@
-reload("ReverseDiffSource")
-tm = ReverseDiffSource
+reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
 ################## for loops  #######################
     ex = :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end )
     g = tm.tograph(ex)
     g.nodes
-    tm.tocode(g)
+    tm.evalsort!(g)
+    g.inmap   #  z is external;, shouldn't be
+    g.outmap  # empty, should contain a
+
+    ex = :( a=zeros(10) ; z = 12 ; for i in 1:10 ; t = x+z ; for j in 1:10 ; u = t+z+v ; a[i] = b[i]+t ; end ; end )
+    g, ext, sv = tm.tograph(ex)
+    collect(keys(sv))
+    collect(keys(ext))
     g.nodes
+    tm.evalsort!(g)
+    g.nodes[9].main[2].nodes
+
+    tm.tocode(g)
+    g.nodes[1]
 
     function fullloop(ex, sym::Symbol=:a)
         g, sv, ext, outsym = tm.tograph(ex)

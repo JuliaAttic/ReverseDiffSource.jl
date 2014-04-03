@@ -49,11 +49,10 @@ type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
   inmap::Dict            # map of external graph nodes to parent graph nodes
   outmap::Dict           # map of calc nodes to dependant parent graph nodes
-  setmap::Dict           # map of symbols to calc node that set them
 end
 
-ExGraph()                   = ExGraph(ExNode[])
-ExGraph(vn::Vector{ExNode}) = ExGraph(vn, Dict(), Dict(), Dict())
+ExGraph()                   = ExGraph( ExNode[] )
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict() )
 
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
