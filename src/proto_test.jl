@@ -1,20 +1,63 @@
 reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
 ################## for loops  #######################
-    ex = :( a=zeros(10) ; for i in 1:10 ; t = x+z ; a[i] = b[i]+t ; end )
-    g = tm.tograph(ex)
-    g.nodes
-    tm.evalsort!(g)
-    g.inmap   #  z is external;, shouldn't be
-    g.outmap  # empty, should contain a
+    ex = quote
+        a=zeros(10)
+        for i in 1:10
+            t = x+z
+            a[i] = b[i]+t
+        end
+    end
 
-    ex = :( a=zeros(10) ; z = 12 ; for i in 1:10 ; t = x+z ; for j in 1:10 ; u = t+z+v ; a[i] = b[i]+t ; end ; end )
-    g, ext, sv = tm.tograph(ex)
-    collect(keys(sv))
-    collect(keys(ext))
+    g = tm.tograph(ex);
+    collect(keys(g.inmap))
+    collect(keys(g.outmap))
+    collect(keys(g.setmap))
+    g.setmap[:a]
     g.nodes
     tm.evalsort!(g)
-    g.nodes[9].main[2].nodes
+    tm.tocode(g)
+
+    ex = quote
+        a=zeros(10)
+        for i in 1:10
+            t = x+z
+            a[i] = b[i]+t
+        end
+        res = sum(a)
+    end
+
+    g = tm.tograph(ex)
+    collect(keys(g.inmap))
+    collect(keys(g.outmap))
+    collect(keys(g.setmap))
+    g.setmap[:a]
+    g.nodes
+    tm.evalsort!(g)
+    tm.tocode(g)
+
+
+
+    ex = quote
+        a=zeros(10) ; z = 12 
+        for i in 1:10
+            t = x+z
+            for j in 1:10
+                u = t+z+v
+                a[i] = b[i]+u
+            end
+        end
+    end
+    g = tm.tograph(ex)
+    
+    collect(keys(g.inmap))
+    collect(keys(g.outmap))
+    collect(keys(g.setmap))
+    g.nodes
+    tm.evalsort!(g)
+    tm.tocode(g)
+    g.setmap[:a]
+
 
     tm.tocode(g)
     g.nodes[1]

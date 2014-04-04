@@ -45,8 +45,8 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 	explore(ex::ExComp)    = add_node(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	function explore(ex::Symbol)
-		if haskey(setmap, ex)        # var already set in expression
-			return setmap[ex]
+		if haskey(g.setmap, ex)        # var already set in expression
+			return g.setmap[ex]
 		elseif haskey(externals, ex) # external ref already turned into a node
 			return externals[ex]
 		else # symbol neither set var nor known external
@@ -58,8 +58,7 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
 			add_node(g, NAlloc(ex.args[1], map(explore, ex.args[2:end]) ))
-			# add_node(g, :call, ex.args[1], map(explore, ex.args[2:end]) )  
-			# TODO : decide what to do here
+			# TODO : NAlloc or NCall ? decide what to do
 	    else
 	    	add_node(g, NCall( ex.args[1], map(explore, ex.args[2:end]) ))
 	    end
@@ -87,10 +86,7 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 			error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
 		end
 
-		setmap[lhss] = rhn
-		if haskey(pvars, lhss)  # this var is defined in enclosing levels, => not a local
-			g.outmap[lhss] = rhn
-		end	
+		g.setmap[lhss] = rhn
 
 		return nothing
 	end
@@ -101,51 +97,47 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 			error("[tograph] for loop not using a single variable $is ")
 
 		# explore the for block as a separate graph 
-		g2 = tograph2(ex.args[2], merge(pvars, setmap))
+		g2 = tograph2(ex.args[2], merge(pvars, g.setmap))
+		g2.setmap = Dict() # remove
 
 		# create "for" node
 		nf = add_node(g, NFor( [ ex.args[1], g2 ] ))
 
-		# update inmap with corresponding node in this graph
+		# update inmap by replacing symbol with corresponding outer node in this graph
 		# dict key is the node in subgraph, and dict value is the node in parent graph
 		for (inode, sym) in g2.inmap
-			if haskey(setmap, sym) 
-				pn = setmap[sym]
-			else
-				pn = explore(sym)  # look in externals or create it
-			end
+			pn = explore(sym)  # look in setmap, externals or create it
 			g2.inmap[inode] = pn
 			push!(nf.parents, pn) # mark as parent of for loop
-			println("[subgraph inmap] inner $inode linked outer $pn")
+			# println("[subgraph inmap] inner $inode linked outer $pn")
 		end
 
-		# update outmap with intermediate node in case relation jumps several levels
-		for (sym, inode) in g2.outmap
-			if sym != nothing   # ignore unnassigned last statement in loops
-				print("[subgraph outmap] inner $inode related to $sym")
-
-				if !haskey(setmap, sym)
-					pn = add_node(g, NExt(sym))
-					g2.outmap[inode] = pn
-					g.outmap[sym] = pn
-					print(", created intemediate level for $sym")
-				end
-				println()
-				# setmap[sym] = nf     # update to indicate sym is set by this loop
-			end
+		# update outmap by replacing symbol with corresponding outer node in this graph
+		for (inode, sym) in g2.outmap
+			# println("[subgraph outmap] inner $inode sets $sym")
+			pn = explore(sym)  # create node if needed
+			rn = add_node(g, NIn(sym, [nf]))  # exit node for this var in this graph
+			g2.outmap[inode] = rn
+			g.setmap[sym] = rn      # signal we're setting the var
 		end
 	end
 
     g = ExGraph()
-	setmap    = Dict{Union(Nothing, Symbol), ExNode}()
-	externals = Dict{Symbol                , ExNode}()
+	externals = Dict{Symbol, ExNode}()
 
 	exitnode = explore(s)  
 	# exitnode = nothing if only variable assigments in expression
 	#          = ExNode of last calc otherwise
 
-	# outmap value is 'nothing' for unnassigned last statement
-	exitnode!=nothing && (g.outmap[nothing] = exitnode) 
+	# setmap key is 'nothing' for unnassigned last statement
+	exitnode!=nothing && (g.setmap[nothing] = exitnode) 
+
+	# outmap is the subset of setmap for variables that exist in the parent scope
+	for (sym, node) in g.setmap
+		if haskey(pvars, sym)
+			g.outmap[node] = sym
+		end
+	end
 
 	# inmap keys = externals, value = symbol used
 	for (sym, node) in externals
@@ -161,11 +153,11 @@ end
 	# 	isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
 
 	# 	# explore the for block as a separate graph 
-	# 	g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, setmap))
+	# 	g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, g.setmap))
 
 	# 	# update externals if new symbol found inside loop
 	# 	for (k,v) in ext2
-	# 		if !haskey(setmap,k) && !haskey(externals,k) && (k != is) 
+	# 		if !haskey(g.setmap,k) && !haskey(externals,k) && (k != is) 
 	# 			externals[k] = v
 	# 		end
 	# 	end
@@ -200,17 +192,17 @@ end
 	# 		          		   fp ) )
 
 
-	# 	# update setmap
+	# 	# update g.setmap
 	# 	for (k,v) in sv2
 	# 		ni = sv2[k]
 	# 		if in(v, g2out)
-	# 			setmap[k] = ni
+	# 			g.setmap[k] = ni
 	# 		else
 	# 			# var set repeatedly ?
 	# 			if !isa(ni, NSRef) || !in(is, ni.main)
 	# 				print("$k set repeatedly,")
 
-	# 				svaext = merge(setmap, externals)
+	# 				svaext = merge(g.setmap, externals)
 
 	# 				if isa(ni, NCall) &&
 	# 				   (ni.main == :+) &&
@@ -221,7 +213,7 @@ end
 	# 				end
 
 	# 			end
-	# 			setmap[k] = add_node(g, NIn(ni, [nf]) )
+	# 			g.setmap[k] = add_node(g, NIn(ni, [nf]) )
 
 	# 			!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
 

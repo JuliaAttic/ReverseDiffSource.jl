@@ -37,7 +37,7 @@ typealias NIn        ExNode{:within}    # reference to var set in a loop
 
 
 function show(io::IO, res::ExNode)
-  pl = join( map(x->repr(x.main), res.parents) , " / ")
+  pl = join( map(x->isa(x,NFor) ? "subgraph" : repr(x.main), res.parents) , " / ")
   print(io, "[$(typeof(res))] $(repr(res.main)) ($(res.val))")
   length(pl) > 0 && print(io, ", from = $pl")
 end
@@ -47,12 +47,13 @@ end
 
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
-  inmap::Dict            # map of external graph nodes to parent graph nodes
-  outmap::Dict           # map of calc nodes to dependant parent graph nodes
+  inmap::Dict            # map of this graph external nodes to parent graph nodes
+  outmap::Dict           # map of this graph calc nodes to dependant parent graph nodes
+  setmap::Dict           # map of symbol to calc nodes in this graph
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
-ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict() )
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict(), Dict() )
 
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)

@@ -6,7 +6,7 @@
 
 using Base.Test
 
-include("../src/ReverseDiffSource.jl")
+reload("ReverseDiffSource")
 tmod = ReverseDiffSource
 
 
@@ -38,15 +38,17 @@ tmod = ReverseDiffSource
 ## expression to graph testing
 
 function transform(ex, outsym=nothing)
-    g, sv, ext, exitnode = tmod.tograph(ex)
-    if exitnode==nothing
-        if outsym==nothing
-            exitnode = last(collect(values(sv))) # pick at random
-        else
-            exitnode = sv[outsym]
-        end
-    end
-    g.exitnodes = { :out => exitnode }
+    g = tmod.tograph(ex)
+    # if !haskey(g.setmap, nothing)
+
+    # elseexitnode==nothing
+    #     if outsym==nothing
+    #         exitnode = last(collect(values(sv))) # pick at random
+    #     else
+    #         exitnode = sv[outsym]
+    #     end
+    # end
+    # g.exitnodes = { :out => exitnode }
 
     tmod.splitnary!(g)
     tmod.evalconstants!(g)

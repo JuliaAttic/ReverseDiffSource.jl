@@ -33,17 +33,18 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     	end
     end
 
-	# replace references to nr in exitnodes dictionnary
-    for (k,v) in g.exitnodes
-        is(v, nr) && (g.exitnodes[k] = nk)
+	# replace references to nr in setmap dictionnary
+    for (sym, node) in g.setmap
+        is(node, nr) && (g.setmap[sym] = nk)
     end
 
-	# replace references to nr in subgraphs (for loops)
-    for n in filter(n -> isa(n, NFor), g.nodes)
-    	mp = n.main[3]
-    	for (k,v) in mp
-    		is(v, nr) && (mp[k] = nk)
-    	end
+	# remove references to nr in inmap dictionnary
+	delete!(g.inmap, nr)
+
+	# replace references to nr in outmap dictionnary
+    for (inode, onode) in g.outmap
+        is(inode, nr) && (g.outmap[nk] = g.outmap[nr])
+        # FIXME : dictionnary should be the other way around
     end
 
     # remove node nr in g
@@ -82,11 +83,8 @@ end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
 function prune!(g::ExGraph)
-	g2 = ancestors(collect(values(g.exitnodes)))
+	g2 = ancestors(collect(values(g.setmap)))
 	filter!(n -> in(n, g2), g.nodes)
-
-	# separate pass on subgraphs
-	map( n -> prune!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
 end
 
 ####### sort graph to an evaluable order ###########
@@ -105,6 +103,9 @@ function evalsort!(g::ExGraph)
 	end
 
 	g.nodes = g2
+
+	# separate pass on subgraphs
+	map( n -> evalsort!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
 end
 
 ####### calculate the value of each node  ###########
@@ -116,15 +117,33 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 	           [ x.val for x in n.parents]...)
 	end 
 
-	evaluate(n::NExt) = get(params, n.main, emod.eval(n.main))
+	function evaluate(n::NExt)
+		if haskey(g.inmap, n)
+			pn = g.inmap[n]
+			return isa(pn, ExNode) ? pn.val : get(params, n.main, emod.eval(n.main))
+		end
+		n.main
+	end
+
+
     # TODO : catch error if undefined
 	evaluate(n::NConst) = emod.eval(n.main)
 	evaluate(n::NRef)   = emod.eval( Expr(:ref, n.parents[1].val, n.main...) )
 	evaluate(n::NDot)   = emod.eval( Expr(:., n.parents[1].val, n.main) )
 	evaluate(n::NSRef)  = n.parents[1].val
 	evaluate(n::NSDot)  = n.parents[1].val
-	evaluate(n::NFor)   = (calc!(n.main[2]) ; nothing)
-	evaluate(n::NIn)    = nothing
+	evaluate(n::NIn)    = n.parents[1].val[n]
+
+	function evaluate(n::NFor)
+		calc!(n.main[2])
+		
+        valdict = Dict()
+        for (inode, onode) in g2.outmap
+        	valdict[onode] = inode.val
+        end
+        valdict
+	end
+
 
 	evalsort!(g)
 	for n in g.nodes

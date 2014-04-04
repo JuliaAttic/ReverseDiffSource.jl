@@ -5,46 +5,58 @@
 #########################################################################
 
 # g   : ExGraph to translate to code
-# pgs : vector of enclosing graphs to search for external references
 function tocode(g::ExGraph)
+
+	valueof(n::ExNode, child::ExNode) = n.val
+	valueof(  n::NFor, child::ExNode) = valueof(n.val[child], n)
 
 	translate(n::NConst) = n.main
 	translate(n::NCall)  = Expr(:call, n.main, 
-		                       { x.val for x in n.parents}...)
+		                       { valueof(x,n) for x in n.parents}...)
 	translate(n::NComp)  = Expr(:comparison, 
-		                       { n.parents[1].val, n.main, n.parents[2].val }...)
+		                       	{ valueof(n.parents[1],n), 
+		                       	  n.main, 
+		                       	  valueof(n.parents[2],n) }...)
 
-	translate(n::NRef)   = Expr(:ref, n.parents[1].val, n.main...)
-	translate(n::NDot)   = Expr(:(.), n.parents[1].val, n.main)
-	translate(n::NIn)    = n.main[1]
+	translate(n::NRef)   = Expr(:ref, valueof(n.parents[1],n), n.main...)
+	translate(n::NDot)   = Expr(:(.), valueof(n.parents[1],n), n.main)
+	translate(n::NIn)    = n.parents[1].val[n]
 	translate(n::NAlloc) = Expr(:call, n.main, 
-		                        { x.val for x in n.parents}...)
+		                        { valueof(x,n) for x in n.parents}...)
 
 	function translate(n::NExt)
-		g.inmap[n] != nothing && ( return g.inmap[n].val )
-
-		n.val = n.main
-		return n.val
+		if haskey(g.inmap, n)
+			pn = g.inmap[n]
+			return isa(pn, ExNode) ? pn.val : pn
+		end
+		n.main
 	end
 
 	function translate(n::NSRef)
 		np = n.parents
     	# an assign is necessary
-    	push!(out, :( $(Expr(:ref, np[1].val, n.main...)) = $(np[2].val) ) ) 
-        n.parents[1].val
+    	push!(out, :( $(Expr(:ref, valueof(np[1],n), n.main...)) = $(valueof(np[2],n)) ) ) 
+        valueof(np[1],n)
 	end
 
 	function translate(n::NSDot)
 		np = n.parents
     	# an assign is necessary
-    	push!(out, :( $(Expr(:., np[1].val, n.main)) = $(np[2].val) ) )
-        n.parents[1].val
+    	push!(out, :( $(Expr(:., valueof(np[1],n), n.main)) = $(valueof(np[2],n)) ) )
+        valueof(np[1],n)
 	end
 
 	function translate(n::NFor)
-    	fb = tocode(n.main[2])
+    	g2 = n.main[2]
+    	fb = tocode(g2)
     	push!(out, Expr(:for, n.main[1], fb))
-        nothing
+        
+        valdict = Dict()
+        for (inode, onode) in g2.outmap
+        	println(inode, onode)
+        	valdict[onode] = inode.val
+        end
+        valdict
 	end
 
 
