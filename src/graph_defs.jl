@@ -8,7 +8,7 @@
 
 type ExNode{T}
   main
-  parents::Vector
+  parents::Vector{ExNode}
   val
 
   ExNode()             = new(nothing,      {}, NaN)
@@ -58,7 +58,7 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict(), Dict() )
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
-# ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) )
-ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
+ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) )
+# ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
 ancestors(n::Vector) = union( map(ancestors, n)... )
 

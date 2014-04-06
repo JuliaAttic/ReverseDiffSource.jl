@@ -53,7 +53,6 @@ function tocode(g::ExGraph)
         
         valdict = Dict()
         for (inode, onode) in g2.outmap
-        	println(inode, onode)
         	valdict[onode] = inode.val
         end
         valdict

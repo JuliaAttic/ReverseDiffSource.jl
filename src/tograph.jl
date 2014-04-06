@@ -98,7 +98,7 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 
 		# explore the for block as a separate graph 
 		g2 = tograph2(ex.args[2], merge(pvars, g.setmap))
-		g2.setmap = Dict() # remove
+		g2.setmap = Dict()     # remove
 
 		# create "for" node
 		nf = add_node(g, NFor( [ ex.args[1], g2 ] ))
@@ -106,19 +106,27 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 		# update inmap by replacing symbol with corresponding outer node in this graph
 		# dict key is the node in subgraph, and dict value is the node in parent graph
 		for (inode, sym) in g2.inmap
-			pn = explore(sym)  # look in setmap, externals or create it
-			g2.inmap[inode] = pn
-			push!(nf.parents, pn) # mark as parent of for loop
-			# println("[subgraph inmap] inner $inode linked outer $pn")
+			if sym==is   # index var should be removed
+				delete!(g2.inmap, inode)
+			else
+				pn = explore(sym)  # look in setmap, externals or create it
+				g2.inmap[inode] = pn
+				push!(nf.parents, pn) # mark as parent of for loop
+				# println("[subgraph inmap] inner $inode linked outer $pn")
+			end
 		end
 
 		# update outmap by replacing symbol with corresponding outer node in this graph
 		for (inode, sym) in g2.outmap
-			# println("[subgraph outmap] inner $inode sets $sym")
-			pn = explore(sym)  # create node if needed
-			rn = add_node(g, NIn(sym, [nf]))  # exit node for this var in this graph
-			g2.outmap[inode] = rn
-			g.setmap[sym] = rn      # signal we're setting the var
+			if sym==is   # index var should be removed
+				delete!(g2.inmap, inode)
+			else
+				# println("[subgraph outmap] inner $inode sets $sym")
+				pn = explore(sym)  # create node if needed
+				rn = add_node(g, NIn(sym, [nf]))  # exit node for this var in this graph
+				g2.outmap[inode] = rn
+				g.setmap[sym] = rn      # signal we're setting the var
+			end
 		end
 	end
 
@@ -148,20 +156,6 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 end
 
 
-	# function explore(ex::ExFor)
-	# 	is = ex.args[1].args[1]
-	# 	isa(is, Symbol) || error("[tograph] for loop not using a single variable $is ")
-
-	# 	# explore the for block as a separate graph 
-	# 	g2, sv2, ext2, exit2 = tograph(ex.args[2], merge(externals, g.setmap))
-
-	# 	# update externals if new symbol found inside loop
-	# 	for (k,v) in ext2
-	# 		if !haskey(g.setmap,k) && !haskey(externals,k) && (k != is) 
-	# 			externals[k] = v
-	# 		end
-	# 	end
-
 	# 	#  find nodes dependant on indexing variable
 	# 	gi = ExNode[]
 	# 	for n2 in g2.nodes
@@ -190,7 +184,6 @@ end
 	# 	# create "for" node
 	# 	nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2in, Dict()) ), 
 	# 		          		   fp ) )
-
 
 	# 	# update g.setmap
 	# 	for (k,v) in sv2

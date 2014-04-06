@@ -52,9 +52,10 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 end
 
 ####### evaluate operators on constants  ###########
+# TODO : check that externals point to a constant in upper levels ?
 function evalconstants!(g::ExGraph, emod = Main)
 	i = 1 
-	while i < length(g.nodes) 
+	while i <= length(g.nodes) 
 	    n = g.nodes[i]
 
 	    restart = false
@@ -78,10 +79,11 @@ function evalconstants!(g::ExGraph, emod = Main)
 	end
 
 	# separate pass on subgraphs
-	map( n -> evalconstants!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
+	map( n -> evalconstants!(n.main[2]), filter(n->isa(n, NFor), g.nodes) )
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
+# TODO : propagate simplifications to for loops
 function prune!(g::ExGraph)
 	g2 = ancestors(collect(values(g.setmap)))
 	filter!(n -> in(n, g2), g.nodes)
@@ -111,31 +113,55 @@ end
 ####### calculate the value of each node  ###########
 function calc!(g::ExGraph; params=Dict(), emod = Main)
 
-	function evaluate(n::Union(NAlloc, NCall))
-		invoke(emod.eval(n.main), 
-	           tuple([ typeof(x.val) for x in n.parents]...),
-	           [ x.val for x in n.parents]...)
-	end 
-
-	function evaluate(n::NExt)
-		if haskey(g.inmap, n)
-			pn = g.inmap[n]
-			return isa(pn, ExNode) ? pn.val : get(params, n.main, emod.eval(n.main))
+	function myeval(thing)
+		local ret		
+		if haskey(params, thing)
+			return params[thing]
+		else
+			try
+				ret = emod.eval(thing)
+			catch
+				error("can't evaluate $thing")
+			end
+			return ret
 		end
-		n.main
 	end
 
+	function evaluate(n::Union(NAlloc, NCall))
+    	local ret
+    	try
+    		ret = invoke(emod.eval(n.main), 
+    					tuple([ typeof(x.val) for x in n.parents]...),
+    					[ x.val for x in n.parents]...)
+		catch
+			error("can't evaluate $(n.main)")
+		end
+		return ret
+   	end 
 
-    # TODO : catch error if undefined
-	evaluate(n::NConst) = emod.eval(n.main)
-	evaluate(n::NRef)   = emod.eval( Expr(:ref, n.parents[1].val, n.main...) )
-	evaluate(n::NDot)   = emod.eval( Expr(:., n.parents[1].val, n.main) )
+	function evaluate(n::NExt)
+		pn = g.inmap[n]
+		if isa(pn, ExNode)
+			return pn.val      # get node val in parent graph
+		else
+			return myeval(pn)  # get value of symbol
+		end
+	end
+
+	evaluate(n::NConst) = myeval(n.main)
+	evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
+										map(a->myeval(a), n.main)... ) )
+	evaluate(n::NDot)   = myeval( Expr(  :., n.parents[1].val, n.main) )
 	evaluate(n::NSRef)  = n.parents[1].val
 	evaluate(n::NSDot)  = n.parents[1].val
 	evaluate(n::NIn)    = n.parents[1].val[n]
 
 	function evaluate(n::NFor)
-		calc!(n.main[2])
+		g2 = n.main[2]
+		is = n.main[1].args[1]         # symbol of loop index
+		is0 = start(myeval(n.main[1].args[2])) # first value of index
+		params2 = merge(params, { is => is0 }) 
+		calc!(n.main[2], params=params2)
 		
         valdict = Dict()
         for (inode, onode) in g2.outmap
