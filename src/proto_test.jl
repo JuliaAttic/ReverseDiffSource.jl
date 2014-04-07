@@ -1,4 +1,5 @@
 reload("ReverseDiffSource") ; tm = ReverseDiffSource
+# include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
 ################## for loops  #######################
     ex = quote
@@ -16,6 +17,22 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     g.nodes
 
     tm.reversegraph(g, g.setmap[:aa], [:b, :x])
+
+    ex = quote
+        a = 2 * b
+        aa = sum(a)
+    end
+
+    g = tm.tograph(ex);
+    g.nodes
+    tm.calc!(g, params = {:b => ones(10)})
+    g2, dnodes = tm.reversegraph(g, g.setmap[:aa], [:b])
+    g2.nodes
+    g.nodes = [ g.nodes, g2.nodes]
+    dnodes
+    g.setmap[:daa] = dnodes[1]
+    tm.tocode(g)
+
 
 g.nodes
     g2 = tm.tograph(:( a = ))
