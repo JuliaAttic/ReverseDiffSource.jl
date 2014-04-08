@@ -12,26 +12,51 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     end
 
     g = tm.tograph(ex);
-    collect(keys(g.inmap))
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1, :b => ones(10), :z => 0})
-    g.nodes
 
     tm.reversegraph(g, g.setmap[:aa], [:b, :x])
+    g2 = tm.reversegraph(g, g.setmap[:aa], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    collect(keys(g.setmap))
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
 
+    tm.tocode(g)
+    tm.evalconstants!(g)
+    tm.prune!(g)
+    tm.simplify!(g)
+    tm.tocode(g)
+
+
+#############################################################
+
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
     ex = quote
         a = 2 * b
         aa = sum(a)
     end
 
     g = tm.tograph(ex);
-    g.nodes
+    tm.evalconstants!(g)
+    g.setmap
+    tm.prune!(g)
+    tm.simplify!(g)
     tm.calc!(g, params = {:b => ones(10)})
-    g2, dnodes = tm.reversegraph(g, g.setmap[:aa], [:b])
-    g2.nodes
+    g2 = tm.reversegraph(g, g.setmap[:aa], [:b])
     g.nodes = [ g.nodes, g2.nodes]
-    dnodes
-    g.setmap[:daa] = dnodes[1]
+    g.setmap = merge(g.setmap, g2.setmap)
+    collect(keys(g.setmap))
     tm.tocode(g)
+    tm.evalconstants!(g)
+    tm.prune!(g)
+    tm.simplify!(g)
+    tm.tocode(g)
+
 
 
 g.nodes

@@ -8,11 +8,16 @@
 function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	g2 = ExGraph()
 	createzeronodes!(g2, g, exitnode)
+
+	# store in setmap the nodes containing the derivatives of diffsym
+	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), g2.inmap)
+		g2.setmap[dprefix(k.main)] = v
+	end
+
 	reversepass!(g2, g)
 
-    diffn = [ filter(n -> isa(n, NExt) & (n.main==ds), g.nodes)[1] for ds in diffsym]
-    dnodes = map(n -> g2.inmap[n], diffn)
-    g2, dnodes
+
+    g2
 end
 
 # creates the starting points for derivatives accumulation variables
@@ -49,6 +54,7 @@ function createzeronodes!(g2::ExGraph, g::ExGraph, exitnode::ExNode)
 		else
 			error("[reversegraph] Unknown variable type $(typeof(n.val))")
 		end
+
 	end
 end
 
@@ -91,38 +97,40 @@ function reversepass!(g2::ExGraph, g::ExGraph)
 	end
 
 	function rev(n::NFor)
-		g3 = n.main[2]
-		g2.inmap2 = createzeronodes(g3) 
-		g4 = reversepass(g3)
+		gf = n.main[2]
+		is = n.main[1].args[1]
+
+		gf2 = ExGraph()
+		createzeronodes!(gf2, gf, NConst(0.))  # ça va péter
+		reversepass!(gf2, gf)
+
+		v2 = add_node(g2, NFor([ n.main[1], gf2]) )
 
 		# update inmap by replacing symbol with corresponding outer node in this graph
 		# dict key is the node in subgraph, and dict value is the node in parent graph
-		for (inode, sym) in g2.inmap
+		for (inode, sym) in gf2.inmap
 			if sym==is   # index var should be removed
-				delete!(g2.inmap, inode)
+				delete!(gf2.inmap, inode)
 			else
-				pn = explore(sym)  # look in setmap, externals or create it
-				g2.inmap[inode] = pn
-				push!(nf.parents, pn) # mark as parent of for loop
+				# pn = gf2.setmap[sym]  # look in setmap, externals or create it
+				# gf2.inmap[inode] = pn
+				# push!(v2.parents, pn) # mark as parent of for loop
 				# println("[subgraph inmap] inner $inode linked outer $pn")
 			end
 		end
 
 		# update outmap by replacing symbol with corresponding outer node in this graph
-		for (inode, sym) in g2.outmap
+		for (inode, sym) in gf2.outmap
 			if sym==is   # index var should be removed
-				delete!(g2.inmap, inode)
+				delete!(gf2.inmap, inode)
 			else
 				# println("[subgraph outmap] inner $inode sets $sym")
-				pn = explore(sym)  # create node if needed
-				rn = add_node(g, NIn(sym, [nf]))  # exit node for this var in this graph
-				g2.outmap[inode] = rn
+				# pn = explore(sym)  # create node if needed
+				rn = add_node(g, NIn(sym, [v2]))  # exit node for this var in this graph
+				gf2.outmap[inode] = rn
 				g.setmap[sym] = rn      # signal we're setting the var
 			end
 		end
-
-		v = add_node(g2, NFor([n.main[1], [g3.nodes, g4]], n.inmap, n.outmap, Dict()) )
-		# g2.inmap[n.parents[1]] = v4
 	end
 
 	evalsort!(g)

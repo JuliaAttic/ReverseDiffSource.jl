@@ -133,7 +133,7 @@ end
   
 
 
-@test fullcycle(:( a = b+6 ))       == Expr(:block, :(a = b+6) )  # syntax problem here with :(---- ;)
+@test fullcycle(:( a = b+6 ))       == Expr(:block, :(a = b+6) ) 
 @test fullcycle(:(sin(y);a=3))      == Expr(:block, :(a = 3) )
 @test fullcycle(:(a += b+6))        == Expr(:block, :(a = a + (b+6)) )
 @test fullcycle(:(a -= b+6))        == Expr(:block, :(a = a - (b+6)) )
@@ -145,7 +145,7 @@ end
 @test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )
 @test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0.) )
 @test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )
-@test fullcycle(:(a = b*(0.5+0.5))  == Expr(:block, :(a = b) )
+@test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )
 @test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )
 
 

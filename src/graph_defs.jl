@@ -58,7 +58,11 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict(), Dict() )
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
-ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) )
-# ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) )
+if VERSION.major==0 && VERSION.minor==2
+  @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
+else
+  @eval ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) ) # julia 0.3+
+end
+
 ancestors(n::Vector) = union( map(ancestors, n)... )
 

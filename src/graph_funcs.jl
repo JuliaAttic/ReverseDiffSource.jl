@@ -92,7 +92,6 @@ end
 ####### sort graph to an evaluable order ###########
 function evalsort!(g::ExGraph)
 	g2 = ExNode[]
-
 	while length(g2) < length(g.nodes)
 		canary = length(g2)
 		nl = setdiff(g.nodes, g2)
@@ -103,7 +102,6 @@ function evalsort!(g::ExGraph)
 	    end
 	    (canary == length(g2)) && error("[evalsort!] probable cycle in graph")
 	end
-
 	g.nodes = g2
 
 	# separate pass on subgraphs
@@ -120,8 +118,9 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 		else
 			try
 				ret = emod.eval(thing)
-			catch
-				error("can't evaluate $thing")
+			catch e
+				println("[calc!] can't evaluate $thing")
+				rethrow(e)
 			end
 			return ret
 		end
@@ -134,7 +133,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     					tuple([ typeof(x.val) for x in n.parents]...),
     					[ x.val for x in n.parents]...)
 		catch
-			error("can't evaluate $(n.main)")
+			error("[calc!] can't evaluate $(n.main)")
 		end
 		return ret
    	end 
@@ -158,9 +157,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
 	function evaluate(n::NFor)
 		g2 = n.main[2]
-		is = n.main[1].args[1]         # symbol of loop index
-		is0 = start(myeval(n.main[1].args[2])) # first value of index
+		is = n.main[1].args[1]           # symbol of loop index
+		iter = myeval(n.main[1].args[2])
+		is0 = next(iter, start(iter))[2] # first value of index
 		params2 = merge(params, { is => is0 }) 
+		println("params2 : $(params2)")
 		calc!(n.main[2], params=params2)
 		
         valdict = Dict()
@@ -169,7 +170,6 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
         end
         valdict
 	end
-
 
 	evalsort!(g)
 	for n in g.nodes
