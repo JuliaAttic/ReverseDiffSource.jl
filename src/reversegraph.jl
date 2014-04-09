@@ -10,7 +10,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	createzeronodes!(g2, g, exitnode)
 
 	# store in setmap the nodes containing the derivatives of diffsym
-	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), g2.inmap)
+	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), g.dnodes)
 		g2.setmap[dprefix(k.main)] = v
 	end
 
@@ -25,22 +25,22 @@ function createzeronodes!(g2::ExGraph, g::ExGraph, exitnode::ExNode)
 	for n in filter(n-> !isa(n,NFor), g.nodes) # n = g.nodes[3]
 		# exit node, which should always be a Real
 		if n == exitnode
-			g2.inmap[n] = add_node(g2, NConst(1.0))
+			g.dnodes[n] = add_node(g2, NConst(1.0))
 
 		# Real
 		elseif isa(n.val, Real)
-			g2.inmap[n] = add_node(g2, NConst(0.0))
+			g.dnodes[n] = add_node(g2, NConst(0.0))
 		
 		# Array of Real
 		elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
 			v1 = add_node(g2, NCall(:size, [n]))
-			g2.inmap[n] = add_node(g2, NAlloc(:zeros, [v1]))
+			g.dnodes[n] = add_node(g2, NAlloc(:zeros, [v1]))
 			# TODO : alloc necessary only if diffsym ?
 
 		# Composite type
 		elseif haskey(tdict, typeof(n.val))   # known composite type
 			v1 = add_node(g2, NConst( tdict[typeof(n.val)]) )
-			g2.inmap[n] = add_node(g2, NAlloc(:zeros, [v1]) )
+			g.dnodes[n] = add_node(g2, NAlloc(:zeros, [v1]) )
 			# TODO : alloc necessary only if diffsym ?
 
 		# Array of composite type
@@ -49,7 +49,7 @@ function createzeronodes!(g2::ExGraph, g::ExGraph, exitnode::ExNode)
 			# TODO : alloc necessary only if diffsym ?
 			aa = ExNode[ add_node(g2, NAlloc(:zeros, [v1]) )
 			               for i in 1:(tdict[eltype(n.val)]) ]
-			g2.inmap[n] = add_node(g2, NCall(:vcat, aa) )
+			g.dnodes[n] = add_node(g2, NCall(:vcat, aa) )
 
 		else
 			error("[reversegraph] Unknown variable type $(typeof(n.val))")
@@ -71,37 +71,46 @@ function reversepass!(g2::ExGraph, g::ExGraph)
             	fn = dfuncname(n.main, index)
             	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
-            	smap = Dict( dd, [n.parents, g2.inmap[n]])
+            	smap = Dict( dd, [n.parents, g.dnodes[n]])
 
             	nmap = add_graph!(dg, g2, smap)
 
-        		v2 = add_node(g2, NCall(:+, [g2.inmap[arg], nmap[de]]) )
-        		g2.inmap[arg] = v2
+        		v2 = add_node(g2, NCall(:+, [g.dnodes[arg], nmap[de]]) )
+        		g.dnodes[arg] = v2
 
             end
         end
 	end		 
 
 	function rev(n::NRef)
-        v2 = add_node(g2, NRef(n.main, [g2.inmap[n.parents[1]]]) )
-        v3 = add_node(g2, NCall(:+, [v2, g2.inmap[n]]) )
-		v4 = add_node(g2, NSRef(n.main, [g2.inmap[n.parents[1]], v3]) )
-		g2.inmap[n.parents[1]] = v4
+        v2 = add_node(g2, NRef(n.main, [g.dnodes[n.parents[1]]]) )
+        v3 = add_node(g2, NCall(:+, [v2, g.dnodes[n]]) )
+		v4 = add_node(g2, NSRef(n.main, [g.dnodes[n.parents[1]], v3]) )
+		g.dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NDot)
-        v2 = add_node(g2, NDot( n.main, [g2.inmap[n.parents[1]]]) )
-        v3 = add_node(g2, NCall(:+, [v2, g2.inmap[n]]) )
-		v4 = add_node(g2, NSDot(n.main, [g2.inmap[n.parents[1]], v3]) )
-		g2.inmap[n.parents[1]] = v4
+        v2 = add_node(g2, NDot( n.main, [g.dnodes[n.parents[1]]]) )
+        v3 = add_node(g2, NCall(:+, [v2, g.dnodes[n]]) )
+		v4 = add_node(g2, NSDot(n.main, [g.dnodes[n.parents[1]], v3]) )
+		g.dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NFor)
-		gf = n.main[2]
-		is = n.main[1].args[1]
+		gf = n.main[2]          # subgraph of for loop
+		is = n.main[1].args[1]  # symbol of loop index
 
 		gf2 = ExGraph()
+		for (k,v) in gf.inmap  # copy inmap
+			gf2.inmap[k] = v
+		end
 		createzeronodes!(gf2, gf, NConst(0.))  # ça va péter
+		for dn in gf2.nodes  # add relevant dnodes to inmap
+			if haskey(gf.dnodes[])
+			gf2.inmap[k] = v
+			gf2.inmap[gf.dnodes[k]] = 
+		end
+
 		reversepass!(gf2, gf)
 
 		v2 = add_node(g2, NFor([ n.main[1], gf2]) )
