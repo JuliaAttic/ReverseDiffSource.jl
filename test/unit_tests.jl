@@ -176,6 +176,17 @@ ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end ; c=3)
 exout = Expr(:block, :( c=3 ))
 @test fullcycle(ex) == striplinenumbers(exout)
 
+
+ex = :( a=0 ; for i in 1:10 ; a += x ; end)
+exout = quote
+    _tmp1=0
+    for i in 1:10
+        _tmp1 = _tmp1+x
+    end
+    a=_tmp1
+end
+@test fullcycle(ex) == striplinenumbers(exout)
+
 ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end ) 
 exout = quote 
     _tmp1 = zeros(10)

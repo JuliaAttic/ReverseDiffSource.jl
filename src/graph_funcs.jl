@@ -161,7 +161,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 		iter = myeval(n.main[1].args[2])
 		is0 = next(iter, start(iter))[2] # first value of index
 		params2 = merge(params, { is => is0 }) 
-		println("params2 : $(params2)")
+		# println("params2 : $(params2)")
 		calc!(n.main[2], params=params2)
 		
         valdict = Dict()

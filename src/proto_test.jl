@@ -2,6 +2,104 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
 # include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
 ################## for loops  #######################
+
+    ex = quote
+        a=0
+        for i in 1:2
+            a += x
+        end
+    end
+    g = tm.tograph(ex);
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.calc!(g, params = {:x => 1})
+    g2 = tm.reversegraph(g, g.setmap[:a], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
+
+    g.nodes
+
+    g.nodes[6].main[2].nodes
+    # for (k,v) in g.nodes[8].main[2].inmap  ; println("$k => $v : pos = $(findin(g.nodes, [v])[1])") ; end
+    # for p in g.nodes[8].parents  ; println("$p : pos = $(findin(g.nodes, [p])[1])") ; end
+    # for (k,v) in g.nodes[8].main[2].outmap ; println("$k => $v") ; end
+
+    # g2 = g
+    # g2 = g.nodes[3].main[2]
+    # g2 = g.nodes[8].main[2]
+    # for (i,n) in zip(1:length(g2.nodes), g2.nodes)
+    #     println("#$i - $n : ")
+    #     for p in n.parents ; println("    $p : pos = $(findin(g2.nodes, [p])[1])") ; end
+    # end
+
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    ex = quote
+        a=zeros(2)
+        for i in 1:2
+            a[i] += x 
+        end
+        res = sum(a)
+    end
+    g = tm.tograph(ex); tm.tocode(g)
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.calc!(g, params = {:x => 1})
+    g2 = tm.reversegraph(g, g.setmap[:res], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
+
+    g.nodes[4].main[2].nodes[5]
+
+    g3 = g.nodes[4].main[2]
+  g2 = tm.ExGraph()
+  nmap = Dict{tm.ExNode, tm.ExNode}()
+  tm.evalsort!(g3)
+  for n in g3.nodes
+
+  n = g3.nodes[5]  
+    println("node :     $n")
+    n2 = tm.add_node(g2, copy(n))
+    for n3 in n2.parents
+        println("    parents   $n3")
+    end
+    println("    $(typeof(n2.parents))")
+    n2.parents
+    map((x) -> (x.val), n2.parents);
+    [ nmap[n] for n in n2.parents ]
+
+    dump(nmap)
+    typeof(n2.parents)
+    nmap[ n2.parents[1] ]
+    nmap[ n2.parents[2] ]
+    println("    $(typeof(xxxx))")
+    n2.parents = map(n->nmap[n], n2.parents)
+    nmap[n] = n2
+  end
+
+
+
+
+#
+    g = tm.tograph(:(a=0 ; a += x));
+    tm.calc!(g, params = {:x => 1})
+    g2 = tm.reversegraph(g, g.setmap[:a], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
+
+    g = tm.tograph(:(a=0 ; a += 2x));
+    tm.calc!(g, params = {:x => 1})
+    g2 = tm.reversegraph(g, g.setmap[:a], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
+
+
+
     ex = quote
         a=zeros(10)
         for i in 1:10
@@ -32,6 +130,14 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.simplify!(g)
     tm.tocode(g)
 
+#############################################################
+    g = tm.tograph(:(a[2]=x ; res=a[2]));
+    tm.calc!(g, params = {:a => ones(3), :x => 0})
+    g2 = tm.reversegraph(g, g.setmap[:res], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
+    g2.nodes
 
 #############################################################
 
@@ -48,6 +154,8 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.simplify!(g)
     tm.calc!(g, params = {:b => ones(10)})
     g2 = tm.reversegraph(g, g.setmap[:aa], [:b])
+    g2.nodes
+    g2.setmap
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
     collect(keys(g.setmap))
@@ -56,7 +164,6 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.prune!(g)
     tm.simplify!(g)
     tm.tocode(g)
-
 
 
 g.nodes
@@ -417,3 +524,27 @@ pwd()
     g.nodes
 
     g, sv, ext, outsym = tm.tograph(:(  foo(x::Real,y)))
+
+
+
+
+ tm.ispivot(g.nodes[1], g)
+
+n = g.nodes[1]
+tm.ispivot(n, g)
+
+
+    nbref = 0
+    for n2 in g.nodes  # n2 = g.nodes[3]
+        np = sum(i -> is(i, n), n2.parents)
+        (np == 0) && continue
+
+        isa(n2, tm.NFor) && return true    # force assignment if used in for loops
+        isa(n2, Union(tm.NSRef, tm.NSDot)) && 
+            is(n2.parents[1], n) && return true  # force if setindex/setfield applies to it
+
+        nbref += np
+        (nbref >= 2) && return true  # if used more than once
+    end
+
+nbref

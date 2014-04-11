@@ -61,34 +61,12 @@ function tocode(g::ExGraph)
 
 	evalsort!(g)  # order is important
 	out = Expr[]
-	for n in g.nodes # n = g.nodes[4]
+	for n in g.nodes 
 		n.val = translate(n)
 
-	    # variable name(s) for this node
-	    nvn = collect(keys( filter( (k,v) -> is(v, n), g.setmap) ) ) 
-
-        # number of times n is a parent (force np> 1 if 
-        #   used in "for" loop, sref, sdot)
-        function usecount(ntest::ExNode, nref::ExNode)
-        	np = sum(n->is(n, nref), ntest.parents)
-        	(np == 0) && return 0
-
-        	if isa(ntest, NFor)
-        		return 2
-        	elseif isa(ntest, Union(NSRef, NSDot)) && is(ntest.parents[1], nref)
-        		return 2
-        	else
-        		return np
-        	end
-        end
-
-        np = mapreduce(n1 -> usecount(n1, n), +, g.nodes )
-
+        nvn = getnames(n, g)
 		# create an assignment statement if...        
-        if ( length(nvn) > 0 ) |                       # is an exit node
-        	# isa(n, NAlloc) |                         # is an allocation
-        	((np > 1) & isa(n, Union(NCall, NAlloc)) ) # has several children
-
+        if ( length(nvn) > 0 ) | ispivot(n,g)
         	if length(nvn) > 0
 	        	lhs = nvn[1]
 	        	for nv in nvn[2:end]
@@ -99,11 +77,53 @@ function tocode(g::ExGraph)
         	end
 
         	# create assgnmt if code not redundant
-	        lhs != n.val && push!(out, :( $lhs = $(n.val) ))
-	        n.val = lhs
+	        if lhs != n.val
+	        	push!(out, :( $lhs = $(n.val) ))
+	        	n.val = lhs
+	        end
 	    end
 
 	end 
 
 	return Expr(:block, out...)
 end 
+
+
+#  variable names assigned to this node
+function getnames(n::ExNode, g::ExGraph)
+	syms = Symbol[]
+	if haskey(g.link, n) # this node modifies an var in parent
+		push!(syms, g.link[n].val)  # this var has necessarily been evaluated to a symbol
+	else
+		for (k,v) in g.setmap
+			is(v,n) && push!(syms, k==nothing ? newvar() : k)
+		end
+	end
+	syms
+end
+
+# tests if an assignment should be created for this node
+ispivot(n::Union(NExt, NRef, NDot, NSRef, NSDot, NFor), g::ExGraph) = false
+
+function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
+	nbref = 0
+	for n2 in g.nodes
+		np = sum(i -> is(i, n), n2.parents)
+		(np == 0) && continue
+
+		isa(n2, NFor) && return true    # force assignment if used in for loops
+		isa(n2, Union(NSRef, NSDot)) && 
+			is(n2.parents[1], n) && return true  # force if setindex/setfield applies to it
+
+		nbref += np
+		(nbref >= 2) && return true  # if used more than once
+	end
+
+	false
+end
+
+function ispivot(n::Union(NConst, NIn), g::ExGraph)
+	any( i -> in(n, i.parents) && isa(i, NFor), g.nodes)
+end
+
+

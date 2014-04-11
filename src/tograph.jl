@@ -4,10 +4,6 @@
 #
 #########################################################################
 
-function remove_node(g::ExGraph, n::ExNode)
-	
-end
-	
 #  top-level call	
 function tograph(s)
 
@@ -119,12 +115,13 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 		# update outmap by replacing symbol with corresponding outer node in this graph
 		for (inode, sym) in g2.outmap
 			if sym==is   # index var should be removed
-				delete!(g2.inmap, inode)
+				delete!(g2.outmap, inode)
 			else
 				# println("[subgraph outmap] inner $inode sets $sym")
 				pn = explore(sym)  # create node if needed
 				rn = add_node(g, NIn(sym, [nf]))  # exit node for this var in this graph
 				g2.outmap[inode] = rn
+				g2.link[inode] = pn
 				g.setmap[sym] = rn      # signal we're setting the var
 			end
 		end

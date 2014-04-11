@@ -6,60 +6,58 @@
 
 ###### creates reverse mode diff graph ######
 function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
-	g2 = ExGraph()
-	createzeronodes!(g2, g, exitnode)
+	g2     = ExGraph()  # graph that will contain the derivative evaluation
 
-	# store in setmap the nodes containing the derivatives of diffsym
-	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), g.dnodes)
-		g2.setmap[dprefix(k.main)] = v
+	# create starting nodes
+	dnodes = Dict()     # map linking nodes of g to their derivative node in g2
+	for n in filter(n-> !isa(n,NFor), g.nodes)
+		if n == exitnode
+			dnodes[n] = add_node(g2, NConst(1.0))
+		else
+			dnodes[n] = createzeronode!(g2, n)
+		end
 	end
 
-	reversepass!(g2, g)
+	# builds the graph for derivatives calculations
+	reversepass!(g2, g, dnodes)
 
+	# store in setmap the nodes containing the derivatives of diffsym
+	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), dnodes)
+		g2.setmap[dprefix(k.main)] = v
+	end
 
     g2
 end
 
 # creates the starting points for derivatives accumulation variables
-function createzeronodes!(g2::ExGraph, g::ExGraph, exitnode::ExNode)
-	for n in filter(n-> !isa(n,NFor), g.nodes) # n = g.nodes[3]
-		# exit node, which should always be a Real
-		if n == exitnode
-			g.dnodes[n] = add_node(g2, NConst(1.0))
+function createzeronode!(g2::ExGraph, n)
+	if isa(n.val, Real)
+		return add_node(g2, NConst(0.0))
+	
+	# Array of Real
+	elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
+		v1 = add_node(g2, NCall(:size, [n]))
+		return add_node(g2, NAlloc(:zeros, [v1]))
 
-		# Real
-		elseif isa(n.val, Real)
-			g.dnodes[n] = add_node(g2, NConst(0.0))
-		
-		# Array of Real
-		elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
-			v1 = add_node(g2, NCall(:size, [n]))
-			g.dnodes[n] = add_node(g2, NAlloc(:zeros, [v1]))
-			# TODO : alloc necessary only if diffsym ?
+	# Composite type
+	elseif haskey(tdict, typeof(n.val))   # known composite type
+		v1 = add_node(g2, NConst( tdict[typeof(n.val)]) )
+		return add_node(g2, NAlloc(:zeros, [v1]) )
 
-		# Composite type
-		elseif haskey(tdict, typeof(n.val))   # known composite type
-			v1 = add_node(g2, NConst( tdict[typeof(n.val)]) )
-			g.dnodes[n] = add_node(g2, NAlloc(:zeros, [v1]) )
-			# TODO : alloc necessary only if diffsym ?
+	# Array of composite type
+	elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
+		v1 = add_node(g2, NCall(:size, [n]) )
+		aa = ExNode[ add_node(g2, NAlloc(:zeros, [v1]) )
+		               for i in 1:(tdict[eltype(n.val)]) ]
+		return add_node(g2, NCall(:vcat, aa) )
 
-		# Array of composite type
-		elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
-			v1 = add_node(g2, NCall(:size, [n]) )
-			# TODO : alloc necessary only if diffsym ?
-			aa = ExNode[ add_node(g2, NAlloc(:zeros, [v1]) )
-			               for i in 1:(tdict[eltype(n.val)]) ]
-			g.dnodes[n] = add_node(g2, NCall(:vcat, aa) )
-
-		else
-			error("[reversegraph] Unknown variable type $(typeof(n.val))")
-		end
-
+	else
+		error("[reversegraph] Unknown variable type $(typeof(n.val))")
 	end
 end
 
 #  climbs the reversed evaluation tree
-function reversepass!(g2::ExGraph, g::ExGraph)
+function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	rev(n::ExNode) = nothing  # do nothing
 
@@ -71,76 +69,168 @@ function reversepass!(g2::ExGraph, g::ExGraph)
             	fn = dfuncname(n.main, index)
             	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
-            	smap = Dict( dd, [n.parents, g.dnodes[n]])
+            	smap = Dict( dd, [n.parents, dnodes[n]])
 
             	nmap = add_graph!(dg, g2, smap)
 
-        		v2 = add_node(g2, NCall(:+, [g.dnodes[arg], nmap[de]]) )
-        		g.dnodes[arg] = v2
+        		v2 = add_node(g2, NCall(:+, [dnodes[arg], nmap[de]]) )
+        		dnodes[arg] = v2
 
             end
         end
 	end		 
 
 	function rev(n::NRef)
-        v2 = add_node(g2, NRef(n.main, [g.dnodes[n.parents[1]]]) )
-        v3 = add_node(g2, NCall(:+, [v2, g.dnodes[n]]) )
-		v4 = add_node(g2, NSRef(n.main, [g.dnodes[n.parents[1]], v3]) )
-		g.dnodes[n.parents[1]] = v4
+        v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
+        v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
+		v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
+		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NDot)
-        v2 = add_node(g2, NDot( n.main, [g.dnodes[n.parents[1]]]) )
-        v3 = add_node(g2, NCall(:+, [v2, g.dnodes[n]]) )
-		v4 = add_node(g2, NSDot(n.main, [g.dnodes[n.parents[1]], v3]) )
-		g.dnodes[n.parents[1]] = v4
+        v2 = add_node(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
+        v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
+		v4 = add_node(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
+		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NFor)
 		gf = n.main[2]          # subgraph of for loop
 		is = n.main[1].args[1]  # symbol of loop index
 
-		gf2 = ExGraph()
-		for (k,v) in gf.inmap  # copy inmap
-			gf2.inmap[k] = v
+		gf2     = copy(gf)
+		dgf2    = ExGraph()
+		fdnodes = Dict()
+		println("==========")
+		for n2 in filter(n-> !isa(n,NFor), gf2.nodes)
+			nn = isa(n2.main, Symbol) ? NExt(dprefix(n2.main)) : NExt("abc")
+			add_node(dgf2, nn)  # start point of deriv accumulator
+			fdnodes[n2] = nn
+			if haskey(gf2.outmap, n2)
+				dgf2.inmap[nn] = dnodes[gf2.outmap[n2]]
+			elseif isa(n2, NExt)  # update inmap, etc..
+				dgf2.inmap[nn] = dnodes[gf2.inmap[n2]]
+			end	
 		end
-		createzeronodes!(gf2, gf, NConst(0.))  # ça va péter
-		for dn in gf2.nodes  # add relevant dnodes to inmap
-			if haskey(gf.dnodes[])
-			gf2.inmap[k] = v
-			gf2.inmap[gf.dnodes[k]] = 
-		end
+		println("==========")
 
-		reversepass!(gf2, gf)
+		# builds the graph for derivatives calculations
+		reversepass!(dgf2, gf2, fdnodes)
+		println("==========")
 
-		v2 = add_node(g2, NFor([ n.main[1], gf2]) )
+		# create for loop
+		v2 = add_node(g2, NFor([ n.main[1], dgf2]) )
+		v2.parents = collect(values(dgf2.inmap))
+		println("==========")
 
-		# update inmap by replacing symbol with corresponding outer node in this graph
-		# dict key is the node in subgraph, and dict value is the node in parent graph
-		for (inode, sym) in gf2.inmap
-			if sym==is   # index var should be removed
-				delete!(gf2.inmap, inode)
-			else
-				# pn = gf2.setmap[sym]  # look in setmap, externals or create it
-				# gf2.inmap[inode] = pn
-				# push!(v2.parents, pn) # mark as parent of for loop
-				# println("[subgraph inmap] inner $inode linked outer $pn")
+		println(gf2.nodes)
+		println("==========")
+		println(dgf2.nodes)
+
+		for n2 in dgf2.nodes
+			for n3 in n2.parents
+				if !in(n3, dgf2.nodes)
+					println("!!! : $n2 has parents outside of dgf2")
+				end
 			end
 		end
 
-		# update outmap by replacing symbol with corresponding outer node in this graph
-		for (inode, sym) in gf2.outmap
-			if sym==is   # index var should be removed
-				delete!(gf2.inmap, inode)
-			else
-				# println("[subgraph outmap] inner $inode sets $sym")
-				# pn = explore(sym)  # create node if needed
-				rn = add_node(g, NIn(sym, [v2]))  # exit node for this var in this graph
-				gf2.outmap[inode] = rn
-				g.setmap[sym] = rn      # signal we're setting the var
-			end
+		# gf2.nodes = [ gf2.nodes, dgf2.nodes ]
+		println("==========")
+		for (k,v) in fdnodes ; println("dnodes -- $k  => $v") ; end
+		for (k,v) in dgf2.inmap ; println("inmap -- $k  => $v") ; end
+		for (k,v) in dgf2.outmap ; println("outmap -- $k  => $v") ; end
+		println("==========")
+
+		for (k,v) in filter((k,v) -> in(v, dgf2.nodes) & haskey(gf2.inmap, k), fdnodes)
+			println("[dfor outmap] (1) $k - $v")
+			rn = add_node(g2, NIn("duh", [v2]))  # exit node for this var in this graph
+			dgf2.outmap[v] = rn 
+			println("[dfor outmap] (2) $v - $rn")
+			p0 = gf2.inmap[ k ]
+			println("[dfor outmap] (3) p0 = $p0")
+			pn = dnodes[ p0 ]
+			println("[dfor outmap] (3) pn = $pn")
+			dgf2.link[v] = pn
+			println("[dfor outmap] (4)")
+			dnodes[p0] = rn      # are you lost ?  me too
 		end
+
 	end
+
+	# function rev(n::NFor)
+	# 	gf = n.main[2]          # subgraph of for loop
+	# 	is = n.main[1].args[1]  # symbol of loop index
+
+	# 	gf2     = copy(gf)
+	# 	dgf2    = ExGraph()
+
+	# 	# create starting nodes
+	# 	fdnodes = Dict()
+	# 	for n0 in filter(n -> !isa(n,NFor), gf2.nodes)
+	# 		if isa(n0, NExt) # then zeronode exists in parent graph, link to it
+	# 			n2 = add_node(dgf2, NExt(dprefix(n0.main)))
+	# 			fdnodes[n0] = n2
+	# 			gf2.inmap[n2] = dnodes[ gf2.inmap[n0] ]
+	# 		else
+	# 			fdnodes[n0] = createzeronode!(dgf2, n0)
+	# 		end
+	# 	end
+
+	# 	# builds the graph for derivatives calculations
+	# 	reversepass!(dgf2, gf2, fdnodes)
+	# 	gf2.nodes = [ gf2.nodes, dgf2.nodes ]
+
+	# 	# create for loop
+	# 	v2 = add_node(g2, NFor([ n.main[1], gf2]) )
+	# 	v2.parents = collect(values(gf2.inmap))
+
+	# 	println(gf2.nodes)
+	# 	println("==========")
+	# 	println(collect(keys(fdnodes)))
+	# 	for n in filter(n -> isa(n,NExt), gf2.nodes)
+	# 		rn = add_node(g2, NIn("dnode", [v2]))  # exit node for this var in this graph
+	# 		println("2")
+	# 		gf2.outmap[ fdnodes[n] ] = rn
+	# 		println("3")
+	# 		dnodes[ gf2.inmap[n] ] = rn
+	# 	end
+	# 	println("4")
+
+	# 	# # copy nodes and inmap
+	# 	# for n in gf.nodes
+	# 	# 	n2 = add_node(gf2, copy(n))
+	# 	# 	n2.val = n.val
+	# 	# 	if haskey(gf.inmap, n)
+	# 	# 		gf2.inmap[n2] = gf.inmap[n]    
+	# 	# 		dn = add_node(gf2, NExt("dnode")) # we have to add the derivative node too
+	# 	# 		dn.val = gf.inmap[n].val
+	# 	# 		gf2.inmap[dn] = dnodes[gf.inmap[n]]
+	# 	# 	end
+	# 	# 	if haskey(gf.outmap, n) 
+	# 	# 		gf2.inmap[n2] = gf.outmap[n]    
+	# 	# 		dn = add_node(gf2, NExt("dnode")) # we have to add the derivative node too
+	# 	# 		dn.val = gf.outmap[n].val
+	# 	# 		gf2.inmap[dn] = dnodes[gf.outmap[n]]
+	# 	# 	end
+	# 	# end
+	# 	# println(gf2.nodes)
+
+	# 	# v2 = add_node(g2, NFor([ n.main[1], gf2]) )
+	# 	# v2.parents = collect(values(gf2.inmap))
+
+	# 	# createzeronodes!(gf2, gf) 
+	# 	# reversepass!(gf2, gf)
+	# 	# println("============>")
+	# 	# println(gf2.nodes)
+
+	# 	# # outmap should contain changed dnodes
+	# 	# for dn in setdiff(collect(values(gf.dnodes)), collect(keys(gf2.inmap)))
+	# 	# 	rn = add_node(g2, NIn("dnode", [v2]))  # exit node for this var in this graph
+	# 	# 	gf2.outmap[dn] = rn
+	# 	# 	# dnodes[gf] = rn
+	# 	# end
+	# end
 
 	evalsort!(g)
 	map(rev, reverse(g.nodes))
