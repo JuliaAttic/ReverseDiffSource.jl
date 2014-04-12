@@ -65,7 +65,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		vargs = [ x.val for x in n.parents ]
 		for (index, arg) in zip(1:length(n.parents), n.parents)
             if !isa(arg, Union(NConst, NComp))
-
             	fn = dfuncname(n.main, index)
             	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
@@ -75,12 +74,18 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
         		v2 = add_node(g2, NCall(:+, [dnodes[arg], nmap[de]]) )
         		dnodes[arg] = v2
-
             end
         end
 	end		 
 
 	function rev(n::NRef)
+        v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
+        v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
+		v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
+		dnodes[n.parents[1]] = v4
+	end
+
+	function rev(n::NSRef)
         v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
         v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
 		v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
@@ -121,10 +126,10 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# create for loop
 		v2 = add_node(g2, NFor([ n.main[1], dgf2]) )
 		v2.parents = collect(values(dgf2.inmap))
-		println("==========")
 
+		println("==== gf2 =====")
 		println(gf2.nodes)
-		println("==========")
+		println("==== dgf2 ====")
 		println(dgf2.nodes)
 
 		for n2 in dgf2.nodes
@@ -157,80 +162,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 	end
-
-	# function rev(n::NFor)
-	# 	gf = n.main[2]          # subgraph of for loop
-	# 	is = n.main[1].args[1]  # symbol of loop index
-
-	# 	gf2     = copy(gf)
-	# 	dgf2    = ExGraph()
-
-	# 	# create starting nodes
-	# 	fdnodes = Dict()
-	# 	for n0 in filter(n -> !isa(n,NFor), gf2.nodes)
-	# 		if isa(n0, NExt) # then zeronode exists in parent graph, link to it
-	# 			n2 = add_node(dgf2, NExt(dprefix(n0.main)))
-	# 			fdnodes[n0] = n2
-	# 			gf2.inmap[n2] = dnodes[ gf2.inmap[n0] ]
-	# 		else
-	# 			fdnodes[n0] = createzeronode!(dgf2, n0)
-	# 		end
-	# 	end
-
-	# 	# builds the graph for derivatives calculations
-	# 	reversepass!(dgf2, gf2, fdnodes)
-	# 	gf2.nodes = [ gf2.nodes, dgf2.nodes ]
-
-	# 	# create for loop
-	# 	v2 = add_node(g2, NFor([ n.main[1], gf2]) )
-	# 	v2.parents = collect(values(gf2.inmap))
-
-	# 	println(gf2.nodes)
-	# 	println("==========")
-	# 	println(collect(keys(fdnodes)))
-	# 	for n in filter(n -> isa(n,NExt), gf2.nodes)
-	# 		rn = add_node(g2, NIn("dnode", [v2]))  # exit node for this var in this graph
-	# 		println("2")
-	# 		gf2.outmap[ fdnodes[n] ] = rn
-	# 		println("3")
-	# 		dnodes[ gf2.inmap[n] ] = rn
-	# 	end
-	# 	println("4")
-
-	# 	# # copy nodes and inmap
-	# 	# for n in gf.nodes
-	# 	# 	n2 = add_node(gf2, copy(n))
-	# 	# 	n2.val = n.val
-	# 	# 	if haskey(gf.inmap, n)
-	# 	# 		gf2.inmap[n2] = gf.inmap[n]    
-	# 	# 		dn = add_node(gf2, NExt("dnode")) # we have to add the derivative node too
-	# 	# 		dn.val = gf.inmap[n].val
-	# 	# 		gf2.inmap[dn] = dnodes[gf.inmap[n]]
-	# 	# 	end
-	# 	# 	if haskey(gf.outmap, n) 
-	# 	# 		gf2.inmap[n2] = gf.outmap[n]    
-	# 	# 		dn = add_node(gf2, NExt("dnode")) # we have to add the derivative node too
-	# 	# 		dn.val = gf.outmap[n].val
-	# 	# 		gf2.inmap[dn] = dnodes[gf.outmap[n]]
-	# 	# 	end
-	# 	# end
-	# 	# println(gf2.nodes)
-
-	# 	# v2 = add_node(g2, NFor([ n.main[1], gf2]) )
-	# 	# v2.parents = collect(values(gf2.inmap))
-
-	# 	# createzeronodes!(gf2, gf) 
-	# 	# reversepass!(gf2, gf)
-	# 	# println("============>")
-	# 	# println(gf2.nodes)
-
-	# 	# # outmap should contain changed dnodes
-	# 	# for dn in setdiff(collect(values(gf.dnodes)), collect(keys(gf2.inmap)))
-	# 	# 	rn = add_node(g2, NIn("dnode", [v2]))  # exit node for this var in this graph
-	# 	# 	gf2.outmap[dn] = rn
-	# 	# 	# dnodes[gf] = rn
-	# 	# end
-	# end
 
 	evalsort!(g)
 	map(rev, reverse(g.nodes))

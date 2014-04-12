@@ -245,7 +245,8 @@ function plot(g::ExGraph)
 					color=pink;
 				"""
 
-			for n2 in filter(n -> !isa(n, NExt), n.main[2].nodes)
+			# for n2 in filter(n -> !isa(n, NExt), n.main[2].nodes)
+			for n2 in n.main[2].nodes
 			    nn[n2] = "n$i"
 				i += 1
 				out = out * gshow(n2)
@@ -262,17 +263,29 @@ function plot(g::ExGraph)
 	for n in g.nodes 
 		if isa(n, NFor)  # FIXME : will fail for nested for loops
 			g2 = n.main[2]
-			for n2 in filter(n -> !isa(n, NExt), g2.nodes)
-			    for p in n2.parents
-			    	if in(p, keys(g2.inmap))
-			        	out = out * "$(nn[g2.inmap[p]]) -> $(nn[n2]) [style=dotted];"
-			    	else
+			for n2 in g2.nodes
+				if isa(n2, NExt)
+					p = g2.inmap[n2]
+		        	out = out * "$(nn[p]) -> $(nn[n2]) [style=dashed];"
+				else	
+				    for p in n2.parents
 			    		out = out * "$(nn[p]) -> $(nn[n2]);"
-			        end
-			    end
+				    end
+				end
+
+				if haskey(g2.outmap, n2)
+					p = g2.outmap[n2]
+		        	out = out * "$(nn[n2]) -> $(nn[p]) [style=dashed];"
+		        end
+
+				if haskey(g2.link, n2)
+					p = g2.link[n2]
+		        	out = out * "$(nn[n2]) -> $(nn[p]) [style=dotted, color=\"blue\"];"
+		        end
+
 			end
 		else
-		    for p in n.parents
+		    for p in filter(n -> !isa(n, NFor), n.parents)
 		        out = out * "$(nn[p]) -> $(nn[n]);"
 		    end
 		end	
@@ -283,5 +296,5 @@ function plot(g::ExGraph)
 	    out = out * "$(nn[en]) -> n$el [ style=dotted];"
 	end
 
-	Graph("digraph gp {layout=dot; labeldistance=5; scale=0.5 ; $out }")
+	"digraph gp {layout=dot; $out }"
 end

@@ -38,12 +38,14 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     ex = quote
         a=zeros(2)
         for i in 1:2
-            a[i] += x 
+            a[i] = x 
         end
         res = sum(a)
     end
     g = tm.tograph(ex); tm.tocode(g)
     tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1})
     g2 = tm.reversegraph(g, g.setmap[:res], [:x])
     g.nodes = [ g.nodes, g2.nodes]
