@@ -86,10 +86,12 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NSRef)
-        v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
-        v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
-		v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
-		dnodes[n.parents[1]] = v4
+		v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
+		println("v2  $v2")
+		v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
+		println("v3  $v3")
+		# v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
+		dnodes[n] = v3
 	end
 
 	function rev(n::NDot)

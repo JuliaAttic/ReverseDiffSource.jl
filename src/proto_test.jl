@@ -1,6 +1,28 @@
 reload("ReverseDiffSource") ; tm = ReverseDiffSource
 # include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
+################## setindex  #######################
+
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    ex = quote
+        a=zeros(2)
+        a[2] = x 
+        res = sum(a)
+    end
+    g = tm.tograph(ex); tm.tocode(g)
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
+    tm.calc!(g, params = {:x => 1})
+    g2 = tm.reversegraph(g, g.setmap[:res], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.evalconstants!(g); tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
+
+
+
 ################## for loops  #######################
 
     ex = quote
