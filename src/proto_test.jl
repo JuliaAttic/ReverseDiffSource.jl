@@ -104,26 +104,6 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     nmap[n] = n2
   end
 
-
-
-
-#
-    g = tm.tograph(:(a=0 ; a += x));
-    tm.calc!(g, params = {:x => 1})
-    g2 = tm.reversegraph(g, g.setmap[:a], [:x])
-    g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
-    tm.tocode(g)
-
-    g = tm.tograph(:(a=0 ; a += 2x));
-    tm.calc!(g, params = {:x => 1})
-    g2 = tm.reversegraph(g, g.setmap[:a], [:x])
-    g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
-    tm.tocode(g)
-
-
-
     ex = quote
         a=zeros(10)
         for i in 1:10
@@ -139,7 +119,6 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.simplify!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1, :b => ones(10), :z => 0})
 
-    tm.reversegraph(g, g.setmap[:aa], [:b, :x])
     g2 = tm.reversegraph(g, g.setmap[:aa], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
@@ -190,7 +169,7 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.tocode(g)
 
 
-g.nodes
+    g.nodes
     g2 = tm.tograph(:( a = ))
 
     # collect(keys(g.inmap))
@@ -538,7 +517,6 @@ g.nodes
 
 
 ######################" misc "  ########################
-pwd()
     reload("ReverseDiffSource")
     tm = ReverseDiffSource
 
@@ -552,10 +530,10 @@ pwd()
 
 
 
- tm.ispivot(g.nodes[1], g)
+     tm.ispivot(g.nodes[1], g)
 
-n = g.nodes[1]
-tm.ispivot(n, g)
+    n = g.nodes[1]
+    tm.ispivot(n, g)
 
 
     nbref = 0

@@ -114,7 +114,7 @@ g = g.nodes[7].main[2]
 @test length(g.setmap) == 0
 
 
-### full cycle
+### full cycle  : tograph -> splitnary -> evalconstants -> simplify -> prune -> tocode 
 function fullcycle(ex)
     g = m.tograph(ex)
     length(g.setmap) == 0 && error("nothing defined here")

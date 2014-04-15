@@ -79,19 +79,18 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end		 
 
 	function rev(n::NRef)
-        v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
+        v2 = add_node(g2, NRef(n.main, [ dnodes[n.parents[1]] ]) )
         v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
 		v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
 		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NSRef)
-		v2 = add_node(g2, NRef(n.main, [dnodes[n.parents[1]]]) )
+		v2 = add_node(g2, NRef(n.main, [ dnodes[n] ]) )
 		println("v2  $v2")
-		v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
+		v3 = add_node(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		println("v3  $v3")
-		# v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
-		dnodes[n] = v3
+		dnodes[n.parents[2]] = v3
 	end
 
 	function rev(n::NDot)
@@ -166,5 +165,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	evalsort!(g)
-	map(rev, reverse(g.nodes))
+	for n2 in reverse(g.nodes)
+		println("=======")
+		for n3 in g2.nodes
+			dn = collect(keys(filter( (k,v) -> is(v, n3), dnodes ) ))
+			println(" $n3,  dn = $(repr(dn))")
+		end
+		rev(n2)
+	end
+	# map(rev, reverse(g.nodes))
 end

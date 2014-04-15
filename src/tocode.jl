@@ -92,7 +92,7 @@ end
 #  variable names assigned to this node
 function getnames(n::ExNode, g::ExGraph)
 	syms = Symbol[]
-	if haskey(g.link, n) # this node modifies an var in parent
+	if haskey(g.link, n) # this node modifies a var in parent
 		push!(syms, g.link[n].val)  # this var has necessarily been evaluated to a symbol
 	else
 		for (k,v) in g.setmap
