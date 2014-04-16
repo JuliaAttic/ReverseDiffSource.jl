@@ -38,7 +38,7 @@ end
 
 ########   rules definitions   #############
 
-# addition
+# addition  (deprecated versions are maintained for the time being)
 @deriv_rule +(x::Real         , y::Real )            x     dx += ds
 @deriv_rule +(x::Real         , y::AbstractArray)    x     for i in 1:length(ds) ; dx += ds[i]     ;end
 @deriv_rule +(x::AbstractArray, y       )            x     for i in 1:length(ds) ; dx[i] += ds[i]  ;end
@@ -46,17 +46,33 @@ end
 @deriv_rule +(x::AbstractArray, y::Real )            y     for i in 1:length(ds) ; dy    += ds[i]  ;end
 @deriv_rule +(x               , y::AbstractArray)    y     for i in 1:length(ds) ; dy[i] += ds[i]  ;end
 
+# dot-addition
+@deriv_rule .+(x::Real         , y::Real )            x     dx += ds
+@deriv_rule .+(x::Real         , y::AbstractArray)    x     for i in 1:length(ds) ; dx += ds[i]     ;end
+@deriv_rule .+(x::AbstractArray, y       )            x     for i in 1:length(ds) ; dx[i] += ds[i]  ;end
+@deriv_rule .+(x::Real         , y::Real )            y     dy += ds
+@deriv_rule .+(x::AbstractArray, y::Real )            y     for i in 1:length(ds) ; dy    += ds[i]  ;end
+@deriv_rule .+(x               , y::AbstractArray)    y     for i in 1:length(ds) ; dy[i] += ds[i]  ;end
+
 # unary substraction
 @deriv_rule -(x::Real )              x     dx -= ds
 @deriv_rule -(x::AbstractArray)      x     for i in 1:length(ds) ; dx[i] -= ds[i]  ;end
 
-# binary substraction
+# binary substraction (deprecated versions are maintained for the time being)
 @deriv_rule -(x::Real         , y::Real )            x     dx += ds
 @deriv_rule -(x::Real         , y::AbstractArray)    x     for i in 1:length(ds) ; dx += ds[i]     ;end
 @deriv_rule -(x::AbstractArray, y       )            x     for i in 1:length(ds) ; dx[i] += ds[i]  ;end
 @deriv_rule -(x::Real         , y::Real )            y     dy -= ds
 @deriv_rule -(x::AbstractArray, y::Real )            y     for i in 1:length(ds) ; dy    -= ds[i]  ;end
 @deriv_rule -(x               , y::AbstractArray)    y     for i in 1:length(ds) ; dy[i] -= ds[i]  ;end
+
+# binary dot-substraction
+@deriv_rule .-(x::Real         , y::Real )            x     dx += ds
+@deriv_rule .-(x::Real         , y::AbstractArray)    x     for i in 1:length(ds) ; dx += ds[i]     ;end
+@deriv_rule .-(x::AbstractArray, y       )            x     for i in 1:length(ds) ; dx[i] += ds[i]  ;end
+@deriv_rule .-(x::Real         , y::Real )            y     dy -= ds
+@deriv_rule .-(x::AbstractArray, y::Real )            y     for i in 1:length(ds) ; dy    -= ds[i]  ;end
+@deriv_rule .-(x               , y::AbstractArray)    y     for i in 1:length(ds) ; dy[i] -= ds[i]  ;end
 
 # sum()
 @deriv_rule sum(x::Real )           x     dx += ds
@@ -141,7 +157,7 @@ end
 @deriv_rule .^(x::Real         , y::AbstractArray)    y     for i in 1:length(ds) ; dy[i] += log(x) * x ^ y[i] * ds[i] ; end
 @deriv_rule .^(x::AbstractArray, y::AbstractArray)    y     for i in 1:length(ds) ; dy[i] += log(x[i]) * x[i] ^ y[i] * ds[i] ; end
 
-# division
+# division  (deprecated versions are maintained for the time being)
 @deriv_rule /(x::Real         , y::Real )           x     dx += ds / y
 @deriv_rule /(x::Real         , y::AbstractArray)   x     for i in 1:length(ds) ; dx += ds[i] / y[i] ; end
 @deriv_rule /(x::AbstractArray, y::Real )           x     for i in 1:length(ds) ; dx[i] += ds[i] / y ; end
