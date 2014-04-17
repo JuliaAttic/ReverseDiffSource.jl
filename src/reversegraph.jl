@@ -52,7 +52,7 @@ function createzeronode!(g2::ExGraph, n)
 		return add_node(g2, NCall(:vcat, aa) )
 
 	else
-		error("[reversegraph] Unknown variable type $(typeof(n.val))")
+		error("[reversegraph] Unknown type for node $n")
 	end
 end
 
@@ -86,12 +86,19 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NSRef)
-		v2 = add_node(g2, NRef(n.main, [ dnodes[n] ]) )
+		v2 = add_node(g2, NRef(n.main, [ dnodes[n.parents[1]] ]) )
 		println("v2  $v2")
 		v3 = add_node(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		println("v3  $v3")
 		dnodes[n.parents[2]] = v3
 	end
+
+	# da = zeros(size(a))
+	# da += ones(size(a)) .* 1.0
+
+	# a[2] = x
+
+	# dx = 0.0 + ( zeros(size(a)) + ones(size(a)) .* 1.0 ) [2]
 
 	function rev(n::NDot)
         v2 = add_node(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
@@ -171,6 +178,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			dn = collect(keys(filter( (k,v) -> is(v, n3), dnodes ) ))
 			println(" $n3,  dn = $(repr(dn))")
 		end
+		# tg = copy(g)
+		# # tg2 = copy(g2)
+	 #    tg.nodes = [ tg.nodes, g2.nodes]
+	 #    tsetmap = Dict()
+	 #   	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, [:x]), dnodes)
+		# 	tsetmap[dprefix(k.main)] = v
+		# end
+  #   	tg.setmap = merge(tg.setmap, tsetmap)
+  #   	println(tocode(tg))
+
 		rev(n2)
 	end
 	# map(rev, reverse(g.nodes))

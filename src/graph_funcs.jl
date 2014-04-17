@@ -21,7 +21,7 @@ function splitnary!(g::ExGraph)
 	end
 end
 
-####### fuses nodes nr and nk  ########
+####### fuses nodes nr and nk, keeps nk ########
 # removes node nr and keeps node nk 
 #  updates parent links to nr, and references in exitnodes
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
@@ -82,12 +82,47 @@ function evalconstants!(g::ExGraph, emod = Main)
 	map( n -> evalconstants!(n.main[2]), filter(n->isa(n, NFor), g.nodes) )
 end
 
-####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
-# TODO : propagate simplifications to for loops
-function prune!(g::ExGraph)
-	g2 = ancestors(collect(values(g.setmap)))
-	filter!(n -> in(n, g2), g.nodes)
+####### trims the graph to necessary nodes for exit nodes to evaluate  ###########
+# TODO : propagate simplifications within for loops
+# function prune!(g::ExGraph)
+# 	g2 = ancestors(collect(values(g.setmap)))
+# 	filter!(n -> in(n, g2), g.nodes)
+# end
+# FIXME : check all 'in' that do isequal instead of is
+
+prune!(g::ExGraph) = prune!(g, collect(values(g.setmap)))
+
+function prune!(g::ExGraph, exitnodes)
+	ns2 = copy(exitnodes)
+	evalsort!(g)
+	for n in reverse(g.nodes)
+		all(m -> !is(m,n), ns2) && continue
+
+		if isa(n, NFor)
+			g2 = n.main[2]
+			exitnodes2 = ExNode[]
+			for (k,v) in g2.outmap
+				any(m -> is(m,v), ns2) && push!(exitnodes2, k)
+			end
+			prune!(g2, exitnodes2)
+
+			npar = collect(values(g2.inmap))
+			filter!(m -> any(p -> is(p,m), ns2), n.parents)
+		end
+
+		for n2 in n.parents
+			all(m -> !is(m,n2), ns2) && push!(ns2, n2)
+		end
+	end
+
+	filter!((k,v) -> in(k, ns2), g.inmap)
+	filter!((k,v) -> in(k, ns2), g.outmap)
+	filter!((k,v) -> in(v, ns2), g.setmap)
+	filter!((k,v) -> in(k, ns2), g.link)
+
+	filter!(n -> in(n, ns2), g.nodes)
 end
+
 
 ####### sort graph to an evaluable order ###########
 function evalsort!(g::ExGraph)
@@ -207,7 +242,6 @@ function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
 
     nmap
 end
-
 
 ###### plots graph using GraphViz
 function plot(g::ExGraph)

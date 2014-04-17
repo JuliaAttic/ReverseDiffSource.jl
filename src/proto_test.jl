@@ -17,6 +17,7 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     g2 = tm.reversegraph(g, g.setmap[:res], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
     tm.evalconstants!(g); tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
@@ -25,6 +26,7 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
 ################## for loops  #######################
 
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
     ex = quote
         a=0
         for i in 1:2
@@ -34,16 +36,30 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     g = tm.tograph(ex);
     tm.evalconstants!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1})
+    g.setmap
     g2 = tm.reversegraph(g, g.setmap[:a], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
     tm.evalconstants!(g); tm.tocode(g)
-    tm.prune!(g); tm.tocode(g)
+
+    tm.prune!(g); 
+    g.nodes
+    reverse(g.nodes)
+    collect(values(g.setmap))
+    g.nodes[10] === g.nodes[9]
+
+    g.nodes is g.nodes[10]
+
+    tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
 
     g.nodes
 
-    g.nodes[6].main[2].nodes
+    g.nodes[7].main[2].nodes
+    g.nodes[7].parents
+    g.nodes[5].main[2].outmap
+    collect(keys(g.nodes[7].main[2].outmap))
+    collect(values(g.nodes[7].main[2].outmap))
     # for (k,v) in g.nodes[8].main[2].inmap  ; println("$k => $v : pos = $(findin(g.nodes, [v])[1])") ; end
     # for p in g.nodes[8].parents  ; println("$p : pos = $(findin(g.nodes, [p])[1])") ; end
     # for (k,v) in g.nodes[8].main[2].outmap ; println("$k => $v") ; end
