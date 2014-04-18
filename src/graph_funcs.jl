@@ -44,7 +44,6 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 	# replace references to nr in outmap dictionnary
     for (inode, onode) in g.outmap
         is(inode, nr) && (g.outmap[nk] = g.outmap[nr])
-        # FIXME : dictionnary should be the other way around
     end
 
     # remove node nr in g

@@ -11,7 +11,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	# create starting nodes
 	dnodes = Dict()     # map linking nodes of g to their derivative node in g2
 	for n in filter(n-> !isa(n,NFor), g.nodes)
-		if n == exitnode
+		if is(n, exitnode)
 			dnodes[n] = add_node(g2, NConst(1.0))
 		else
 			dnodes[n] = createzeronode!(g2, n)
@@ -86,19 +86,12 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NSRef)
-		v2 = add_node(g2, NRef(n.main, [ dnodes[n.parents[1]] ]) )
+		v2 = add_node(g2, NRef(n.main, [ dnodes[n] ]) )
 		println("v2  $v2")
 		v3 = add_node(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		println("v3  $v3")
 		dnodes[n.parents[2]] = v3
 	end
-
-	# da = zeros(size(a))
-	# da += ones(size(a)) .* 1.0
-
-	# a[2] = x
-
-	# dx = 0.0 + ( zeros(size(a)) + ones(size(a)) .* 1.0 ) [2]
 
 	function rev(n::NDot)
         v2 = add_node(g2, NDot( n.main, [dnodes[n.parents[1]]]) )

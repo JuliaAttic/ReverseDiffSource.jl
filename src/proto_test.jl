@@ -4,11 +4,50 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
 ################## setindex  #######################
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
+
+    function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
+        length(init)>=1 || 
+        error("There should be at least one parameter specified, none found")
+
+        paramsym = Symbol[ e[1] for e in init]
+        paramvalues = [ e[2] for e in init]
+
+        g = tm.tograph(ex)
+        !haskey(g.setmap, outsym) && error("can't find output var $outsym")
+        filter!((k,v) -> k==outsym, g.setmap)
+
+        tm.splitnary!(g)
+        tm.evalconstants!(g)
+        tm.simplify!(g)
+        tm.prune!(g)
+
+        tm.evalsort!(g)
+        # println(Dict(paramsym, paramvalues))
+        tm.calc!(g, params=Dict(paramsym, paramvalues))
+
+        dg = tm.reversegraph(g, g.setmap[outsym], paramsym)
+        g.nodes = [g.nodes, dg.nodes]
+        g.setmap = merge(g.setmap, dg.setmap)
+        
+        println("=== 1 ===\n$(tm.tocode(g))")
+        
+        tm.evalconstants!(g)
+        tm.prune!(g)
+        tm.simplify!(g)
+
+        tm.resetvar()
+        tm.tocode(g)
+    end
+
     ex = quote
         a=zeros(2)
         a[2] = x 
         res = sum(a)
     end
+
+    reversediff(ex, :res, x = 1)
+
+
     g = tm.tograph(ex); tm.tocode(g)
     tm.evalconstants!(g); tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
@@ -30,9 +69,14 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     ex = quote
         a=0
         for i in 1:2
-            a += x
+            a += 2x    #  <=  fails with warning  "ref outside of..
         end
     end
+
+    reversediff(ex, :a, x = 1)
+
+
+
     g = tm.tograph(ex);
     tm.evalconstants!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1})
