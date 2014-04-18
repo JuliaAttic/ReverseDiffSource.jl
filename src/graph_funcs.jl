@@ -96,31 +96,31 @@ function prune!(g::ExGraph, exitnodes)
 	ns2 = copy(exitnodes)
 	evalsort!(g)
 	for n in reverse(g.nodes)
-		all(m -> !is(m,n), ns2) && continue
+		!isin(n, ns2) && continue
 
 		if isa(n, NFor)
 			g2 = n.main[2]
 			exitnodes2 = ExNode[]
 			for (k,v) in g2.outmap
-				any(m -> is(m,v), ns2) && push!(exitnodes2, k)
+				isin(v, ns2) && push!(exitnodes2, k)
 			end
 			prune!(g2, exitnodes2)
 
 			npar = collect(values(g2.inmap))
-			filter!(m -> any(p -> is(p,m), ns2), n.parents)
+			filter!(m -> isin(m, npar), n.parents)
 		end
 
 		for n2 in n.parents
-			all(m -> !is(m,n2), ns2) && push!(ns2, n2)
+			!isin(n2, ns2) && push!(ns2, n2)
 		end
 	end
 
-	filter!((k,v) -> in(k, ns2), g.inmap)
-	filter!((k,v) -> in(k, ns2), g.outmap)
-	filter!((k,v) -> in(v, ns2), g.setmap)
-	filter!((k,v) -> in(k, ns2), g.link)
+	filter!((k,v) -> isin(k, ns2), g.inmap)
+	filter!((k,v) -> isin(k, ns2), g.outmap)
+	filter!((k,v) -> isin(v, ns2), g.setmap)
+	filter!((k,v) -> isin(k, ns2), g.link)
 
-	filter!(n -> in(n, ns2), g.nodes)
+	filter!(n -> isin(n, ns2), g.nodes)
 end
 
 
@@ -131,7 +131,7 @@ function evalsort!(g::ExGraph)
 		canary = length(g2)
 		nl = setdiff(g.nodes, g2)
 	    for n in nl
-	        if !any( [ in(x, nl) for x in n.parents] ) # | (length(n.parents) == 0)
+	        if all(x -> !isin(x, nl), n.parents) 
 	            push!(g2,n)
 	        end
 	    end

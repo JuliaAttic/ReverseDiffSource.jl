@@ -43,6 +43,7 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.evalconstants!(g); tm.tocode(g)
 
     tm.prune!(g); 
+    tm.tocode(g)
     g.nodes
     reverse(g.nodes)
     collect(values(g.setmap))
@@ -52,6 +53,12 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
     tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
+
+    res = tm.tocode(g)
+    @eval myfunc(x) = ($res ; (a,dx))
+
+    myfunc(2)
+    myfunc(4)
 
     g.nodes
 
@@ -91,6 +98,12 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.evalconstants!(g); tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
+
+    res = tm.tocode(g)
+    @eval myfunc(x) = ($res ; (res,dx))
+    myfunc(2)
+    myfunc(3)
+    myfunc(2)
 
     g.nodes[4].main[2].nodes[5]
 

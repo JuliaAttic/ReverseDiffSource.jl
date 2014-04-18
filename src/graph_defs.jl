@@ -21,6 +21,16 @@ isequal{T}(x::ExNode{T}, y::ExNode{T}) =
   isequal(x.main, y.main) && isequal(x.parents,y.parents)
 isequal(x::ExNode, y::ExNode) = false # not equal if param type isn't  
 
+# redefinition of in for node vectors, to match on strict identity
+function isin(x::ExNode, itr)
+    for y in itr
+        if is(y,x)  # 'is' instead of 'isequal'
+            return true
+        end
+    end
+    return false
+end
+
 copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), copy(x.parents), copy(x.val))
 
 typealias NConst     ExNode{:constant}  # for constant 

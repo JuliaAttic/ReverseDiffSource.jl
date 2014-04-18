@@ -123,7 +123,7 @@ function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
 end
 
 function ispivot(n::Union(NConst, NIn), g::ExGraph)
-	any( i -> in(n, i.parents) && isa(i, NFor), g.nodes)
+	any( i -> isin(n, i.parents) && isa(i, NFor), g.nodes)
 end
 
 

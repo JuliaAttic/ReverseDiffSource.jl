@@ -142,7 +142,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		for n2 in dgf2.nodes
 			for n3 in n2.parents
-				if !in(n3, dgf2.nodes)
+				if !isin(n3, dgf2.nodes)
 					println("!!! : $n2 has parents outside of dgf2")
 				end
 			end
@@ -155,7 +155,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		for (k,v) in dgf2.outmap ; println("outmap -- $k  => $v") ; end
 		println("==========")
 
-		for (k,v) in filter((k,v) -> in(v, dgf2.nodes) & haskey(gf2.inmap, k), fdnodes)
+		for (k,v) in filter((k,v) -> isin(v, dgf2.nodes) & haskey(gf2.inmap, k), fdnodes)
 			println("[dfor outmap] (1) $k - $v")
 			rn = add_node(g2, NIn("duh", [v2]))  # exit node for this var in this graph
 			dgf2.outmap[v] = rn 
