@@ -17,20 +17,6 @@ type ExNode{T}
   ExNode(main,parents, val) = new(   main, parents, val)
 end
 
-isequal{T}(x::ExNode{T}, y::ExNode{T}) = 
-  isequal(x.main, y.main) && isequal(x.parents,y.parents)
-isequal(x::ExNode, y::ExNode) = false # not equal if param type isn't  
-
-# redefinition of in for node vectors, to match on strict identity
-function isin(x::ExNode, itr)
-    for y in itr
-        if is(y,x)  # 'is' instead of 'isequal'
-            return true
-        end
-    end
-    return false
-end
-
 copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), copy(x.parents), copy(x.val))
 
 typealias NConst     ExNode{:constant}  # for constant 
@@ -88,7 +74,7 @@ end
 ######  Graph functions  ######
 add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
-if VERSION.major==0 && VERSION.minor==2
+if (VERSION.major, VERSION.minor) == (0,2)
   @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
 else
   @eval ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) ) # julia 0.3+

@@ -96,7 +96,7 @@ function getnames(n::ExNode, g::ExGraph)
 		push!(syms, g.link[n].val)  # this var has necessarily been evaluated to a symbol
 	else
 		for (k,v) in g.setmap
-			is(v,n) && push!(syms, k==nothing ? newvar() : k)
+			v == n && push!(syms, k==nothing ? newvar() : k)
 		end
 	end
 	syms
@@ -108,12 +108,12 @@ ispivot(n::Union(NExt, NRef, NDot, NSRef, NSDot, NFor), g::ExGraph) = false
 function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
 	nbref = 0
 	for n2 in g.nodes
-		np = sum(i -> is(i, n), n2.parents)
+		np = sum(i -> i == n, n2.parents)
 		(np == 0) && continue
 
 		isa(n2, NFor) && return true    # force assignment if used in for loops
 		isa(n2, Union(NSRef, NSDot)) && 
-			is(n2.parents[1], n) && return true  # force if setindex/setfield applies to it
+			n2.parents[1] == n && return true  # force if setindex/setfield applies to it
 
 		nbref += np
 		(nbref >= 2) && return true  # if used more than once
@@ -123,7 +123,7 @@ function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
 end
 
 function ispivot(n::Union(NConst, NIn), g::ExGraph)
-	any( i -> isin(n, i.parents) && isa(i, NFor), g.nodes)
+	any( i -> n in i.parents && isa(i, NFor), g.nodes)
 end
 
 

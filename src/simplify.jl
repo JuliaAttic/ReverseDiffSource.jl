@@ -30,8 +30,9 @@ end
 
 ## fusion of identical nodes
 function identical(n,n2,g)
-	!isequal(n,n2)  && return false
-	isa(n2, NAlloc) && return false
+	n.main != n2.main       && return false
+	n.parents != n2.parents && return false
+	isa(n2, NAlloc)         && return false
 
 	fusenodes(g, n, n2)
 	true

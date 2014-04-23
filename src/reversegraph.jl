@@ -11,7 +11,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	# create starting nodes
 	dnodes = Dict()     # map linking nodes of g to their derivative node in g2
 	for n in filter(n-> !isa(n,NFor), g.nodes)
-		if is(n, exitnode)
+		if n == exitnode
 			dnodes[n] = add_node(g2, NConst(1.0))
 		else
 			dnodes[n] = createzeronode!(g2, n)
@@ -135,7 +135,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		for n2 in dgf2.nodes
 			for n3 in n2.parents
-				if !isin(n3, dgf2.nodes)
+				if !(n3 in dgf2.nodes)
 					println("!!! : $n2 has parents outside of dgf2")
 				end
 			end
@@ -148,7 +148,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		for (k,v) in dgf2.outmap ; println("outmap -- $k  => $v") ; end
 		println("==========")
 
-		for (k,v) in filter((k,v) -> isin(v, dgf2.nodes) & haskey(gf2.inmap, k), fdnodes)
+		for (k,v) in filter((k,v) -> v in dgf2.nodes && haskey(gf2.inmap, k), fdnodes)
 			println("[dfor outmap] (1) $k - $v")
 			rn = add_node(g2, NIn("duh", [v2]))  # exit node for this var in this graph
 			dgf2.outmap[v] = rn 
@@ -168,7 +168,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	for n2 in reverse(g.nodes)
 		println("=======")
 		for n3 in g2.nodes
-			dn = collect(keys(filter( (k,v) -> is(v, n3), dnodes ) ))
+			dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))
 			println(" $n3,  dn = $(repr(dn))")
 		end
 		# tg = copy(g)

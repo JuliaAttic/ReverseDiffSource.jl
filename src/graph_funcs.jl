@@ -27,15 +27,15 @@ end
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 
 	# replace references to nr by nk in parents of other nodes
-    for n in filter(n -> !is(n,nr) & !is(n,nk), g.nodes)
+    for n in filter(n -> n != nr && n != nk, g.nodes)
     	for i in 1:length(n.parents)
-    		is(n.parents[i], nr) && (n.parents[i] = nk)
+    		n.parents[i] == nr && (n.parents[i] = nk)
     	end
     end
 
 	# replace references to nr in setmap dictionnary
     for (sym, node) in g.setmap
-        is(node, nr) && (g.setmap[sym] = nk)
+        node == nr && (g.setmap[sym] = nk)
     end
 
 	# remove references to nr in inmap dictionnary
@@ -43,11 +43,11 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 
 	# replace references to nr in outmap dictionnary
     for (inode, onode) in g.outmap
-        is(inode, nr) && (g.outmap[nk] = g.outmap[nr])
+        inode == nr && (g.outmap[nk] = g.outmap[nr])
     end
 
     # remove node nr in g
-    filter!(n -> !is(n,nr), g.nodes)
+    filter!(n -> n != nr, g.nodes)
 end
 
 ####### evaluate operators on constants  ###########
@@ -95,31 +95,31 @@ function prune!(g::ExGraph, exitnodes)
 	ns2 = copy(exitnodes)
 	evalsort!(g)
 	for n in reverse(g.nodes)
-		!isin(n, ns2) && continue
+		!in(n, ns2) && continue
 
 		if isa(n, NFor)
 			g2 = n.main[2]
 			exitnodes2 = ExNode[]
 			for (k,v) in g2.outmap
-				isin(v, ns2) && push!(exitnodes2, k)
+				v in ns2 && push!(exitnodes2, k)
 			end
 			prune!(g2, exitnodes2)
 
 			npar = collect(values(g2.inmap))
-			filter!(m -> isin(m, npar), n.parents)
+			filter!(m -> m in npar, n.parents)
 		end
 
 		for n2 in n.parents
-			!isin(n2, ns2) && push!(ns2, n2)
+			!in(n2, ns2) && push!(ns2, n2)
 		end
 	end
 
-	filter!((k,v) -> isin(k, ns2), g.inmap)
-	filter!((k,v) -> isin(k, ns2), g.outmap)
-	filter!((k,v) -> isin(v, ns2), g.setmap)
-	filter!((k,v) -> isin(k, ns2), g.link)
+	filter!((k,v) -> k in ns2, g.inmap)
+	filter!((k,v) -> k in ns2, g.outmap)
+	filter!((k,v) -> v in ns2, g.setmap)
+	filter!((k,v) -> k in ns2, g.link)
 
-	filter!(n -> isin(n, ns2), g.nodes)
+	filter!(n -> n in ns2, g.nodes)
 end
 
 
@@ -130,9 +130,8 @@ function evalsort!(g::ExGraph)
 		canary = length(g2)
 		nl = setdiff(g.nodes, g2)
 	    for n in nl
-	        if all(x -> !isin(x, nl), n.parents) 
-	            push!(g2,n)
-	        end
+	        any(x -> x in nl, n.parents) && continue
+            push!(g2,n)
 	    end
 	    (canary == length(g2)) && error("[evalsort!] probable cycle in graph")
 	end
