@@ -25,7 +25,6 @@ end
 # removes node nr and keeps node nk 
 #  updates parent links to nr, and references in exitnodes
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
-
 	# replace references to nr by nk in parents of other nodes
     for n in filter(n -> n != nr && n != nk, g.nodes)
     	for i in 1:length(n.parents)

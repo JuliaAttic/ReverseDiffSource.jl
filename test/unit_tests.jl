@@ -143,7 +143,7 @@ end
 
 @test fullcycle(:(a = b+4+5))       == Expr(:block, :(a = b+9) )
 @test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )
-@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0.) )
+@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0) )
 @test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )
 @test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )
 @test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )

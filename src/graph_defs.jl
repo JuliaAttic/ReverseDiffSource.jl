@@ -8,7 +8,7 @@
 
 type ExNode{T}
   main
-  parents::Vector
+  parents::Vector{Any}
   val
 
   ExNode()                  = new(nothing,      {}, NaN)
