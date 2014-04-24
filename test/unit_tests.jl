@@ -58,9 +58,9 @@ ex = quote
 end
 
 g = m.tograph(ex);
-@test Set(collect(values(g.inmap))) == Set([:b, :x, :z])
-@test Set(collect(values(g.outmap))) == Set([])
-@test Set(collect(keys(g.setmap))) == Set([:a])
+@test sort(collect(values(g.inmap))) == [:b, :x, :z]
+@test collect(values(g.outmap)) == []
+@test collect(keys(g.setmap)) == [:a]
 
 m.resetvar()
 exout = striplinenumbers(quote _tmp1 = zeros(10)
@@ -85,9 +85,9 @@ ex = quote
 end
 g = m.tograph(ex)
 
-@test Set(collect(values(g.inmap))) == Set([:b, :x, :v])
-@test Set(collect(values(g.outmap))) == Set([])
-@test Set(collect(keys(g.setmap))) == Set([:a, :z])
+@test sort(collect(values(g.inmap))) == [:b, :v, :x]
+@test collect(values(g.outmap)) == []
+@test sort(collect(keys(g.setmap))) == [:a, :z]
 
 m.resetvar()
 exout = striplinenumbers(quote         

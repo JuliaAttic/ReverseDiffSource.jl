@@ -101,51 +101,44 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NFor)
-		gf = n.main[2]          # subgraph of for loop
-		is = n.main[1].args[1]  # symbol of loop index
+		fg  = copy(n.main[2])      # subgraph of for loop, copied to make new loop
+		fg2 = ExGraph()            # will contain dnodes
+		is  = n.main[1].args[1]    # symbol of loop index
 
-		gf2     = copy(gf)
-		dgf2    = ExGraph()
+		println("=== create zero nodes ===")
 		fdnodes = Dict()
-		println("==========")
-		for n2 in filter(n-> !isa(n,NFor), gf2.nodes)
-			nn = isa(n2.main, Symbol) ? NExt(dprefix(n2.main)) : NExt("abc")
-			add_node(dgf2, nn)  # start point of deriv accumulator
-			fdnodes[n2] = nn
-			if haskey(gf2.outmap, n2)
-				dgf2.inmap[nn] = dnodes[gf2.outmap[n2]]
-			elseif isa(n2, NExt)  # update inmap, etc..
-				dgf2.inmap[nn] = dnodes[gf2.inmap[n2]]
+		outmap = {  }
+		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
+			if haskey(fg.outmap, n2)
+				nn = add_node(fg2, NExt(:out))
+				fg2.inmap[nn] = dnodes[fg.outmap[n2]]
+			elseif haskey(fg.inmap, n2)  # update inmap, etc..
+				nn = add_node(fg2, NExt(:in))
+				fg2.inmap[nn] = dnodes[fg.inmap[n2]]
+			else
+				nn = createzeronode!(fg2, n2)
 			end	
+			fdnodes[n2] = nn
 		end
-		println("==========")
 
 		# builds the graph for derivatives calculations
-		reversepass!(dgf2, gf2, fdnodes)
-		println("==========")
-
+		println("===  reverse pass ===")
+		reversepass!(fg2, fg, fdnodes)
+		fg.nodes = [ fg.nodes, fg2.nodes]
+		merge!(fg.inmap, fg2.inmap)
+		
 		# create for loop
-		v2 = add_node(g2, NFor([ n.main[1], dgf2]) )
-		v2.parents = collect(values(dgf2.inmap))
+		println("=== create dfor node ===")
+		v2 = add_node(g2, NFor([ n.main[1], fg]) )
+		v2.parents = collect(values(fg.inmap))
 
-		println("==== gf2 =====")
-		println(gf2.nodes)
-		println("==== dgf2 ====")
-		println(dgf2.nodes)
+		println("=== fg ===")
+		println(fg.nodes)
 
-		for n2 in dgf2.nodes
-			for n3 in n2.parents
-				if !(n3 in dgf2.nodes)
-					println("!!! : $n2 has parents outside of dgf2")
-				end
-			end
-		end
-
-		# gf2.nodes = [ gf2.nodes, dgf2.nodes ]
 		println("==========")
 		for (k,v) in fdnodes ; println("dnodes -- $k  => $v") ; end
-		for (k,v) in dgf2.inmap ; println("inmap -- $k  => $v") ; end
-		for (k,v) in dgf2.outmap ; println("outmap -- $k  => $v") ; end
+		for (k,v) in fg.inmap ; println("inmap -- $k  => $v") ; end
+		for (k,v) in fg.outmap ; println("outmap -- $k  => $v") ; end
 		println("==========")
 
 		for (k,v) in filter((k,v) -> v in dgf2.nodes && haskey(gf2.inmap, k), fdnodes)
@@ -185,3 +178,71 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 	# map(rev, reverse(g.nodes))
 end
+
+
+
+
+
+	# function rev(n::NFor)
+	# 	gf = n.main[2]          # subgraph of for loop
+	# 	is = n.main[1].args[1]  # symbol of loop index
+
+	# 	gf2     = copy(gf)
+	# 	dgf2    = ExGraph()
+	# 	fdnodes = Dict()
+	# 	println("==========")
+	# 	for n2 in filter(n-> !isa(n,NFor), gf2.nodes)
+	# 		nn = isa(n2.main, Symbol) ? NExt(dprefix(n2.main)) : NExt("abc")
+	# 		add_node(dgf2, nn)  # start point of deriv accumulator
+	# 		fdnodes[n2] = nn
+	# 		if haskey(gf2.outmap, n2)
+	# 			dgf2.inmap[nn] = dnodes[gf2.outmap[n2]]
+	# 		elseif isa(n2, NExt)  # update inmap, etc..
+	# 			dgf2.inmap[nn] = dnodes[gf2.inmap[n2]]
+	# 		end	
+	# 	end
+	# 	println("==========")
+
+	# 	# builds the graph for derivatives calculations
+	# 	reversepass!(dgf2, gf2, fdnodes)
+	# 	println("==========")
+
+	# 	# create for loop
+	# 	v2 = add_node(g2, NFor([ n.main[1], dgf2]) )
+	# 	v2.parents = collect(values(dgf2.inmap))
+
+	# 	println("==== gf2 =====")
+	# 	println(gf2.nodes)
+	# 	println("==== dgf2 ====")
+	# 	println(dgf2.nodes)
+
+	# 	for n2 in dgf2.nodes
+	# 		for n3 in n2.parents
+	# 			if !(n3 in dgf2.nodes)
+	# 				println("!!! : $n2 has parents outside of dgf2")
+	# 			end
+	# 		end
+	# 	end
+
+	# 	# gf2.nodes = [ gf2.nodes, dgf2.nodes ]
+	# 	println("==========")
+	# 	for (k,v) in fdnodes ; println("dnodes -- $k  => $v") ; end
+	# 	for (k,v) in dgf2.inmap ; println("inmap -- $k  => $v") ; end
+	# 	for (k,v) in dgf2.outmap ; println("outmap -- $k  => $v") ; end
+	# 	println("==========")
+
+	# 	for (k,v) in filter((k,v) -> v in dgf2.nodes && haskey(gf2.inmap, k), fdnodes)
+	# 		println("[dfor outmap] (1) $k - $v")
+	# 		rn = add_node(g2, NIn("duh", [v2]))  # exit node for this var in this graph
+	# 		dgf2.outmap[v] = rn 
+	# 		println("[dfor outmap] (2) $v - $rn")
+	# 		p0 = gf2.inmap[ k ]
+	# 		println("[dfor outmap] (3) p0 = $p0")
+	# 		pn = dnodes[ p0 ]
+	# 		println("[dfor outmap] (3) pn = $pn")
+	# 		dgf2.link[v] = pn
+	# 		println("[dfor outmap] (4)")
+	# 		dnodes[p0] = rn      # are you lost ?  me too
+	# 	end
+
+	# end
