@@ -107,17 +107,24 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		println("=== create zero nodes ===")
 		fdnodes = Dict()
-		outmap = {  }
+		foutmap = {}  # outmap = dnodes of initial inmap
 		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
-			if haskey(fg.outmap, n2)
+			if haskey(fg.outmap, n2) # create ingoing nodes for both the node and its derivative
 				nn = add_node(fg2, NExt(:out))
+				fg2.inmap[nn] = fg.outmap[n2]
+
+				nn = add_node(fg2, NExt(:dout))
 				fg2.inmap[nn] = dnodes[fg.outmap[n2]]
-			elseif haskey(fg.inmap, n2)  # update inmap, etc..
-				nn = add_node(fg2, NExt(:in))
+				
+			elseif haskey(fg.inmap, n2)  # create ingoing dnode for that
+				nn = add_node(fg2, NExt(:din))
 				fg2.inmap[nn] = dnodes[fg.inmap[n2]]
+
+				push!(foutmap, n2)
 			else
 				nn = createzeronode!(fg2, n2)
 			end	
+
 			fdnodes[n2] = nn
 		end
 
@@ -126,34 +133,62 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		reversepass!(fg2, fg, fdnodes)
 		fg.nodes = [ fg.nodes, fg2.nodes]
 		merge!(fg.inmap, fg2.inmap)
-		
+
+		foutmap2 = {}
+		for ni in foutmap
+			push!(foutmap2, (fdnodes[ni], fg.inmap[ni]))
+		end
+
+		println("=== fg  1 ===")
+		println(fg.nodes)
+		println("foutmap = $(repr(foutmap))")
+		for (k,v) in fdnodes ; println("fdnodes -- $k  => $v") ; end
+		for (k,v) in fg.inmap ; println("inmap -- $k  => $v") ; end
+		for (k,v) in fg.outmap ; println("outmap -- $k  => $v") ; end
+
+		prune!(fg, [ fdnodes[ni] for ni in foutmap ]) # reduce to derivatives evaluation only
+
+		println("=== fg  2 ===")
+		println(fg.nodes)
+		println("foutmap = $(repr(foutmap))")
+		for (k,v) in fdnodes ; println("fdnodes -- $k  => $v") ; end
+		for (k,v) in fg.inmap ; println("inmap -- $k  => $v") ; end
+		for (k,v) in fg.outmap ; println("outmap -- $k  => $v") ; end
+
 		# create for loop
 		println("=== create dfor node ===")
 		v2 = add_node(g2, NFor([ n.main[1], fg]) )
 		v2.parents = collect(values(fg.inmap))
 
-		println("=== fg ===")
-		println(fg.nodes)
+		# outmap = dnodes of initial inmap
+		for ns2 in foutmap2
+			rn = add_node(g2, NIn("dout", [v2]))  # external node, receiving loop result
+			fdn = ns2[1]                          # final node in loop containing derivative
+			fg.outmap[ fdn ] = rn                 # link those two
 
-		println("==========")
-		for (k,v) in fdnodes ; println("dnodes -- $k  => $v") ; end
+			n0 = ns2[2]
+			pn = dnodes[n0] 
+			fg.link[fdn] = pn
+			dnodes[n0] = rn 
+
+			# if haskey(fg.inmap, ni) # test it because it may have been removed by prune!
+			# 	rn = add_node(g2, NIn("dout", [v2]))  # external node, receiving loop result
+			# 	fdn = fdnodes[ni]                     # final node in loop containing derivative
+			# 	fg.outmap[ fdn ] = rn                 # link those two
+
+			# 	n0 = fg.inmap[ni]
+			# 	pn = dnodes[n0] 
+			# 	fg.link[fdn] = pn
+			# 	dnodes[n0] = rn 
+			# end
+		end
+
+		println("=== fg  3 ===")
+		println(fg.nodes)
+		println("foutmap = $(repr(foutmap))")
+		for (k,v) in fdnodes ; println("fdnodes -- $k  => $v") ; end
 		for (k,v) in fg.inmap ; println("inmap -- $k  => $v") ; end
 		for (k,v) in fg.outmap ; println("outmap -- $k  => $v") ; end
-		println("==========")
-
-		for (k,v) in filter((k,v) -> v in dgf2.nodes && haskey(gf2.inmap, k), fdnodes)
-			println("[dfor outmap] (1) $k - $v")
-			rn = add_node(g2, NIn("duh", [v2]))  # exit node for this var in this graph
-			dgf2.outmap[v] = rn 
-			println("[dfor outmap] (2) $v - $rn")
-			p0 = gf2.inmap[ k ]
-			println("[dfor outmap] (3) p0 = $p0")
-			pn = dnodes[ p0 ]
-			println("[dfor outmap] (3) pn = $pn")
-			dgf2.link[v] = pn
-			println("[dfor outmap] (4)")
-			dnodes[p0] = rn      # are you lost ?  me too
-		end
 
 	end
 
