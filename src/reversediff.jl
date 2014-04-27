@@ -27,7 +27,6 @@ function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
     g.exitnodes = { outsym => exitnode }
 
     splitnary!(g)
-    evalconstants!(g)
     simplify!(g)
     prune!(g)
 
@@ -42,7 +41,6 @@ function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
     end
 
     splitnary!(g)
-    evalconstants!(g)
     simplify!(g)
     prune!(g)
 

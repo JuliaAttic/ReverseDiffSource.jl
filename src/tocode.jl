@@ -8,7 +8,7 @@
 function tocode(g::ExGraph)
 
 	valueof(n::ExNode, child::ExNode) = n.val
-	valueof(  n::NFor, child::ExNode) = valueof(n.val[child], n)
+	valueof(n::NFor,   child::ExNode) = valueof(n.val[child], n)
 
 	translate(n::NConst) = n.main
 	translate(n::NCall)  = Expr(:call, n.main, 

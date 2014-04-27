@@ -1,6 +1,3 @@
-reload("ReverseDiffSource") ; tm = ReverseDiffSource
-# include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
-
 ################## setindex  #######################
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
@@ -17,7 +14,6 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
         filter!((k,v) -> k==outsym, g.setmap)
 
         tm.splitnary!(g)
-        tm.evalconstants!(g)
         tm.simplify!(g)
         tm.prune!(g)
 
@@ -31,7 +27,6 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
         
         println("=== 1 ===\n$(tm.tocode(g))")
         
-        tm.evalconstants!(g)
         tm.prune!(g)
         tm.simplify!(g)
 
@@ -47,81 +42,34 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
     reversediff(ex, :res, x = 1)
 
-
-    g = tm.tograph(ex); tm.tocode(g)
-    tm.evalconstants!(g); tm.tocode(g)
-    tm.prune!(g); tm.tocode(g)
-    tm.simplify!(g); tm.tocode(g)
-    tm.calc!(g, params = {:x => 1})
-    g2 = tm.reversegraph(g, g.setmap[:res], [:x])
-    g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
-    tm.tocode(g)
-    tm.evalconstants!(g); tm.tocode(g)
-    tm.prune!(g); tm.tocode(g)
-    tm.simplify!(g); tm.tocode(g)
-
-
-
 ################## for loops  #######################
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
     ex = quote
         a=0
         for i in 1:2
-            a += 2x    #  <=  fails with warning  "ref outside of..
+            a += 2x    
         end
     end
 
-    reversediff(ex, :a, x = 1)
-
-
+    # reversediff(ex, :a, x = 1)
 
     g = tm.tograph(ex);
-    tm.evalconstants!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1})
     g.setmap
     g2 = tm.reversegraph(g, g.setmap[:a], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
-    tm.evalconstants!(g); tm.tocode(g)
-
-    tm.prune!(g); 
     tm.tocode(g)
+
+    tm.prune!(g); tm.tocode(g)
+
     g.nodes
-    reverse(g.nodes)
-    collect(values(g.setmap))
-    g.nodes[10] === g.nodes[9]
 
-    g.nodes is g.nodes[10]
+    g2 = tm.copy(g)
 
-    tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
 
-    res = tm.tocode(g)
-    @eval myfunc(x) = ($res ; (a,dx))
-
-    myfunc(2)
-    myfunc(4)
-
-    g.nodes
-
-    g.nodes[7].main[2].nodes
-    g.nodes[7].parents
-    g.nodes[5].main[2].outmap
-    collect(keys(g.nodes[7].main[2].outmap))
-    collect(values(g.nodes[7].main[2].outmap))
-    # for (k,v) in g.nodes[8].main[2].inmap  ; println("$k => $v : pos = $(findin(g.nodes, [v])[1])") ; end
-    # for p in g.nodes[8].parents  ; println("$p : pos = $(findin(g.nodes, [p])[1])") ; end
-    # for (k,v) in g.nodes[8].main[2].outmap ; println("$k => $v") ; end
-
-    # g2 = g
-    # g2 = g.nodes[3].main[2]
-    # g2 = g.nodes[8].main[2]
-    # for (i,n) in zip(1:length(g2.nodes), g2.nodes)
-    #     println("#$i - $n : ")
-    #     for p in n.parents ; println("    $p : pos = $(findin(g2.nodes, [p])[1])") ; end
-    # end
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
     ex = quote
@@ -132,16 +80,19 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
         res = sum(a)
     end
     g = tm.tograph(ex); tm.tocode(g)
-    tm.evalconstants!(g); tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
     tm.calc!(g, params = {:x => 1})
     g2 = tm.reversegraph(g, g.setmap[:res], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
-    tm.evalconstants!(g); tm.tocode(g)
+    tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
+
+
+
+
 
     res = tm.tocode(g)
     @eval myfunc(x) = ($res ; (res,dx))
@@ -159,7 +110,7 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
   n = g3.nodes[5]  
     println("node :     $n")
-    n2 = tm.add_node(g2, copy(n))
+    n2 = tm.addnode!(g2, copy(n))
     for n3 in n2.parents
         println("    parents   $n3")
     end
@@ -207,48 +158,8 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     tm.tocode(g)
 
 #############################################################
-    g = tm.tograph(:(a[2]=x ; res=a[2]));
-    tm.calc!(g, params = {:a => ones(3), :x => 0})
-    g2 = tm.reversegraph(g, g.setmap[:res], [:x])
-    g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
-    tm.tocode(g)
-    g2.nodes
-
-#############################################################
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
-    ex = quote
-        a = 2 * b
-        aa = sum(a)
-    end
-
-    g = tm.tograph(ex);
-    tm.evalconstants!(g)
-    g.setmap
-    tm.prune!(g)
-    tm.simplify!(g)
-    tm.calc!(g, params = {:b => ones(10)})
-    g2 = tm.reversegraph(g, g.setmap[:aa], [:b])
-    g2.nodes
-    g2.setmap
-    g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
-    collect(keys(g.setmap))
-    tm.tocode(g)
-    tm.evalconstants!(g)
-    tm.prune!(g)
-    tm.simplify!(g)
-    tm.tocode(g)
-
-
-    g.nodes
-    g2 = tm.tograph(:( a = ))
-
-    # collect(keys(g.inmap))
-    # collect(keys(g.outmap))
-    # collect(keys(g.setmap))
-
     ex = quote
         a=zeros(10) ; z = 12 
         for i in 1:10
@@ -258,7 +169,29 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
                 a[i] = b[i]+u
             end
         end
+        sum(a)
     end
+
+    reversediff(ex, nothing, v=1, b=[1], x=4)
+
+    g = tm.tograph(ex);
+    tm.splitnary!(g)
+    tm.simplify!(g) ; tm.tocode(g)
+    tm.calc!(g, params = {:x => 4, :v => 1, :b =>zeros(10)})
+
+    g2 = tm.reversegraph(g, g.setmap[nothing], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
+
+    tm.prune!(g); tm.tocode(g)
+
+    g.nodes
+
+    g2 = tm.copy(g)
+
+    tm.simplify!(g); tm.tocode(g)
+
     g = tm.tograph(ex)
     collect(keys(g.inmap))
     tm.calc!(g, params= {:v => 1., :b => -1, :x => 4})
@@ -273,38 +206,14 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     g.setmap[:a]
 
 
-########### testing big func  ##########
-    ex = quote
-        y = x * a * 1
-        y2 = (x * a) + 0 + 3
-        x += 1
-        y3 = x * a
-        y + y2 + y3 + 12
-    end
-
-    g = tm.tograph(ex)
-    tm.calc!(g, params = {:x => 1.5, :a => -4})
-    g.setmap[nothing].val
-
-
-    out = ReverseDiffSource.reversediff(ex, x=1.5, a=-4 )
-
-    @eval function myf(x)
-            $out
-            (res, dx)
-        end
-
-    myf(1.5)
-    myf(1.5001)
-
 ########### testing big func 2 ##########
     ex = quote
         a = x * y + exp(-sin(4x))
-        b = 1 + log(-a)
+        b = 1 + log(a)
         b ^ a 
     end
 
-    out = tm.reversediff(ex, [:x, :y])
+    out = reversediff(ex, nothing, x=1, y=1)
 
     @eval function myf(x, y)
             $out
@@ -320,6 +229,7 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
         myf(x0,y0)[3]  (myf(x0,y0+delta)[1]- myf(x0,y0)[1])/delta]
 
 ##############   tests for composite types    #####################
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
     type Test1
         x
         y
@@ -328,8 +238,8 @@ reload("ReverseDiffSource") ; tm = ReverseDiffSource
     a = Test1(1,2)
 
     x = 1.5
-    Proto.type_decl(Test1, 2)
-    Proto.@type_decl Main.Test1 2  # fails
+    tm.type_decl(Test1, 2)
+    tm.@type_decl Main.Test1 2 
 
     reversediff(:( sin(x * a.x)), [:x])
     reversediff(:( x * a.x), [:x])

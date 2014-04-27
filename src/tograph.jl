@@ -31,14 +31,14 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 	explore(ex::ExMEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :-, args[1], args[2])) ) )
 	explore(ex::ExTEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :*, args[1], args[2])) ) )
 
-	explore(ex::Real)      = add_node(g, NConst(ex))
+	explore(ex::Real)      = addnode!(g, NConst(ex))
 
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
 
-	explore(ex::ExRef)     = add_node(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
-	explore(ex::ExDot)     = add_node(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
+	explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
+	explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
 
-	explore(ex::ExComp)    = add_node(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
+	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	function explore(ex::Symbol)
 		if haskey(g.setmap, ex)        # var already set in expression
@@ -46,17 +46,17 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 		elseif haskey(externals, ex) # external ref already turned into a node
 			return externals[ex]
 		else # symbol neither set var nor known external
-			externals[ex] = add_node(g, NExt(ex))  # create external node for this var
+			externals[ex] = addnode!(g, NExt(ex))  # create external node for this var
 			return externals[ex]
 		end
 	end
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
-			add_node(g, NAlloc(ex.args[1], map(explore, ex.args[2:end]) ))
+			addnode!(g, NAlloc(ex.args[1], map(explore, ex.args[2:end]) ))
 			# TODO : NAlloc or NCall ? decide what to do
 	    else
-	    	add_node(g, NCall( ex.args[1], map(explore, ex.args[2:end]) ))
+	    	addnode!(g, NCall( ex.args[1], map(explore, ex.args[2:end]) ))
 	    end
 	end
 
@@ -70,12 +70,12 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 			rhn  = explore(ex.args[2])
 		elseif isRef(lhs)
 			lhss = lhs.args[1]
-			rhn  = add_node(g, NSRef(lhs.args[2:end], 
+			rhn  = addnode!(g, NSRef(lhs.args[2:end], 
 							       [ explore(lhs.args[1]),   # var whose subpart is assigned
 							         explore(ex.args[2])] )) # assigned value
 		elseif isDot(lhs)
 			lhss = lhs.args[1]
-			rhn  = add_node(g, NSDot(lhs.args[2], 
+			rhn  = addnode!(g, NSDot(lhs.args[2], 
 								   [ explore(lhs.args[1]),   # var whose subpart is assigned
 							         explore(ex.args[2])] )) # assigned value
 		else
@@ -97,7 +97,7 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 		g2.setmap = Dict()     # remove
 
 		# create "for" node
-		nf = add_node(g, NFor( [ ex.args[1], g2 ] ))
+		nf = addnode!(g, NFor( [ ex.args[1], g2 ] ))
 
 		# update inmap by replacing symbol with corresponding outer node in this graph
 		# dict key is the node in subgraph, and dict value is the node in parent graph
@@ -119,7 +119,7 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 			else
 				# println("[subgraph outmap] inner $inode sets $sym")
 				pn = explore(sym)  # create node if needed
-				rn = add_node(g, NIn(sym, [nf]))  # exit node for this var in this graph
+				rn = addnode!(g, NIn(sym, [nf]))  # exit node for this var in this graph
 				g2.outmap[inode] = rn
 				g2.link[inode] = pn
 				g.setmap[sym] = rn      # signal we're setting the var
@@ -179,7 +179,7 @@ end
 	# 	fp = setdiff(fp, g2in)
 
 	# 	# create "for" node
-	# 	nf = add_node(g, NFor( ( ex.args[1], ExGraph(g2in, Dict()) ), 
+	# 	nf = addnode!(g, NFor( ( ex.args[1], ExGraph(g2in, Dict()) ), 
 	# 		          		   fp ) )
 
 	# 	# update g.setmap
@@ -203,7 +203,7 @@ end
 	# 				end
 
 	# 			end
-	# 			g.setmap[k] = add_node(g, NIn(ni, [nf]) )
+	# 			g.setmap[k] = addnode!(g, NIn(ni, [nf]) )
 
 	# 			!isa(ni, NSRef) && (nf.main[2].exitnodes[k] = v)
 

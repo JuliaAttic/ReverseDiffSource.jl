@@ -12,7 +12,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	dnodes = Dict()     # map linking nodes of g to their derivative node in g2
 	for n in filter(n-> !isa(n,NFor), g.nodes)
 		if n == exitnode
-			dnodes[n] = add_node(g2, NConst(1.0))
+			dnodes[n] = addnode!(g2, NConst(1.0))
 		else
 			dnodes[n] = createzeronode!(g2, n)
 		end
@@ -32,24 +32,24 @@ end
 # creates the starting points for derivatives accumulation variables
 function createzeronode!(g2::ExGraph, n)
 	if isa(n.val, Real)
-		return add_node(g2, NConst(0.0))
+		return addnode!(g2, NConst(0.0))
 	
 	# Array of Real
 	elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
-		v1 = add_node(g2, NCall(:size, [n]))
-		return add_node(g2, NAlloc(:zeros, [v1]))
+		v1 = addnode!(g2, NCall(:size, [n]))
+		return addnode!(g2, NAlloc(:zeros, [v1]))
 
 	# Composite type
 	elseif haskey(tdict, typeof(n.val))   # known composite type
-		v1 = add_node(g2, NConst( tdict[typeof(n.val)]) )
-		return add_node(g2, NAlloc(:zeros, [v1]) )
+		v1 = addnode!(g2, NConst( tdict[typeof(n.val)]) )
+		return addnode!(g2, NAlloc(:zeros, [v1]) )
 
 	# Array of composite type
 	elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
-		v1 = add_node(g2, NCall(:size, [n]) )
-		aa = ExNode[ add_node(g2, NAlloc(:zeros, [v1]) )
+		v1 = addnode!(g2, NCall(:size, [n]) )
+		aa = ExNode[ addnode!(g2, NAlloc(:zeros, [v1]) )
 		               for i in 1:(tdict[eltype(n.val)]) ]
-		return add_node(g2, NCall(:vcat, aa) )
+		return addnode!(g2, NCall(:vcat, aa) )
 
 	else
 		error("[reversegraph] Unknown type for node $n")
@@ -70,33 +70,33 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
             	smap = Dict( dd, [n.parents, dnodes[n]])
 
-            	nmap = add_graph!(dg, g2, smap)
+            	nmap = addgraph!(dg, g2, smap)
 
-        		v2 = add_node(g2, NCall(:+, [dnodes[arg], nmap[de]]) )
+        		v2 = addnode!(g2, NCall(:+, [dnodes[arg], nmap[de]]) )
         		dnodes[arg] = v2
             end
         end
 	end		 
 
 	function rev(n::NRef)
-        v2 = add_node(g2, NRef(n.main, [ dnodes[n.parents[1]] ]) )
-        v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
-		v4 = add_node(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
+        v2 = addnode!(g2, NRef(n.main, [ dnodes[n.parents[1]] ]) )
+        v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
+		v4 = addnode!(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
 		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NSRef)
-		v2 = add_node(g2, NRef(n.main, [ dnodes[n] ]) )
+		v2 = addnode!(g2, NRef(n.main, [ dnodes[n] ]) )
 		println("v2  $v2")
-		v3 = add_node(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
+		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		println("v3  $v3")
 		dnodes[n.parents[2]] = v3
 	end
 
 	function rev(n::NDot)
-        v2 = add_node(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
-        v3 = add_node(g2, NCall(:+, [v2, dnodes[n]]) )
-		v4 = add_node(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
+        v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
+        v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
+		v4 = addnode!(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
 		dnodes[n.parents[1]] = v4
 	end
 
@@ -110,14 +110,14 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		foutmap = {}  # outmap = dnodes of initial inmap
 		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
 			if haskey(fg.outmap, n2) # create ingoing nodes for both the node and its derivative
-				nn = add_node(fg2, NExt(:out))
+				nn = addnode!(fg2, NExt(:out))
 				fg2.inmap[nn] = fg.outmap[n2]
 
-				nn = add_node(fg2, NExt(:dout))
+				nn = addnode!(fg2, NExt(:dout))
 				fg2.inmap[nn] = dnodes[fg.outmap[n2]]
 				
 			elseif haskey(fg.inmap, n2)  # create ingoing dnode for that
-				nn = add_node(fg2, NExt(:din))
+				nn = addnode!(fg2, NExt(:din))
 				fg2.inmap[nn] = dnodes[fg.inmap[n2]]
 
 				push!(foutmap, n2)
@@ -157,12 +157,12 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		# create for loop
 		println("=== create dfor node ===")
-		v2 = add_node(g2, NFor([ n.main[1], fg]) )
+		v2 = addnode!(g2, NFor([ n.main[1], fg]) )
 		v2.parents = collect(values(fg.inmap))
 
 		# outmap = dnodes of initial inmap
 		for ns2 in foutmap2
-			rn = add_node(g2, NIn("dout", [v2]))  # external node, receiving loop result
+			rn = addnode!(g2, NIn("dout", [v2]))  # external node, receiving loop result
 			fdn = ns2[1]                          # final node in loop containing derivative
 			fg.outmap[ fdn ] = rn                 # link those two
 
@@ -172,7 +172,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			dnodes[n0] = rn 
 
 			# if haskey(fg.inmap, ni) # test it because it may have been removed by prune!
-			# 	rn = add_node(g2, NIn("dout", [v2]))  # external node, receiving loop result
+			# 	rn = addnode!(g2, NIn("dout", [v2]))  # external node, receiving loop result
 			# 	fdn = fdnodes[ni]                     # final node in loop containing derivative
 			# 	fg.outmap[ fdn ] = rn                 # link those two
 
@@ -228,7 +228,7 @@ end
 	# 	println("==========")
 	# 	for n2 in filter(n-> !isa(n,NFor), gf2.nodes)
 	# 		nn = isa(n2.main, Symbol) ? NExt(dprefix(n2.main)) : NExt("abc")
-	# 		add_node(dgf2, nn)  # start point of deriv accumulator
+	# 		addnode!(dgf2, nn)  # start point of deriv accumulator
 	# 		fdnodes[n2] = nn
 	# 		if haskey(gf2.outmap, n2)
 	# 			dgf2.inmap[nn] = dnodes[gf2.outmap[n2]]
@@ -243,7 +243,7 @@ end
 	# 	println("==========")
 
 	# 	# create for loop
-	# 	v2 = add_node(g2, NFor([ n.main[1], dgf2]) )
+	# 	v2 = addnode!(g2, NFor([ n.main[1], dgf2]) )
 	# 	v2.parents = collect(values(dgf2.inmap))
 
 	# 	println("==== gf2 =====")
@@ -268,7 +268,7 @@ end
 
 	# 	for (k,v) in filter((k,v) -> v in dgf2.nodes && haskey(gf2.inmap, k), fdnodes)
 	# 		println("[dfor outmap] (1) $k - $v")
-	# 		rn = add_node(g2, NIn("duh", [v2]))  # exit node for this var in this graph
+	# 		rn = addnode!(g2, NIn("duh", [v2]))  # exit node for this var in this graph
 	# 		dgf2.outmap[v] = rn 
 	# 		println("[dfor outmap] (2) $v - $rn")
 	# 		p0 = gf2.inmap[ k ]

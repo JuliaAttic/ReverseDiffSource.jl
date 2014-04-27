@@ -114,7 +114,7 @@ g = g.nodes[7].main[2]
 @test length(g.setmap) == 0
 
 
-### full cycle  : tograph -> splitnary -> evalconstants -> simplify -> prune -> tocode 
+### full cycle  : tograph -> splitnary -> simplify -> prune -> tocode 
 function fullcycle(ex)
     g = m.tograph(ex)
     length(g.setmap) == 0 && error("nothing defined here")
@@ -123,7 +123,6 @@ function fullcycle(ex)
     end
 
     m.splitnary!(g)
-    m.evalconstants!(g)
     m.simplify!(g)
     m.prune!(g)
 
@@ -143,7 +142,7 @@ end
 
 @test fullcycle(:(a = b+4+5))       == Expr(:block, :(a = b+9) )
 @test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )
-@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0) )
+@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0.0) )
 @test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )
 @test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )
 @test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )

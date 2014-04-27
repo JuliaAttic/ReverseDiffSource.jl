@@ -11,7 +11,7 @@ function splitnary!(g::ExGraph)
 	        in(n.main, [:+, :*, :sum, :min, :max]) && 
 	        (length(n.parents) > 2 )
 
-	        nn = add_node(g, NCall( n.main, n.parents[2:end] ) )
+	        nn = addnode!(g, NCall( n.main, n.parents[2:end] ) )
 	        n.parents = [n.parents[1], nn]  
 	    
 	    elseif isa(n, NFor)
@@ -23,7 +23,7 @@ end
 
 ####### fuses nodes nr and nk, keeps nk ########
 # removes node nr and keeps node nk 
-#  updates parent links to nr, and references in exitnodes
+#  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 	# replace references to nr by nk in parents of other nodes
     for n in filter(n -> n != nr && n != nk, g.nodes)
@@ -44,50 +44,37 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     for (inode, onode) in g.outmap
         inode == nr && (g.outmap[nk] = g.outmap[nr])
     end
+    delete!(g.outmap, nr)
+
+	# replace references to nr in link dictionnary
+    for (inode, onode) in g.link
+        inode == nr && (g.link[nk] = g.link[nr])
+    end
+    delete!(g.link, nr)
+
+    # now check for loops that may refer to nr
+    for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
+    	g2 = n.main[2]
+
+	    for (inode, onode) in g2.inmap
+	        onode == nr && (g2.inmap[inode] = nk)
+	    end
+	    for (inode, onode) in g2.outmap
+	        onode == nr && (g2.outmap[inode] = nk)
+	    end
+	    for (inode, onode) in g2.link
+	        onode == nr && (g2.link[inode] = nk)
+	    end
+    end
+
 
     # remove node nr in g
     filter!(n -> n != nr, g.nodes)
 end
 
-####### evaluate operators on constants  ###########
-# TODO : check that externals point to a constant in upper levels ?
-function evalconstants!(g::ExGraph, emod = Main)
-	i = 1 
-	while i <= length(g.nodes) 
-	    n = g.nodes[i]
-
-	    restart = false
-		if isa(n, NCall) & 
-			all( map(n->isa(n, NConst), n.parents) ) &
-			!in(n.main, [:zeros, :ones, :vcat])
-
-			# calculate value
-			res = invoke(emod.eval(n.main), 
-	            tuple([ typeof(x.main) for x in n.parents]...),
-	            [ x.main for x in n.parents]...)
-
-			# create a new constant node and replace n with it
-			nn = add_node(g, NConst(res) )
-			fusenodes(g, nn, n) 
-
-            restart = true  
-        end
-
-	    i = restart ? 1 : (i + 1)
-	end
-
-	# separate pass on subgraphs
-	map( n -> evalconstants!(n.main[2]), filter(n->isa(n, NFor), g.nodes) )
-end
 
 ####### trims the graph to necessary nodes for exit nodes to evaluate  ###########
 # TODO : propagate simplifications within for loops
-# function prune!(g::ExGraph)
-# 	g2 = ancestors(collect(values(g.setmap)))
-# 	filter!(n -> in(n, g2), g.nodes)
-# end
-# FIXME : check all 'in' that do isequal instead of is
-
 prune!(g::ExGraph) = prune!(g, collect(values(g.setmap)))
 
 function prune!(g::ExGraph, exitnodes)
@@ -179,7 +166,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 		end
 	end
 
-	evaluate(n::NConst) = myeval(n.main)
+	evaluate(n::NConst) = n.main
 	evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
 										map(a->myeval(a), n.main)... ) )
 	evaluate(n::NDot)   = myeval( Expr(  :., n.parents[1].val, n.main) )
@@ -210,7 +197,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 end
 
 ###### inserts graph src into dest  ######
-function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
+function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
     evalsort!(src)
     nmap = Dict()
     for n in src.nodes  #  n = src[1]  
@@ -218,7 +205,7 @@ function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
         	nn = copy(n) # node of same type
         	nn.parents = [ nmap[n2] for n2 in n.parents ]
         	push!(dest.nodes, nn)
-            # nn = add_node(dest, n.nodetype, n.main, 
+            # nn = addnode!(dest, n.nodetype, n.main, 
             # 				[ nmap[n2] for n2 in n.parents ])
             nmap[n] = nn
 
@@ -229,7 +216,7 @@ function add_graph!(src::ExGraph, dest::ExGraph, smap::Dict)
 
             	nn = copy(n)
 	        	push!(dest.nodes, nn)
-	            # nn = add_node(dest, n.nodetype, n.main, [])
+	            # nn = addnode!(dest, n.nodetype, n.main, [])
 	            nmap[n] = nn
 
                 warn("unmapped symbol in source graph $(n.main)")

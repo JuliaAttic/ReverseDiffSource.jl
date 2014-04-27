@@ -58,7 +58,7 @@ function copy(g::ExGraph)
   nmap = Dict()
   evalsort!(g)
   for n in g.nodes
-    n2 = add_node(g2, copy(n))
+    n2 = addnode!(g2, copy(n))
     n2.parents = [ nmap[n] for n in n2.parents ]
     nmap[n] = n2
   end
@@ -72,7 +72,7 @@ function copy(g::ExGraph)
 end
 
 ######  Graph functions  ######
-add_node(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
+addnode!(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
 if (VERSION.major, VERSION.minor) == (0,2)
   @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
