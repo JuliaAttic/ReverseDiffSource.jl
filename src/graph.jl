@@ -33,9 +33,34 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Array(ExNode, (0,4)), Dict() )
 # ExGraph()                   = ExGraph( ExNode[] )
 # ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict(), Dict(), Dict() )
 
+function extref(g::ExGraph, n::ExNode)
+  res = g.map[ g.map[:,2] .== n, 1]
+  length(res) == 1 && return res[1]
+  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
+
+  res = g.map[ g.map[:,3] .== n, 3]
+  length(res) == 1 && return res[1]
+  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
+
+  error("[extref] unknown inner node $n")
+end
+
+function inref(g::ExGraph, n::ExNode)
+  res = g.map[ g.map[:,2] .== n, 1]
+  length(res) == 1 && return res[1]
+  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
+
+  res = g.map[ g.map[:,3] .== n, 3]
+  length(res) == 1 && return res[1]
+  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
+
+  error("[extref] unknown inner node $n")
+end
+
 
 #####   Misc graph manipulation functions  #####
 
+# copies a graph and its nodes, leaves external nodes references intact
 function copy(g::ExGraph)
   g2 = ExGraph()
   nmap = Dict()
@@ -59,7 +84,7 @@ function copy(g::ExGraph)
   g2
 end
 
-######  Graph functions  ######
+# add a single node
 addnode!(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
 if (VERSION.major, VERSION.minor) == (0,2)
@@ -212,19 +237,19 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end
 
   function evaluate(n::Union(NAlloc, NCall))
-      local ret
-      try
-        ret = invoke(emod.eval(n.main), 
-              tuple([ typeof(x.val) for x in n.parents]...),
-              [ x.val for x in n.parents]...)
+    local ret
+    try
+      ret = invoke(emod.eval(n.main), 
+        tuple([ typeof(x.val) for x in n.parents]...),
+        [ x.val for x in n.parents]...)
     catch
       error("[calc!] can't evaluate $(n.main)")
     end
     return ret
-    end 
+  end 
 
   function evaluate(n::NExt)
-    pn = g.inmap[n]
+    pn = extref(g, n)
     if isa(pn, ExNode)
       return pn.val      # get node val in parent graph
     else
@@ -249,11 +274,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     # println("params2 : $(params2)")
     calc!(n.main[2], params=params2)
     
-        valdict = Dict()
-        for (inode, onode) in g2.outmap
-          valdict[onode] = inode.val
-        end
-        valdict
+    valdict = Dict()
+    for (inode, onode) in g2.outmap
+      valdict[onode] = inode.val
+    end
+    valdict
   end
 
   evalsort!(g)
@@ -264,33 +289,30 @@ end
 
 ###### inserts graph src into dest  ######
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
-    evalsort!(src)
-    nmap = Dict()
-    for n in src.nodes  #  n = src[1]  
-        if !isa(n, NExt)
-          nn = copy(n) # node of same type
-          nn.parents = [ nmap[n2] for n2 in n.parents ]
-          push!(dest.nodes, nn)
-            # nn = addnode!(dest, n.nodetype, n.main, 
-            #         [ nmap[n2] for n2 in n.parents ])
-            nmap[n] = nn
+  evalsort!(src)
+  nmap = Dict()
+  for n in src.nodes  #  n = src[1]  
+    if !isa(n, NExt)
+      nn = copy(n) # node of same type
+      nn.parents = [ nmap[n2] for n2 in n.parents ]
+      push!(dest.nodes, nn)
+      nmap[n] = nn
 
-        else
-            if haskey(smap, n.main)
-                nmap[n] = smap[n.main]
-            else
+    else
+      if haskey(smap, n.main)
+        nmap[n] = smap[n.main]
+      else
+        nn = copy(n)
+        push!(dest.nodes, nn)
+        # nn = addnode!(dest, n.nodetype, n.main, [])
+        nmap[n] = nn
+        warn("unmapped symbol in source graph $(n.main)")
+      end
 
-              nn = copy(n)
-            push!(dest.nodes, nn)
-              # nn = addnode!(dest, n.nodetype, n.main, [])
-              nmap[n] = nn
-
-                warn("unmapped symbol in source graph $(n.main)")
-            end
-        end
     end
+  end
 
-    nmap
+  nmap
 end
 
 ###### plots graph using GraphViz
