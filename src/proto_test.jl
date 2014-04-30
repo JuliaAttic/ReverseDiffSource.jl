@@ -61,13 +61,7 @@
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
     tm.tocode(g)
-
     tm.prune!(g); tm.tocode(g)
-
-    g.nodes
-
-    g2 = tm.copy(g)
-
     tm.simplify!(g); tm.tocode(g)
 
 
@@ -210,8 +204,28 @@
     ex = quote
         a = x * y + exp(-sin(4x))
         b = 1 + log(a)
-        b ^ a 
+        res = b ^ a 
     end
+
+    g = tm.tograph(ex)
+    g.nodes
+    tm.tocode(g)
+    tm.splitnary!(g) ; tm.tocode(g)
+    tm.simplify!(g) ; tm.tocode(g)
+    tm.calc!(g, params = {:x => 1, :y => 2}); tm.tocode(g)
+    g2 = tm.reversegraph(g, g.setmap[nothing], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
+
+    tm.prune!(g); tm.tocode(g)
+
+    g.nodes
+
+    g2 = tm.copy(g)
+
+    tm.simplify!(g); tm.tocode(g)
+
 
     out = reversediff(ex, nothing, x=1, y=1)
 
