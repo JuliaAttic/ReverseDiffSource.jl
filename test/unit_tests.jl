@@ -114,13 +114,33 @@ g = g.nodes[7].main[2]
 @test length(g.setmap) == 0
 
 
-### full cycle  : tograph -> splitnary -> simplify -> prune -> tocode 
+#################################################################
+## full cycle  : tograph -> splitnary -> simplify -> prune -> tocode 
+#################################################################
 function fullcycle(ex)
     g = m.tograph(ex)
-    length(g.setmap) == 0 && error("nothing defined here")
-    if haskey(g.setmap, nothing)
-        g.setmap = {:out => g.setmap[nothing]}  # give it a real name
+
+    count(x -> x[2][2]==:out_inode, g.map.kv) == 0 && error("nothing defined here")
+
+    m.evalsort!(g)
+
+    # keep last evaluated only for testing
+    lastnode = (g.nodes[1], :out)
+    for n in reverse(g.nodes)
+        !haskey(g.map.kv, n) && continue 
+        g.map.kv[n][2] != :out_inode && continue
+
+        lastnode = (n, g.map.kv[n][1] == nothing ? :out : g.map.kv[n][1] )
+        break
     end
+
+    for (k, (sym, typ)) in g.map.kv
+        if typ==:out_inode
+            delete!(g.map.kv, k)
+            delete!(g.map.vk, (sym, typ))
+        end
+    end
+    g.map[lastnode[1]] = (lastnode[2], :out_inode)
 
     m.splitnary!(g)
     m.simplify!(g)
@@ -129,10 +149,10 @@ function fullcycle(ex)
     m.resetvar()
     m.tocode(g)
 end
-  
 
 
-@test fullcycle(:( a = b+6 ))       == Expr(:block, :(a = b+6) ) 
+
+@test fullcycle(:(a = b+6 ))        == Expr(:block, :(a = b+6) ) 
 @test fullcycle(:(sin(y);a=3))      == Expr(:block, :(a = 3) )
 @test fullcycle(:(a += b+6))        == Expr(:block, :(a = a + (b+6)) )
 @test fullcycle(:(a -= b+6))        == Expr(:block, :(a = a - (b+6)) )
@@ -141,12 +161,11 @@ end
 @test fullcycle(:(a = [1,2]))       == Expr(:block, :(a = vcat(1,2)) )
 
 @test fullcycle(:(a = b+4+5))       == Expr(:block, :(a = b+9) )
-@test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )
-@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0.0) )
-@test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )
-@test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )
-@test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )
-
+@test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )    # fuse error
+@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0) )
+@test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )    # fuse error
+@test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )    # fuse error
+@test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )    # fuse error
 
 
 @test fullcycle(:( a[2] ))                       == Expr(:block, :(out = a[2]) )
@@ -171,12 +190,24 @@ end
 @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
 @test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
 
-ex = :( for i in 1:10 ; a[i] = b[i]+2 ; end ; c=3)
+
+
+ex = quote
+    for i in 1:10
+        a[i] = b[i]+2
+    end
+    c=3
+end
 exout = Expr(:block, :( c=3 ))
 @test fullcycle(ex) == striplinenumbers(exout)
 
 
-ex = :( a=0 ; for i in 1:10 ; a += x ; end)
+ex = quote
+    a=0
+    for i in 1:10
+        a += x
+    end
+end
 exout = quote
     _tmp1=0
     for i in 1:10
@@ -186,7 +217,13 @@ exout = quote
 end
 @test fullcycle(ex) == striplinenumbers(exout)
 
-ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end ) 
+
+ex = quote
+    a=zeros(10)
+    for i in 1:10
+        a[i] = b[i]+2
+    end
+end 
 exout = quote 
     _tmp1 = zeros(10)
     for i = 1:10
@@ -196,39 +233,58 @@ exout = quote
 end
 @test fullcycle(ex) == striplinenumbers(exout)
 
-ex = :( a=zeros(10) ; z=sum(a) ; for i in 1:10 ; a[i] = b[i]+2 ; end ) 
+
+
+ex = quote
+    a=zeros(10)
+    z=sum(a)
+    for i in 1:10
+        a[i] = b[i]+2
+    end
+end 
 exout = quote 
     _tmp1 = zeros(10)
+    for i = 1:10
+        _tmp1[i] = b[i] + 2
+    end
+    a = _tmp1
+end
+@test fullcycle(ex) == striplinenumbers(exout)
+
+
+ex = quote
+    a=zeros(10)
+    for i in 1:10
+        a[i] = b[i]+2
+    end 
+    z=sum(a) 
+end
+exout = quote 
+    _tmp1 = zeros(10)
+    for i = 1:10
+        _tmp1[i] = b[i] + 2
+    end
     z=sum(_tmp1)
-    for i = 1:10
-        _tmp1[i] = b[i] + 2
-    end
-    a = _tmp1
 end
 @test fullcycle(ex) == striplinenumbers(exout)
 
-ex = :( a=zeros(10) ; for i in 1:10 ; a[i] = b[i]+2 ; end; z=sum(a) ) 
-exout = quote 
-    _tmp1 = zeros(10)
-    for i = 1:10
-        _tmp1[i] = b[i] + 2
+
+ex = quote
+    a=zeros(10+6)
+    for i in 1:10
+        t = 4+3+2
+        a[i] += b[i]+t
     end
-    a = _tmp1
     z=sum(a)
 end
-@test fullcycle(ex) == striplinenumbers(exout)
-
-
-ex = :( a=zeros(10+6) ; for i in 1:10 ; t = 4+3+2; a[i] += b[i]+t ; end; z=sum(a) ) 
 exout = quote 
     _tmp1 = zeros(16)
     for i = 1:10
         _tmp1[i] = _tmp1[i] + (b[i] + 9)
     end
-    a = _tmp1
     z=sum(a)
 end
-@test fullcycle(ex) == striplinenumbers(exout)
+@test fullcycle(ex) == striplinenumbers(exout)  # t is explicited
 
 
 

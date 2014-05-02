@@ -25,9 +25,13 @@ function tocode(g::ExGraph)
 		                        { valueof(x,n) for x in n.parents}...)
 
 	function translate(n::NExt)
-		if haskey(g.inmap, n)
-			pn = g.inmap[n]
-			return isa(pn, ExNode) ? pn.val : pn
+		# if haskey(g.inmap, n)
+		# 	pn = g.inmap[n]
+		# 	return isa(pn, ExNode) ? pn.val : pn
+		# end
+		# n.main
+		if haskey(g.map.vk, (n.main, :in_onode))
+			return g.map.vk[(n.main, :in_onode)].val
 		end
 		n.main
 	end
@@ -52,8 +56,13 @@ function tocode(g::ExGraph)
     	push!(out, Expr(:for, n.main[1], fb))
         
         valdict = Dict()
-        for (inode, onode) in g2.outmap
-        	valdict[onode] = inode.val
+        # for (inode, onode) in g2.outmap
+        # 	valdict[onode] = inode.val
+        # end
+        for (k, (sym, typ)) in g2.map.kv
+        	if typ == :out_onode
+        		valdict[k] = g2.map.vk[(sym, :out_inode)].val
+        	end
         end
         valdict
 	end
@@ -92,11 +101,22 @@ end
 #  variable names assigned to this node
 function getnames(n::ExNode, g::ExGraph)
 	syms = Symbol[]
-	if haskey(g.link, n) # this node modifies a var in parent
-		push!(syms, g.link[n].val)  # this var has necessarily been evaluated to a symbol
-	else
-		for (k,v) in g.setmap
-			v == n && push!(syms, k==nothing ? newvar() : k)
+	# if haskey(g.link, n) # this node modifies a var in parent
+	# 	push!(syms, g.link[n].val)  # this var has necessarily been evaluated to a symbol
+	# else
+	# 	for (k,v) in g.setmap
+	# 		v == n && push!(syms, k==nothing ? newvar() : k)
+	# 	end
+	# end
+	if haskey(g.map.kv, n) 
+		sym, typ = g.map.kv[n]
+		if typ == :out_inode
+			if haskey(g.map.vk, (sym, :in_onode))
+				push!(syms, g.map.vk[(sym, :in_onode)].val)  # this var has necessarily been evaluated to a symbol
+			else
+				nsym = g.map.kv[n][1]
+				push!(syms, nsym==nothing ? newvar() : nsym)  # this var has necessarily been evaluated to a symbol
+			end
 		end
 	end
 	syms

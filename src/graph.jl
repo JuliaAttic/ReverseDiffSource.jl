@@ -6,57 +6,76 @@
   
 
 #####  ExGraph type  ######
+import Base.setindex!, Base.getindex
+# export setindex!, getindex
 
+### bidirectional Dict, 
+# enforces unity of values + provides easy lookup by values
+type BiDict{K,V}
+  kv::Dict{K,V}
+  vk::Dict{V,K}
+
+  BiDict() = new(Dict{K,V}(), Dict{V,K}())
+
+  function BiDict(ks, vs)
+    n = length(ks)
+    length(unique(ks)) != n && error("Duplicate keys")
+    length(unique(vs)) != n && error("Duplicate values")
+    h = BiDict{K,V}()
+    for i=1:n
+      h.kv[ks[i]] = vs[i]
+      h.vk[vs[i]] = ks[i]
+    end
+    return h
+  end
+end
+
+BiDict() = BiDict{Any,Any}()
+BiDict{K,V}(ks::AbstractArray{K}, vs::AbstractArray{V}) = BiDict{K,V}(ks,vs)
+BiDict(ks, vs) = BiDict{Any,Any}(ks, vs)
+
+function setindex!(bd::BiDict, v, k)
+  v2 = get(bd.kv, k, nothing)  # existing value for k ?
+  k2 = get(bd.vk, v, nothing)  # existing key for v ?
+
+  if k2 != nothing
+    delete!(bd.kv, k2)
+    delete!(bd.vk, v)
+  end
+
+  if v2 != nothing
+    delete!(bd.kv, k)
+    delete!(bd.vk, v2)
+  end
+
+  bd.kv[k] = v
+  bd.vk[v] = k
+end
+
+getindex(bd::BiDict, k) = bd.kv[k]
+
+### the Graph type
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
-
-  #  n x 4 matrix containing ingoing nodes (outer and inner nodes) and 
-  #   optionnaly outgoing nodes (outer and inner), to map subgraph 
-  #   dependencies and exported variables
-  map::Matrix{ExNode}    
-
-  # map of symbol to calc nodes in this graph, useful for root graph only
-  setmap::Dict
+  map::BiDict{ExNode, NTuple{2}}
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
-ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Array(ExNode, (0,4)), Dict() )
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, NTuple{2}}() )
 
-# type ExGraph
-#   nodes::Vector{ExNode}  # nodes in this graph
-#   inmap::Dict            # map of this graph external nodes to parent graph nodes
-#   outmap::Dict           # map of this graph calc nodes to dependant parent graph nodes
-#   setmap::Dict           # map of symbol to calc nodes in this graph
-#   link::Dict             
+# getnodes(g::ExGraph, typ) = collect(values(filter(m -> m[2]==typ, g.map.vk)))
+
+# function getnodes(g::ExGraph, ids::Vector, typ::Symbol)
+#   nt = length(typ)
+#   ni = length(ids)
+#   res = cells(ni, nt)
+#   for (k,v) in g.map.kv
+#     i = indexin([v[2]], ids)
+#     if i != 0 
+#       for (j,t) in zip(1:lengthtyp
+
+#   end  
 # end
-
-# ExGraph()                   = ExGraph( ExNode[] )
-# ExGraph(vn::Vector{ExNode}) = ExGraph( vn, Dict(), Dict(), Dict(), Dict() )
-
-function extref(g::ExGraph, n::ExNode)
-  res = g.map[ g.map[:,2] .== n, 1]
-  length(res) == 1 && return res[1]
-  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
-
-  res = g.map[ g.map[:,3] .== n, 3]
-  length(res) == 1 && return res[1]
-  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
-
-  error("[extref] unknown inner node $n")
-end
-
-function inref(g::ExGraph, n::ExNode)
-  res = g.map[ g.map[:,2] .== n, 1]
-  length(res) == 1 && return res[1]
-  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
-
-  res = g.map[ g.map[:,3] .== n, 3]
-  length(res) == 1 && return res[1]
-  length(res) > 1 && error("[extref] multiple occurences of inner node $n")
-
-  error("[extref] unknown inner node $n")
-end
-
 
 #####   Misc graph manipulation functions  #####
 
@@ -72,14 +91,13 @@ function copy(g::ExGraph)
   end
 
   # copy node mapping and translate inner nodes to newly created ones
-  g2.map = copy(g.map)
-  for i in 1:size(g2.map,1)
-    g2.map[i,2] = nmap[g2.map[i,2]]
-    g2.map[i,4] = nmap[g2.map[i,4]]
+  for (n, (sym, typ)) in g.map
+    if typ in [ :in_onode, :out_onode]
+      g2.map[n] = (sym, typ)
+    else
+      g2.map[ nmap[n]] = (sym, typ)
+    end
   end
-
-  # copy setmap
-  for (k,v) in g.setmap ; g2.setmap[k]        = nmap[v] ; end
 
   g2
 end
@@ -87,13 +105,13 @@ end
 # add a single node
 addnode!(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
 
-if (VERSION.major, VERSION.minor) == (0,2)
-  @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
-else
-  @eval ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) ) # julia 0.3+
-end
+# if (VERSION.major, VERSION.minor) == (0,2)
+#   @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
+# else
+#   @eval ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) ) # julia 0.3+
+# end
 
-ancestors(n::Vector) = union( map(ancestors, n)... )
+# ancestors(n::Vector) = union( map(ancestors, n)... )
 
 ######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ###### 
 function splitnary!(g::ExGraph)
@@ -117,56 +135,41 @@ end
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   # replace references to nr by nk in parents of other nodes
-    for n in filter(n -> n != nr && n != nk, g.nodes)
-      for i in 1:length(n.parents)
-        n.parents[i] == nr && (n.parents[i] = nk)
+  for n in filter(n -> n != nr && n != nk, g.nodes)
+    for i in 1:length(n.parents)
+      n.parents[i] == nr && (n.parents[i] = nk)
+    end
+  end
+
+  for (n, (sym, typ)) in g.map.kv
+    if n==nr && typ==:in_inode
+      error("[fusenodes] attempt to fuse in_inode $nr")
+    elseif n==nr && typ==:out_inode
+      haskey(g.map.kv, nk) && error("[fusenodes] $nk (nk) already in map, can't remove $nr")
+      g.map[nk] = (sym, typ)  # will remove nr entry too
+    end
+  end  
+
+  # now check for loops that may refer to nr
+  for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
+    g2 = n.main[2]
+
+    for (n, (sym, typ)) in g2.map.kv
+      if n==nr && typ==:in_onode
+        haskey(g2.map.kv, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
+        g2.map[nk] = (sym,typ) # will remove nr entry too
+      elseif n==nr && typ==:out_onode
+        error("[fusenodes (for)] attempt to fuse out_onode $nr")
       end
-    end
+    end  
+  end
 
-  # replace references to nr in setmap dictionnary
-    for (sym, node) in g.setmap
-        node == nr && (g.setmap[sym] = nk)
-    end
-
-  # remove references to nr in inmap dictionnary
-  delete!(g.inmap, nr)
-
-  # replace references to nr in outmap dictionnary
-    for (inode, onode) in g.outmap
-        inode == nr && (g.outmap[nk] = g.outmap[nr])
-    end
-    delete!(g.outmap, nr)
-
-  # replace references to nr in link dictionnary
-    for (inode, onode) in g.link
-        inode == nr && (g.link[nk] = g.link[nr])
-    end
-    delete!(g.link, nr)
-
-    # now check for loops that may refer to nr
-    for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
-      g2 = n.main[2]
-
-      for (inode, onode) in g2.inmap
-          onode == nr && (g2.inmap[inode] = nk)
-      end
-      for (inode, onode) in g2.outmap
-          onode == nr && (g2.outmap[inode] = nk)
-      end
-      for (inode, onode) in g2.link
-          onode == nr && (g2.link[inode] = nk)
-      end
-    end
-
-
-    # remove node nr in g
-    filter!(n -> n != nr, g.nodes)
+  # remove node nr in g
+  filter!(n -> n != nr, g.nodes)
 end
 
-
 ####### trims the graph to necessary nodes for exit nodes to evaluate  ###########
-# TODO : propagate simplifications within for loops
-prune!(g::ExGraph) = prune!(g, collect(values(g.setmap)))
+prune!(g::ExGraph) = prune!(g, collect(keys(filter((k,v) -> v[2]==:out_inode, g.map.kv))))
 
 function prune!(g::ExGraph, exitnodes)
   ns2 = copy(exitnodes)
@@ -176,13 +179,19 @@ function prune!(g::ExGraph, exitnodes)
 
     if isa(n, NFor)
       g2 = n.main[2]
-      exitnodes2 = ExNode[]
-      for (k,v) in g2.outmap
-        v in ns2 && push!(exitnodes2, k)
+
+      outsyms = {}
+      for (k,(sym,typ)) in g2.map.kv
+        typ==:out_onode && k in ns2 && push!(outsyms, sym)
       end
+      exitnodes2 = ExNode[]
+      for (k,(sym,typ)) in g2.map.kv
+        typ==:out_inode && sym in outsyms && push!(exitnodes2, k)
+      end
+
       prune!(g2, exitnodes2)
 
-      npar = collect(values(g2.inmap))
+      npar = collect(keys(filter( (k,v) -> v[2]==:in_onode, g2.map.kv)))
       filter!(m -> m in npar, n.parents)
     end
 
@@ -191,10 +200,25 @@ function prune!(g::ExGraph, exitnodes)
     end
   end
 
-  filter!((k,v) -> k in ns2, g.inmap)
-  filter!((k,v) -> k in ns2, g.outmap)
-  filter!((k,v) -> v in ns2, g.setmap)
-  filter!((k,v) -> k in ns2, g.link)
+  # remove unused inodes in map
+  for (k,(sym,typ)) in g.map.kv
+    typ in [:out_onode, :in_onode] && continue
+    k in ns2 && continue
+
+    delete!(g.map.kv, k)    # TODO: implement delete! on BiDict
+    delete!(g.map.vk, (sym,typ))
+  end
+
+  println(2)
+  # remove useless onodes in map (when corresponding inode has been removed)
+  for (k,(sym,typ)) in g.map.kv
+    typ in [:out_inode, :in_inode] && continue
+    typ == :out_onode && haskey(g.map.vk, (sym, :out_inode) ) && continue
+    typ == :in_onode && haskey(g.map.vk, (sym, :in_inode)) && continue
+
+    delete!(g.map.kv, k)    # TODO: implement delete! on BiDict
+    delete!(g.map.vk, (sym,typ))
+  end
 
   filter!(n -> n in ns2, g.nodes)
 end
@@ -249,11 +273,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end 
 
   function evaluate(n::NExt)
-    pn = extref(g, n)
-    if isa(pn, ExNode)
+    if haskey(g.map.vk, (n.main, :out_onode))
+      pn = g.map.vk[(n.main, :out_onode)]
       return pn.val      # get node val in parent graph
     else
-      return myeval(pn)  # get value of symbol
+      return myeval(n.main)  # get value of symbol
     end
   end
 
@@ -275,10 +299,16 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     calc!(n.main[2], params=params2)
     
     valdict = Dict()
-    for (inode, onode) in g2.outmap
-      valdict[onode] = inode.val
+    # for (inode, onode) in g2.outmap
+    #   valdict[onode] = inode.val
+    # end
+    for (k, (sym, typ)) in g2.map.kv
+      if typ == :out_onode
+        valdict[k] = g2.map.vk[(sym, :out_inode)].val
+      end
     end
     valdict
+
   end
 
   evalsort!(g)

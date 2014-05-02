@@ -10,7 +10,7 @@ type ExNode{T}
   main                    # main payload
   parents::Vector{Any}    # parent nodes
   val                     # value
-  alloc::Boolean          # Allocation ? Forbids fusions
+  alloc::Bool             # Allocation ? Forbids fusions
 
   ExNode()                  = new(nothing,      {}, NaN, false)
   ExNode(main)              = new(   main,      {}, NaN, false)
@@ -28,12 +28,12 @@ typealias NRef       ExNode{:ref}       # getindex
 typealias NDot       ExNode{:dot}       # getfield
 typealias NSRef      ExNode{:subref}    # setindex
 typealias NSDot      ExNode{:subdot}    # setfield
-# typealias NAlloc     ExNode{:alloc}     # function call allocating memory
+typealias NAlloc     ExNode{:alloc}     # function call allocating memory
 typealias NFor       ExNode{:for}       # for loop
 typealias NIn        ExNode{:within}    # reference to var set in a loop
 
 
-subtype(n::ExNode{T}) = T
+subtype{T}(n::ExNode{T}) = T
 
 function show(io::IO, res::ExNode)
   pl = join( map(x->isa(x,NFor) ? "subgraph" : repr(x.main), res.parents) , " / ")

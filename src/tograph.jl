@@ -4,18 +4,11 @@
 #
 #########################################################################
 
-#  top-level call	
-function tograph(s)
+tograph(s) = tograph(s, Set{Any}())
 
-	# start with empty list of setvars
-	tograph2(s, Dict{Symbol, ExNode}())
-
-end
-
-#  inner levels exploration
 #  s     : expression to convert
-#  pvars : vars defined at enclosing levels
-function tograph2(s, pvars::Dict{Symbol, ExNode})
+#  svars : vars set since the toplevel graph (helps separate globals / locals)
+function tograph(s, svars::Set{Any})
 
 	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
 	explore(ex::Expr)      = explore(toExH(ex))
@@ -41,20 +34,20 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	function explore(ex::Symbol)
-		if haskey(g.setmap, ex)        # var already set in expression
-			return g.setmap[ex]
-		elseif haskey(externals, ex) # external ref already turned into a node
-			return externals[ex]
-		else # symbol neither set var nor known external
-			externals[ex] = addnode!(g, NExt(ex))  # create external node for this var
-			return externals[ex]
+		if haskey(g.map.vk, (ex, :out_inode))       # var already set before
+			return g.map.vk[(ex, :out_inode)]
+		elseif haskey(g.map.vk, (ex, :in_inode))   # external ref already turned into a node
+			return g.map.vk[(ex, :in_inode)]
+		else # neither a var set before nor a known external
+			nn = addnode!(g, NExt(ex))    # create external node for this var
+			g.map[nn] = (ex, :in_inode)
+			return nn
 		end
 	end
 
 	function explore(ex::ExCall)
 		if in(ex.args[1], [:zeros, :ones, :vcat])
-			addnode!(g, NAlloc(ex.args[1], map(explore, ex.args[2:end]) ))
-			# TODO : NAlloc or NCall ? decide what to do
+			addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
 	    else
 	    	addnode!(g, NCall( ex.args[1], map(explore, ex.args[2:end]) ))
 	    end
@@ -63,8 +56,6 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 	function explore(ex::ExEqual) 
 		lhs = ex.args[1]
 		
-		# haskey(externals, lhs) && 
-		# 	warn("$lhs is used as an external reference and then set within the expression")
 		if isSymbol(lhs)
 			lhss = lhs
 			rhn  = explore(ex.args[2])
@@ -82,7 +73,8 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 			error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
 		end
 
-		g.setmap[lhss] = rhn
+		# g.setmap[lhss] = rhn
+		g.map[rhn] = (lhss, :out_inode)
 
 		return nothing
 	end
@@ -93,61 +85,47 @@ function tograph2(s, pvars::Dict{Symbol, ExNode})
 			error("[tograph] for loop not using a single variable $is ")
 
 		# explore the for block as a separate graph 
-		g2 = tograph2(ex.args[2], merge(pvars, g.setmap))
-		g2.setmap = Dict()     # remove
+		oin = filter(t -> t[2] == :out_inode, collect(values(g.map.kv)))
+		nsvars = [ v[1] for v in oin ]
+		nsvars = union(svars, Set(nsvars...))
+		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node
 		nf = addnode!(g, NFor( [ ex.args[1], g2 ] ))
 
-		# update inmap by replacing symbol with corresponding outer node in this graph
-		# dict key is the node in subgraph, and dict value is the node in parent graph
-		for (inode, sym) in g2.inmap
-			if sym==is   # index var should be removed
-				delete!(g2.inmap, inode)
-			else
+		# create onodes (node in parent graph) for each :in_inode
+		for (sym, typ) in values(g2.map.kv)
+			if typ == :in_inode && sym != is
 				pn = explore(sym)  # look in setmap, externals or create it
-				g2.inmap[inode] = pn
+				g2.map[pn] = (sym, :in_onode)
 				push!(nf.parents, pn) # mark as parent of for loop
 				# println("[subgraph inmap] inner $inode linked outer $pn")
 			end
 		end
 
-		# update outmap by replacing symbol with corresponding outer node in this graph
-		for (inode, sym) in g2.outmap
-			if sym==is   # index var should be removed
-				delete!(g2.outmap, inode)
-			else
+		# create onodes and 'Nin' nodes for each :out_inode
+		#  will be restricted to variables that are defined in parent
+		#   (others are assumed to be local to the loop)
+		for (sym, typ) in values(g2.map.kv)
+			if typ == :out_inode && sym in nsvars && sym != is
 				# println("[subgraph outmap] inner $inode sets $sym")
-				pn = explore(sym)  # create node if needed
-				rn = addnode!(g, NIn(sym, [nf]))  # exit node for this var in this graph
-				g2.outmap[inode] = rn
-				g2.link[inode] = pn
-				g.setmap[sym] = rn      # signal we're setting the var
+				pn = explore(sym)                   # create node if needed
+				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
+				g.map[rn] = (sym, :out_inode)       # signal we're setting the var
+				g2.map[rn] = (sym, :out_onode)
 			end
 		end
 	end
 
+	#  top level graph
     g = ExGraph()
-	externals = Dict{Symbol, ExNode}()
 
 	exitnode = explore(s)  
 	# exitnode = nothing if only variable assigments in expression
 	#          = ExNode of last calc otherwise
 
-	# setmap key is 'nothing' for unnassigned last statement
-	exitnode!=nothing && (g.setmap[nothing] = exitnode) 
-
-	# outmap is the subset of setmap for variables that exist in the parent scope
-	for (sym, node) in g.setmap
-		if haskey(pvars, sym)
-			g.outmap[node] = sym
-		end
-	end
-
-	# inmap keys = externals, value = symbol used
-	for (sym, node) in externals
-		g.inmap[node] = sym
-	end
+	# id is 'nothing' for unnassigned last statement
+	exitnode!=nothing && ( g.map[exitnode] = (nothing, :out_inode) ) 
 
 	g
 end

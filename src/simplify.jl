@@ -13,7 +13,7 @@ function simplify!(g::ExGraph, emod = Main)
 		restart = false
 		n = g.nodes[i]
 
-		restart = # any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
+		restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
 			evalconstants(n, g, emod) ||
 			rule1(n, g) ||
 			rule2(n, g) ||

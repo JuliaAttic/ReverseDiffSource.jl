@@ -42,9 +42,38 @@
 
     reversediff(ex, :res, x = 1)
 
+
+################## for loops  #######################
+    ex = quote
+        y = x * a * 1
+        y2 = (x * a) + 0 + 3
+        z = x+1
+        y3 = z * a
+        y + y2 + y3 + 12
+    end
+
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    g = tm.tograph(ex);
+    g.nodes
+    collect(g.map.kv)
+
+    tm.splitnary!(g)
+    tm.simplify!(g)
+    tm.prune!(g)
+    tm.tocode(g)
+
+    tm.prune!( g, [g.map.vk[(nothing,:out_inode)]] )
+    tm.prune!( g, {g.map.vk[(nothing,:out_inode)]} )
+
+
 ################## for loops  #######################
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    g = tm.tograph(:( a + 1));
+    g.nodes
+    collect(g.map.kv)
+
+
     ex = quote
         a=0
         for i in 1:2
@@ -53,8 +82,20 @@
     end
 
     # reversediff(ex, :a, x = 1)
-
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
     g = tm.tograph(ex);
+    g.nodes
+    collect(g.map.kv)
+    g.nodes[2].main[2].nodes
+    collect(g.nodes[2].main[2].map.kv)
+
+    ex = quote
+        a=0
+        for i in 1:2
+            a += 2i    
+        end
+    end
+
     tm.calc!(g, params = {:x => 1})
     g.setmap
     g2 = tm.reversegraph(g, g.setmap[:a], [:x])
@@ -209,6 +250,7 @@
 
     g = tm.tograph(ex)
     g.nodes
+    collect(g.map.kv)
     tm.tocode(g)
     tm.splitnary!(g) ; tm.tocode(g)
     tm.simplify!(g) ; tm.tocode(g)
