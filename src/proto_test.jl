@@ -207,11 +207,33 @@
 
 
 ########### testing big func 2 ##########
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+
     ex = quote
         a = x * y + exp(-sin(4x))
         b = 1 + log(a)
         b ^ a 
     end
+
+x
+    g = tm.tograph(ex)
+    g.nodes
+    tm.tocode(g)
+    tm.splitnary!(g) ; tm.tocode(g)
+    tm.simplify!(g)
+    tm.prune!(g)
+
+    tm.evalsort!(g)
+    # println(Dict(paramsym, paramvalues))
+    tm.calc!(g, params=Dict(paramsym, paramvalues))
+
+    tm.simplify!(g); tm.tocode(g)
+
+    tm.simplify!(g) ; tm.tocode(g)
+
+
+    tm.calc!(g, params= {:v => 1., :b => -1, :x => 4})
+    g.setmap[:a].val
 
     out = reversediff(ex, nothing, x=1, y=1)
 
@@ -241,7 +263,7 @@
     tm.type_decl(Test1, 2)
     tm.@type_decl Main.Test1 2 
 
-    reversediff(:( sin(x * a.x)), [:x])
+    reversediff(:( sin(x * a.x)), nothing, x=1)
     reversediff(:( x * a.x), [:x])
     reversediff(:( x * a.x), [:a])
 
