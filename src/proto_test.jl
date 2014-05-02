@@ -40,7 +40,23 @@
         res = sum(a)
     end
 
-    reversediff(ex, :res, x = 1)
+    # reversediff(ex, :res, x = 1)
+    g = tm.tograph(ex)
+    tm.splitnary!(g)
+    tm.simplify!(g)
+    tm.prune!(g, {g.map.vk[(:res, :out_inode)]})
+
+    tm.calc!(g, params = {:x => 1})
+    g.nodes
+    g.setmap
+    g2 = tm.reversegraph(g, g.map.vk[(:res, :out_inode)], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    collect(g.map.kv)
+    g.nodes
+    g.setmap = merge(g.setmap, g2.setmap)
+    tm.tocode(g)
+    tm.prune!(g); tm.tocode(g)
+    tm.simplify!(g); tm.tocode(g)
 
 
 ################## for loops  #######################
