@@ -40,11 +40,49 @@
         res = sum(a)
     end
 
+dump(ex)
     # reversediff(ex, :res, x = 1)
     g = tm.tograph(ex)
     tm.splitnary!(g)
     tm.simplify!(g)
+    tm.tocode(g)
+
     tm.prune!(g, {g.map.vk[(:res, :out_inode)]})
+
+    begin
+        g.nodes[2]
+        ns2[4]
+        ns2[4] == g.nodes[2]
+        g.nodes[5] in ns2
+        dump(ns2[4])
+        dump(g.nodes[2])
+
+        g.nodes[4].parents[2] in ns2
+        mx = g.map.vk[(:x, :in_inode)]
+        mx in g.nodes
+        ma = g.map.vk[(:a, :in_inode)]
+        ma in g.nodes
+
+        g.nodes[4].parents[2] == mx
+        g.nodes[3] == mx
+        hash(g.nodes[3])
+
+        g.map[mx]
+        haskey(g.map.vk, (:x, :out_inode))
+        haskey(g.map.vk, (:x, :in_inode))
+
+
+        map(hash, g.nodes)
+        map(hash, keys(g.map.kv))
+        # map(hash, values(g.map.vk))
+        g.nodes
+
+        collect(g.map.kv)
+
+        map(hash, g.nodes[3].parents)
+        ex = :( a[2] = x )
+        ex.head
+    end
 
     tm.calc!(g, params = {:x => 1})
     g.nodes
@@ -52,6 +90,11 @@
     g2 = tm.reversegraph(g, g.map.vk[(:res, :out_inode)], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     collect(g.map.kv)
+    collect(g2.map.kv)
+    g.map[ g2.map.vk[(:dx, :out_inode)] ] = (:dx, :out_inode)
+    nn = g.map.vk[(:a, :out_inode)]
+    delete!(g.map.kv, nn)
+    delete!(g.map.vk, (:a, :out_inode))
     g.nodes
     g.setmap = merge(g.setmap, g2.setmap)
     tm.tocode(g)

@@ -34,13 +34,23 @@ function tograph(s, svars::Set{Any})
 	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	function explore(ex::Symbol)
+		# println("=========  $ex")
+		# for (k,v) in g.map.kv ; println(" - ($(repr(hash(k))))  : $k  / $v") ; end
+
 		if haskey(g.map.vk, (ex, :out_inode))       # var already set before
 			return g.map.vk[(ex, :out_inode)]
+
 		elseif haskey(g.map.vk, (ex, :in_inode))   # external ref already turned into a node
 			return g.map.vk[(ex, :in_inode)]
+
 		else # neither a var set before nor a known external
+			# nn = NExt(ex)
+			# push!(g.nodes, nn)
 			nn = addnode!(g, NExt(ex))    # create external node for this var
+			# for n2 in g.nodes ; println(" node3 ($(repr(hash(n2))))  : $n2") ; end
+			# println("+++  $nn  ($(repr(hash(nn)))")
 			g.map[nn] = (ex, :in_inode)
+			# for (k,v) in g.map.kv ; println(" + ($(repr(hash(k))))  : $k  / $v") ; end
 			return nn
 		end
 	end
@@ -49,16 +59,20 @@ function tograph(s, svars::Set{Any})
 		if in(ex.args[1], [:zeros, :ones, :vcat])
 			addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
 	    else
-	    	addnode!(g, NCall( ex.args[1], map(explore, ex.args[2:end]) ))
+	    	addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
 	    end
 	end
 
 	function explore(ex::ExEqual) 
+
+		# for n2 in g.nodes ; println(" node ($(repr(hash(n2))))  : $n2") ; end
+
 		lhs = ex.args[1]
 		
 		if isSymbol(lhs)
 			lhss = lhs
 			rhn  = explore(ex.args[2])
+
 		elseif isRef(lhs)
 			lhss = lhs.args[1]
 			rhn  = addnode!(g, NSRef(lhs.args[2:end], 
@@ -75,6 +89,8 @@ function tograph(s, svars::Set{Any})
 
 		# g.setmap[lhss] = rhn
 		g.map[rhn] = (lhss, :out_inode)
+
+		# for n2 in g.nodes ; println(" node2 ($(repr(hash(n2))))  : $n2") ; end
 
 		return nothing
 	end

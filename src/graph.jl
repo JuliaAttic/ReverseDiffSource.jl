@@ -35,14 +35,13 @@ BiDict{K,V}(ks::AbstractArray{K}, vs::AbstractArray{V}) = BiDict{K,V}(ks,vs)
 BiDict(ks, vs) = BiDict{Any,Any}(ks, vs)
 
 function setindex!(bd::BiDict, v, k)
-  v2 = get(bd.kv, k, nothing)  # existing value for k ?
   k2 = get(bd.vk, v, nothing)  # existing key for v ?
-
   if k2 != nothing
     delete!(bd.kv, k2)
     delete!(bd.vk, v)
   end
 
+  v2 = get(bd.kv, k, nothing)  # existing value for k ?
   if v2 != nothing
     delete!(bd.kv, k)
     delete!(bd.vk, v2)
@@ -63,19 +62,7 @@ end
 ExGraph()                   = ExGraph( ExNode[] )
 ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, NTuple{2}}() )
 
-# getnodes(g::ExGraph, typ) = collect(values(filter(m -> m[2]==typ, g.map.vk)))
 
-# function getnodes(g::ExGraph, ids::Vector, typ::Symbol)
-#   nt = length(typ)
-#   ni = length(ids)
-#   res = cells(ni, nt)
-#   for (k,v) in g.map.kv
-#     i = indexin([v[2]], ids)
-#     if i != 0 
-#       for (j,t) in zip(1:lengthtyp
-
-#   end  
-# end
 
 #####   Misc graph manipulation functions  #####
 
@@ -103,7 +90,7 @@ function copy(g::ExGraph)
 end
 
 # add a single node
-addnode!(g::ExGraph, nn::ExNode) = (push!(g.nodes, nn) ; nn)
+addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 
 # if (VERSION.major, VERSION.minor) == (0,2)
 #   @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
@@ -209,7 +196,6 @@ function prune!(g::ExGraph, exitnodes)
     delete!(g.map.vk, (sym,typ))
   end
 
-  println(2)
   # remove useless onodes in map (when corresponding inode has been removed)
   for (k,(sym,typ)) in g.map.kv
     typ in [:out_inode, :in_inode] && continue
