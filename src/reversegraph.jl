@@ -127,7 +127,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 					nn = addnode!(fg2, NExt(dprefix(sym)))
 					fg.map[nn] = (dprefix(nsym), :in_inode)
 
-					on = fg.map.vk[(sym, :out_onode)]   # is it always there ? 
+					# on = fg.map.vk[(sym, :out_onode)]   # is it always there ? 
 					fg.map[dnodes[on]] = (dprefix(nsym), :in_onode)
 				
 				elseif fg.map.kv[n2][2] == :in_inode
@@ -162,24 +162,24 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	println("=== fg  1 ===")
 	println(fg.nodes)
 	println("foutmap = $(repr(foutmap))")
-	println(" fdnodes = $(collect(fdnodes))")
-	println(" map = $(collect(fg.map.kv))")
+	println("fdnodes = $(collect(fdnodes))")
+	println("map = $(collect(fg.map.kv))")
 
 		prune!(fg, [ fdnodes[ni] for ni in foutmap ]) # reduce to derivatives evaluation only
 
 	println("=== fg  2 ===")
 	println(fg.nodes)
 	println("foutmap = $(repr(foutmap))")
-	println(" fdnodes = $(collect(fdnodes))")
-	println(" map = $(collect(fg.map.kv))")
+	println("fdnodes = $(collect(fdnodes))")
+	println("map = $(collect(fg.map.kv))")
 
 		# create for loop
 		println("=== create dfor node ===")
 		v2 = addnode!(g2, NFor([ n.main[1], fg]) )
-		v2.parents = collect( keys(filter( (k,v) -> v[2]==:in_onode, fg.map)) )
+		v2.parents = collect( keys(filter( (k,v) -> v[2]==:in_onode, fg.map.kv)) )
 
 		# outmap = dnodes of initial inmap
-		for ns2 in foutmap
+		for ns2 in filter(n -> haskey(fdnodes,n) & haskey(fg.map.kv,n), foutmap)
 			# rn = addnode!(g2, NIn("dout", [v2]))  # external node, receiving loop result
 			# fdn = ns2[1]                          # final node in loop containing derivative
 			# fg.outmap[ fdn ] = rn                 # link those two
@@ -202,8 +202,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	println("=== fg  3 ===")
 	println(fg.nodes)
 	println("foutmap = $(repr(foutmap))")
-	println(" fdnodes = $(collect(fdnodes))")
-	println(" map = $(collect(fg.map.kv))")
+	println("fdnodes = $(collect(fdnodes))")
+	println("map = $(collect(fg.map.kv))")
 
 	end
 

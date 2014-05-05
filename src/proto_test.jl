@@ -86,7 +86,6 @@ dump(ex)
 
     tm.calc!(g, params = {:x => 1})
     g.nodes
-    g.setmap
     g2 = tm.reversegraph(g, g.map.vk[(:res, :out_inode)], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     collect(g.map.kv)
@@ -96,11 +95,10 @@ dump(ex)
     delete!(g.map.kv, nn)
     delete!(g.map.vk, (:a, :out_inode))
     g.nodes
-    g.setmap = merge(g.setmap, g2.setmap)
     tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
-
+    g.map = tm.BiDict([nn], )
 
 ################## for loops  #######################
     ex = quote
@@ -146,7 +144,7 @@ dump(ex)
     g.nodes
     collect(g.map.kv)
     g.nodes[2].main[2].nodes
-    collect(g.nodes[2].main[2].map.kv)
+    collect(g.nodes[3].main[2].map.kv)
 
     ex = quote
         a=0
@@ -156,9 +154,12 @@ dump(ex)
     end
 
     tm.calc!(g, params = {:x => 1})
-    g.setmap
-    g2 = tm.reversegraph(g, g.setmap[:a], [:x])
+    g.nodes
+    g2 = tm.reversegraph(g, g.map.vk[(:a, :out_inode)], [:x])
     g.nodes = [ g.nodes, g2.nodes]
+    g.map[ ]
+    collect(g2.map.kv)
+
     g.setmap = merge(g.setmap, g2.setmap)
     tm.tocode(g)
     tm.prune!(g); tm.tocode(g)

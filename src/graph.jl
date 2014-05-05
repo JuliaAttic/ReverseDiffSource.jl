@@ -78,7 +78,7 @@ function copy(g::ExGraph)
   end
 
   # copy node mapping and translate inner nodes to newly created ones
-  for (n, (sym, typ)) in g.map
+  for (n, (sym, typ)) in g.map.kv
     if typ in [ :in_onode, :out_onode]
       g2.map[n] = (sym, typ)
     else
