@@ -97,14 +97,6 @@ function tograph(s, svars::Vector{Any})
 				push!(nf.parents, pn) # mark as parent of for loop
 			end
 		end
-		# for (sym, typ) in values(g2.map.kv)
-		# 	if typ == :in_inode && sym != is
-		# 		pn = explore(sym)  # look in setmap, externals or create it
-		# 		g2.map[pn] = (sym, :in_onode)
-		# 		push!(nf.parents, pn) # mark as parent of for loop
-		# 		# println("[subgraph inmap] inner $inode linked outer $pn")
-		# 	end
-		# end
 
 		# create onodes and 'Nin' nodes for each :out_inode
 		#  will be restricted to variables that are defined in parent
@@ -117,15 +109,6 @@ function tograph(s, svars::Vector{Any})
 				g2.set_onodes[rn] = sym
 			end
 		end
-		# for (sym, typ) in values(g2.map.kv)
-		# 	if typ == :out_inode && sym in nsvars && sym != is
-		# 		# println("[subgraph outmap] inner $inode sets $sym")
-		# 		pn = explore(sym)                   # create node if needed
-		# 		rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
-		# 		g.map[rn] = (sym, :out_inode)       # signal we're setting the var
-		# 		g2.map[rn] = (sym, :out_onode)
-		# 	end
-		# end
 	end
 
 	#  top level graph
@@ -136,7 +119,6 @@ function tograph(s, svars::Vector{Any})
 	#          = ExNode of last calc otherwise
 
 	# id is 'nothing' for unnassigned last statement
-	# exitnode!=nothing && ( g.map[exitnode] = (nothing, :out_inode) ) 
 	exitnode!=nothing && ( g.set_inodes[exitnode] = nothing ) 
 
 	g
