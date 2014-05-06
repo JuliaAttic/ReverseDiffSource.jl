@@ -6,8 +6,7 @@
   
 
 #####  ExGraph type  ######
-import Base.setindex!, Base.getindex
-# export setindex!, getindex
+import Base: setindex!, getindex, haskey, delete!, keys, values, start, next, done
 
 ### bidirectional Dict, 
 # enforces unity of values + provides easy lookup by values
@@ -28,12 +27,27 @@ type BiDict{K,V}
     end
     return h
   end
+
+  function BiDict(d)
+    n = length(d)
+    vs = values(d)
+    length(unique(vs)) != n && error("Duplicate values")
+    h = BiDict{K,V}()
+    for (k,v) in d
+      h.kv[k] = v
+      h.vk[v] = k
+    end
+    return h
+  end
 end
 
 BiDict() = BiDict{Any,Any}()
 BiDict{K,V}(ks::AbstractArray{K}, vs::AbstractArray{V}) = BiDict{K,V}(ks,vs)
 BiDict(ks, vs) = BiDict{Any,Any}(ks, vs)
+BiDict{K,V}(d::Dict{K,V}) = BiDict{K,V}(d)
+BiDict(d) = BiDict{Any,Any}(d)
 
+# use first dict (kv) by default for base functions
 function setindex!(bd::BiDict, v, k)
   k2 = get(bd.vk, v, nothing)  # existing key for v ?
   if k2 != nothing
@@ -51,18 +65,37 @@ function setindex!(bd::BiDict, v, k)
   bd.vk[v] = k
 end
 
+function delete!(bd::BiDict, k)
+  !haskey(bd.kv, k) && error("unknown key $k")
+  v = bd.kv[k]
+  delete!(bd.kv, k)
+  delete!(bd.vk, v)
+end
+
+haskey(bd::BiDict, k)   = haskey(bd.kv, k)
+keys(bd::BiDict)        = keys(bd.kv)
+values(bd::BiDict)      = values(bd.kv)
+
+start(bd::BiDict)       = start(bd.kv)
+next(bd::BiDict, i)     = next(bd.kv, i)
+done(bd::BiDict, i)     = done(bd.kv, i)
+
 getindex(bd::BiDict, k) = bd.kv[k]
 
 ### the Graph type
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
-  map::BiDict{ExNode, NTuple{2}}
+  ext_inodes::BiDict{ExNode, Any}
+  set_inodes::BiDict{ExNode, Any}
+  ext_onodes::BiDict{ExNode, Any}
+  set_onodes::BiDict{ExNode, Any}
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
-ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, NTuple{2}}() )
-
-
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, Any}(), 
+                                           BiDict{ExNode, Any}(), 
+                                           BiDict{ExNode, Any}(), 
+                                           BiDict{ExNode, Any}() )
 
 #####   Misc graph manipulation functions  #####
 
@@ -78,12 +111,13 @@ function copy(g::ExGraph)
   end
 
   # copy node mapping and translate inner nodes to newly created ones
-  for (n, (sym, typ)) in g.map.kv
-    if typ in [ :in_onode, :out_onode]
-      g2.map[n] = (sym, typ)
-    else
-      g2.map[ nmap[n]] = (sym, typ)
-    end
+  g2.ext_onodes = BiDict{ExNode, Any}(g.ext_onodes.kv)
+  g2.set_onodes = BiDict{ExNode, Any}(g.set_onodes.kv)
+  for (k,v) in g.ext_inodes.kv
+    g2.ext_inodes[ nmap[k] ] = v
+  end
+  for (k,v) in g.set_inodes.kv
+    g2.set_inodes[ nmap[k] ] = v
   end
 
   g2
@@ -91,14 +125,6 @@ end
 
 # add a single node
 addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
-
-# if (VERSION.major, VERSION.minor) == (0,2)
-#   @eval ancestors(n::ExNode) = union( Set(n), ancestors(n.parents) ) # julia 0.2
-# else
-#   @eval ancestors(n::ExNode) = union( Set([n]), ancestors(n.parents) ) # julia 0.3+
-# end
-
-# ancestors(n::Vector) = union( map(ancestors, n)... )
 
 ######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ###### 
 function splitnary!(g::ExGraph)
@@ -128,26 +154,20 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     end
   end
 
-  for (n, (sym, typ)) in g.map.kv
-    if n==nr && typ==:in_inode
-      error("[fusenodes] attempt to fuse in_inode $nr")
-    elseif n==nr && typ==:out_inode
-      haskey(g.map.kv, nk) && error("[fusenodes] $nk (nk) already in map, can't remove $nr")
-      g.map[nk] = (sym, typ)  # will remove nr entry too
-    end
-  end  
+  haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
+  if haskey(g.set_inodes, nr)
+    haskey(g.set_inodes, nk) && error("[fusenodes] $nk (nk) is a set_inode, can't remove $nr")
+    g.set_inodes[nk] = g.set_inodes[nr]  # nk replaces nr as set_inode
+  end
 
   # now check for loops that may refer to nr
   for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
     g2 = n.main[2]
 
-    for (n, (sym, typ)) in g2.map.kv
-      if n==nr && typ==:in_onode
-        haskey(g2.map.kv, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
-        g2.map[nk] = (sym,typ) # will remove nr entry too
-      elseif n==nr && typ==:out_onode
-        error("[fusenodes (for)] attempt to fuse out_onode $nr")
-      end
+    haskey(g2.set_onodes, nr) && error("[fusenodes (for)] attempt to fuse out_onode $nr")
+    if haskey(g2.ext_onodes, nr)
+      haskey(g2.ext_onodes, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
+      g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
     end  
   end
 
@@ -155,58 +175,48 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   filter!(n -> n != nr, g.nodes)
 end
 
-####### trims the graph to necessary nodes for exit nodes to evaluate  ###########
-prune!(g::ExGraph) = prune!(g, collect(keys(filter((k,v) -> v[2]==:out_inode, g.map.kv))))
+####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
+prune!(g::ExGraph) = prune!(g, collect(keys(g.set_inodes.kv)))
 
 function prune!(g::ExGraph, exitnodes)
   ns2 = copy(exitnodes)
   evalsort!(g)
   for n in reverse(g.nodes)
-    !in(n, ns2) && continue
+    n in ns2 || continue
 
     if isa(n, NFor)
       g2 = n.main[2]
 
-      outsyms = {}
-      for (k,(sym,typ)) in g2.map.kv
-        typ==:out_onode && k in ns2 && push!(outsyms, sym)
-      end
+      # list of g2 nodes whose outer node is in ns2
       exitnodes2 = ExNode[]
-      for (k,(sym,typ)) in g2.map.kv
-        typ==:out_inode && sym in outsyms && push!(exitnodes2, k)
+      for (k, sym) in g2.set_onodes.kv
+        k in ns2 || continue
+        push!(exitnodes2, g2.set_inodes.vk[sym])
       end
 
       prune!(g2, exitnodes2)
 
-      npar = collect(keys(filter( (k,v) -> v[2]==:in_onode, g2.map.kv)))
-      filter!(m -> m in npar, n.parents)
+      # update parents
+      n.parents = intersect(n.parents, collect(keys(g2.ext_onodes)) )
     end
 
-    for n2 in n.parents
-      !in(n2, ns2) && push!(ns2, n2)
-    end
+    ns2 = union(ns2, n.parents)
   end
 
-  # remove unused inodes in map
-  for (k,(sym,typ)) in g.map.kv
-    typ in [:out_onode, :in_onode] && continue
+  # remove unused external inodes in map and corresponding onodes (if they exist)
+  for (k,v) in g.ext_inodes.kv
     k in ns2 && continue
-
-    delete!(g.map.kv, k)    # TODO: implement delete! on BiDict
-    delete!(g.map.vk, (sym,typ))
+    delete!(g.ext_inodes, k)
+    haskey(g.ext_onodes.vk, v) && delete!(g.ext_onodes, g.ext_onodes.vk[v])
+  end
+  # reduce set inodes to what was specified in initial exitnodes parameter
+  for (k,v) in g.set_inodes.kv
+    k in exitnodes && continue
+    delete!(g.set_inodes, k)
+    haskey(g.set_onodes.vk, v) && delete!(g.set_onodes, g.set_onodes.vk[v])
   end
 
-  # remove useless onodes in map (when corresponding inode has been removed)
-  for (k,(sym,typ)) in g.map.kv
-    typ in [:out_inode, :in_inode] && continue
-    typ == :out_onode && haskey(g.map.vk, (sym, :out_inode) ) && continue
-    typ == :in_onode && haskey(g.map.vk, (sym, :in_inode)) && continue
-
-    delete!(g.map.kv, k)    # TODO: implement delete! on BiDict
-    delete!(g.map.vk, (sym,typ))
-  end
-
-  filter!(n -> n in ns2, g.nodes)
+  g.nodes = intersect(g.nodes, ns2)
 end
 
 
@@ -259,17 +269,23 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end 
 
   function evaluate(n::NExt)
-    if haskey(g.map.vk, (n.main, :out_onode))
-      pn = g.map.vk[(n.main, :out_onode)]
-      return pn.val      # get node val in parent graph
-    else
-      return myeval(n.main)  # get value of symbol
-    end
+    haskey(g.ext_inodes, n) || return myeval(n.main)
+
+    sym = g.ext_inodes[n]  # should be equal to n.main but just to be sure.. 
+    haskey(g.ext_onodes.vk, sym) || return myeval(n.main)
+    return g.ext_onodes.vk[sym].val  # return node val in parent graph
+
+    # if haskey(g.map.vk, (n.main, :out_onode))
+    #   pn = g.map.vk[(n.main, :out_onode)]
+    #   return pn.val      # get node val in parent graph
+    # else
+    #   return myeval(n.main)  # get value of symbol
+    # end
   end
 
   evaluate(n::NConst) = n.main
   evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
-                    map(a->myeval(a), n.main)... ) )
+                                     map(a->myeval(a), n.main)... ) )
   evaluate(n::NDot)   = myeval( Expr(  :., n.parents[1].val, n.main) )
   evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
@@ -285,16 +301,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     calc!(n.main[2], params=params2)
     
     valdict = Dict()
-    # for (inode, onode) in g2.outmap
-    #   valdict[onode] = inode.val
-    # end
-    for (k, (sym, typ)) in g2.map.kv
-      if typ == :out_onode
-        valdict[k] = g2.map.vk[(sym, :out_inode)].val
-      end
+    for (k, sym) in g2.set_onodes
+      valdict[k] = g2.set_inodes.vk[sym].val
     end
-    valdict
 
+    valdict
   end
 
   evalsort!(g)

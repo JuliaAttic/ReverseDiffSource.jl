@@ -25,15 +25,11 @@ function tocode(g::ExGraph)
 		                        { valueof(x,n) for x in n.parents}...)
 
 	function translate(n::NExt)
-		# if haskey(g.inmap, n)
-		# 	pn = g.inmap[n]
-		# 	return isa(pn, ExNode) ? pn.val : pn
-		# end
-		# n.main
-		if haskey(g.map.vk, (n.main, :in_onode))
-			return g.map.vk[(n.main, :in_onode)].val
-		end
-		n.main
+	    haskey(g.ext_inodes, n) || return n.main
+
+	    sym = g.ext_inodes[n]  # should be equal to n.main but just to be sure.. 
+	    haskey(g.ext_onodes.vk, sym) || return n.main
+	    return g.ext_onodes.vk[sym].val  # return node val in parent graph
 	end
 
 	function translate(n::NSRef)
@@ -56,19 +52,15 @@ function tocode(g::ExGraph)
     	push!(out, Expr(:for, n.main[1], fb))
         
         valdict = Dict()
-        # for (inode, onode) in g2.outmap
-        # 	valdict[onode] = inode.val
-        # end
-        for (k, (sym, typ)) in g2.map.kv
-        	if typ == :out_onode
-        		valdict[k] = g2.map.vk[(sym, :out_inode)].val
-        	end
-        end
+	    for (k, sym) in g2.set_onodes
+	      valdict[k] = g2.set_inodes.vk[sym].val
+	    end
+
         valdict
 	end
 
 
-	evalsort!(g)  # order is important
+	evalsort!(g)
 	out = Expr[]
 	for n in g.nodes 
 		n.val = translate(n)
@@ -101,31 +93,23 @@ end
 #  variable names assigned to this node
 function getnames(n::ExNode, g::ExGraph)
 	syms = Symbol[]
-	# if haskey(g.link, n) # this node modifies a var in parent
-	# 	push!(syms, g.link[n].val)  # this var has necessarily been evaluated to a symbol
-	# else
-	# 	for (k,v) in g.setmap
-	# 		v == n && push!(syms, k==nothing ? newvar() : k)
-	# 	end
-	# end
-	if haskey(g.map.kv, n) 
-		sym, typ = g.map.kv[n]
-		if typ == :out_inode
-			if haskey(g.map.vk, (sym, :in_onode))
-				push!(syms, g.map.vk[(sym, :in_onode)].val)  # this var has necessarily been evaluated to a symbol
-			else
-				nsym = g.map.kv[n][1]
-				push!(syms, nsym==nothing ? newvar() : nsym)  # this var has necessarily been evaluated to a symbol
-			end
+
+	if haskey(g.set_inodes, n) 
+		sym = g.set_inodes[n]
+		if haskey(g.ext_onodes.vk, sym)
+			push!(syms, g.ext_onodes.vk[sym].val)  # this var has necessarily been evaluated to a symbol
+		else
+			push!(syms, sym==nothing ? newvar() : sym)  # this var has necessarily been evaluated to a symbol
 		end
 	end
+
 	syms
 end
 
 # tests if an assignment should be created for this node
-ispivot(n::Union(NExt, NRef, NDot, NSRef, NSDot, NFor), g::ExGraph) = false
+ispivot(n::Union(NExt, NRef, NDot, NFor), g::ExGraph) = false
 
-function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
+function ispivot(n::Union(NCall, NAlloc, NComp, NSRef, NSDot), g::ExGraph)
 	nbref = 0
 	for n2 in g.nodes
 		np = sum(i -> i == n, n2.parents)

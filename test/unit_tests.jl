@@ -48,7 +48,7 @@ function striplinenumbers(ex::Expr)
     Expr(ex.head, args...)
 end 
 
-### closures #1
+### for loop #1
 ex = quote
     a=zeros(10)
     for i in 1:10
@@ -58,21 +58,24 @@ ex = quote
 end
 
 g = m.tograph(ex);
-@test sort(collect(values(g.inmap))) == [:b, :x, :z]
-@test collect(values(g.outmap)) == []
-@test collect(keys(g.setmap)) == [:a]
+@test sort(collect(values(g.ext_inodes.kv))) == [:b, :x, :z]
+@test sort(collect(values(g.set_inodes.kv))) == [:a]
+@test length(g.set_onodes.kv) == 0
+@test length(g.ext_onodes.kv) == 0
 
 m.resetvar()
-exout = striplinenumbers(quote _tmp1 = zeros(10)
+exout = striplinenumbers(quote 
+    _tmp1 = zeros(10)
     for i = 1:10
-        _tmp1[i] = b[i] + (x + z)
+        t = x + z
+        _tmp1[i] = b[i] + t
     end
     a = _tmp1
 end)
-@test m.tocode(g) == exout
+@test m.tocode(g) == exout   
 
 
-### closures #2
+### for loop #2
 ex = quote
     a=zeros(10) ; z = 12 
     for i in 1:10
@@ -85,33 +88,39 @@ ex = quote
 end
 g = m.tograph(ex)
 
-@test sort(collect(values(g.inmap))) == [:b, :v, :x]
-@test collect(values(g.outmap)) == []
-@test sort(collect(keys(g.setmap))) == [:a, :z]
+@test sort(collect(values(g.ext_inodes.kv))) == [:b, :v, :x]
+@test sort(collect(values(g.set_inodes.kv))) == [:a, :z]
+@test length(g.set_onodes.kv) == 0
+@test length(g.ext_onodes.kv) == 0
+
+g2 = g.nodes[4].main[2]  # first level loop
+@test sort(collect(values(g2.ext_inodes.kv))) == [:a, :b, :v, :x, :z]
+@test sort(collect(values(g2.set_inodes.kv))) == [:a, :t]
+@test sort(collect(values(g2.ext_onodes.kv))) == [:a, :b, :v, :x, :z]
+@test sort(collect(values(g2.set_onodes.kv))) == [:a]
+
+g3 = g2.nodes[4].main[2] # second level loop
+@test sort(collect(values(g3.ext_inodes.kv))) == [:a, :b, :t, :v, :z]
+@test sort(collect(values(g3.set_inodes.kv))) == [:a, :u]
+@test sort(collect(values(g3.ext_onodes.kv))) == [:a, :b, :t, :v, :z]
+@test sort(collect(values(g3.set_onodes.kv))) == [:a]
 
 m.resetvar()
 exout = striplinenumbers(quote         
         z = 12
         _tmp1 = zeros(10)
         for i = 1:10
-            _tmp2 = x + z
+            t = x + z
             for j = 1:10
-                _tmp1[i] = b[i] + (_tmp2 + z + v)
+                u = t + z + v
+                _tmp1[i] = b[i] + u
             end
         end
         a = _tmp1
     end)
-@test m.tocode(g) == exout
+@test m.tocode(g) == exout 
 
-g = g.nodes[7].main[2]
-@test length(g.inmap) == 5
-@test length(g.outmap) == 1
-@test length(g.setmap) == 0
 
-g = g.nodes[7].main[2]
-@test length(g.inmap) == 5
-@test length(g.outmap) == 1
-@test length(g.setmap) == 0
 
 
 #################################################################
@@ -120,27 +129,20 @@ g = g.nodes[7].main[2]
 function fullcycle(ex)
     g = m.tograph(ex)
 
-    count(x -> x[2][2]==:out_inode, g.map.kv) == 0 && error("nothing defined here")
+    length(g.set_inodes.kv) == 0 && error("nothing defined here")
 
-    m.evalsort!(g)
 
     # keep last evaluated only for testing
+    m.evalsort!(g)
     lastnode = (g.nodes[1], :out)
     for n in reverse(g.nodes)
-        !haskey(g.map.kv, n) && continue 
-        g.map.kv[n][2] != :out_inode && continue
-
-        lastnode = (n, g.map.kv[n][1] == nothing ? :out : g.map.kv[n][1] )
+        haskey(g.set_inodes, n) || continue 
+        lastnode = n
         break
     end
 
-    for (k, (sym, typ)) in g.map.kv
-        if typ==:out_inode
-            delete!(g.map.kv, k)
-            delete!(g.map.vk, (sym, typ))
-        end
-    end
-    g.map[lastnode[1]] = (lastnode[2], :out_inode)
+    sym = g.set_inodes[lastnode]
+    g.set_inodes = m.BiDict{m.ExNode,Any}([lastnode], [ sym==nothing ? :out : sym ])
 
     m.splitnary!(g)
     m.simplify!(g)
@@ -161,11 +163,11 @@ end
 @test fullcycle(:(a = [1,2]))       == Expr(:block, :(a = vcat(1,2)) )
 
 @test fullcycle(:(a = b+4+5))       == Expr(:block, :(a = b+9) )
-@test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )    # fuse error
-@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0) )
-@test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )    # fuse error
-@test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )    # fuse error
-@test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )    # fuse error
+@test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )    
+@test fullcycle(:(a = b*0))         == Expr(:block, :(a = 0) ) 
+@test fullcycle(:(a = b*1))         == Expr(:block, :(a = b) )   
+@test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )   
+@test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )   
 
 
 @test fullcycle(:( a[2] ))                       == Expr(:block, :(out = a[2]) )
@@ -282,9 +284,9 @@ exout = quote
     for i = 1:10
         _tmp1[i] = _tmp1[i] + (b[i] + 9)
     end
-    z=sum(a)
+    z=sum(_tmp1)
 end
-@test fullcycle(ex) == striplinenumbers(exout)  # t is explicited
+@test fullcycle(ex) == striplinenumbers(exout) 
 
 
 
@@ -299,6 +301,44 @@ end
 
 res = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
 
-@test fullcycle(ex) == res
+@test fullcycle(ex) == res  #  x*a is not factorized
+
+###  test respect of allocations
+ex = quote
+    a = zeros(5)
+    x = sum(a)
+    a[2] = 1
+    y = sum(a)
+    x + y
+end
+
+g = m.tograph(ex) ; m.tocode(g)
+# m.splitnary!(g) ; m.tocode(g)
+g.nodes[7].parents
+
+ns2 = [g.set_inodes.vk[nothing]]
+m.evalsort!(g)
+gn = reverse(g.nodes)
+gn[1] in ns2
+ns2 = union(ns2, gn[1].parents)
+gn[2] in ns2
+ns2 = union(ns2, gn[2].parents)
+gn[3] in ns2
+ns2 = union(ns2, gn[3].parents)
+gn[4] in ns2
+ns2 = union(ns2, gn[4].parents)
+
+collect(g.set_inodes)
+
+intersect(g.nodes, ns2)
+
+m.prune!(g, [g.set_inodes.vk[nothing]]) ; m.tocode(g)
+m.simplify!(g) ; m.tocode(g)
+
+fullcycle(ex)
+
+res = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
+
+@test fullcycle(ex) == res  #  x*a is not factorized
 
 

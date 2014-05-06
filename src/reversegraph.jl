@@ -23,8 +23,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 
 	# store in setmap the nodes containing the derivatives of diffsym
 	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), dnodes)
-		# g2.setmap[dprefix(k.main)] = v
-		g2.map[v] = (dprefix(k.main), :out_inode)
+		g2.set_inodes[v] = dprefix(k.main)
 	end
 
     g2
