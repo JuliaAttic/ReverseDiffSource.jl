@@ -8,7 +8,7 @@ module ReverseDiffSource
 
   # using GraphViz
   
-  import Base.show, Base.isequal, Base.copy
+  import Base.show, Base.copy
 
   # naming conventions
   const TEMP_NAME = "_tmp"   # prefix of new variables
@@ -87,15 +87,15 @@ module ReverseDiffSource
 
 
   ######  Includes  ######
-  include("graph_defs.jl")
+  include("node.jl")
+  include("bidict.jl")
+  include("graph.jl")
   include("simplify.jl")
-  include("graph_funcs.jl")
   include("tograph.jl")
   include("tocode.jl")
   include("reversegraph.jl")
   include("deriv_rules.jl")
-  include("reversediff.jl")
-
+  # include("reversediff.jl")
 
   ######  Exports  ######
   export 
