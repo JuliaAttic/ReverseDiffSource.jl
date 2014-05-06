@@ -102,8 +102,8 @@ function tograph(s, svars::Set{Any})
 
 		# explore the for block as a separate graph 
 		oin = filter(t -> t[2] == :out_inode, collect(values(g.map.kv)))
-		nsvars = [ v[1] for v in oin ]
-		nsvars = union(svars, Set(nsvars...))
+		nsvars = Set([ v[1] for v in oin ])
+		for e in svars ; add!(nsvars, e) ; end
 		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node

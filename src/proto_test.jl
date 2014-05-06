@@ -157,10 +157,10 @@ dump(ex)
     g.nodes
     g2 = tm.reversegraph(g, g.map.vk[(:a, :out_inode)], [:x])
     g.nodes = [ g.nodes, g2.nodes]
-    g.map[ ]
     collect(g2.map.kv)
+    collect(g.map.kv)
+    g.map[ g2.map.vk[(:dx, :out_inode)]] = (:dx, :out_inode)
 
-    g.setmap = merge(g.setmap, g2.setmap)
     tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
