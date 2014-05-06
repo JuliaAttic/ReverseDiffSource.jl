@@ -313,6 +313,9 @@ ex = quote
 end
 
 g = m.tograph(ex) ; m.tocode(g)
+g.nodes
+m.evalsort!(g)
+
 # m.splitnary!(g) ; m.tocode(g)
 g.nodes[7].parents
 
@@ -332,6 +335,7 @@ collect(g.set_inodes)
 
 intersect(g.nodes, ns2)
 
+g.nodes
 m.prune!(g, [g.set_inodes.vk[nothing]]) ; m.tocode(g)
 m.simplify!(g) ; m.tocode(g)
 

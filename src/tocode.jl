@@ -34,31 +34,26 @@ function tocode(g::ExGraph)
 
 	function translate(n::NSRef)
 		np = n.parents
-    	# an assign is necessary
     	push!(out, :( $(Expr(:ref, valueof(np[1],n), n.main...)) = $(valueof(np[2],n)) ) ) 
         valueof(np[1],n)
 	end
 
 	function translate(n::NSDot)
 		np = n.parents
-    	# an assign is necessary
     	push!(out, :( $(Expr(:., valueof(np[1],n), n.main)) = $(valueof(np[2],n)) ) )
         valueof(np[1],n)
 	end
 
 	function translate(n::NFor)
     	g2 = n.main[2]
-    	fb = tocode(g2)
-    	push!(out, Expr(:for, n.main[1], fb))
+    	push!(out, Expr(:for, n.main[1], tocode(g2)))
         
         valdict = Dict()
 	    for (k, sym) in g2.set_onodes
 	      valdict[k] = g2.set_inodes.vk[sym].val
 	    end
-
         valdict
 	end
-
 
 	evalsort!(g)
 	out = Expr[]
