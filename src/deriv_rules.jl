@@ -56,7 +56,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
 
     #### store graph, build proxy function
     rn = gensym("rule")
-    rdict[rn] = (g, argsn, g.map.vk[(nothing, :out_inode)])
+    rdict[rn] = (g, argsn, g.set_inodes.vk[nothing])
 
     # diff function name
     fn = dfuncname(func.args[1], index)

@@ -47,7 +47,7 @@ dump(ex)
     tm.simplify!(g)
     tm.tocode(g)
 
-    tm.prune!(g, {g.map.vk[(:res, :out_inode)]})
+    tm.prune!(g, {g.set_inodes.vk[:res]})
 
     begin
         g.nodes[2]
@@ -102,34 +102,30 @@ dump(ex)
 
 ################## for loops  #######################
     ex = quote
-        y = x * a * 1
-        y2 = (x * a) + 0 + 3
-        z = x+1
-        y3 = z * a
+        x1 = x
+        y = x1 * a * 1
+        y2 = (x1 * a) + 0 + 3
+        x1 += 1
+        y3 = x1 * a
         y + y2 + y3 + 12
     end
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
     g = tm.tograph(ex);
     g.nodes
-    collect(g.map.kv)
+    collect(g.set_inodes.kv)
 
     tm.splitnary!(g)
     tm.simplify!(g)
     tm.prune!(g)
     tm.tocode(g)
-
-    tm.prune!( g, [g.map.vk[(nothing,:out_inode)]] )
-    tm.prune!( g, {g.map.vk[(nothing,:out_inode)]} )
+    tm.prune!( g, [g.set_inodes.vk[nothing]] )
+    tm.tocode(g)
 
 
 ################## for loops  #######################
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
-    g = tm.tograph(:( a + 1));
-    g.nodes
-    collect(g.map.kv)
-
 
     ex = quote
         a=0
@@ -138,30 +134,39 @@ dump(ex)
         end
     end
 
-    # reversediff(ex, :a, x = 1)
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
-    g = tm.tograph(ex);
-    g.nodes
-    collect(g.map.kv)
-    g.nodes[2].main[2].nodes
-    collect(g.nodes[3].main[2].map.kv)
-
     ex = quote
-        a=0
-        for i in 1:2
-            a += 2i    
+        a=zeros(10+6)
+        for i in 1:10
+            t = 4+3+2
+            a[i] += b[i]+t
         end
+        z=sum(a)
     end
 
-    tm.calc!(g, params = {:x => 1})
+    # reversediff(ex, :a, x = 1)
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+
+    g = tm.tograph(ex);
+    tm.splitnary!(g)
+    collect(g.set_inodes)
+
+    tm.prune!(g, [g.set_inodes.vk[:z]])
+    tm.simplify!(g)
+    tm.calc!(g, params = {:b => ones(10), :x => 1})
     g.nodes
+<<<<<<< HEAD
     g2 = tm.reversegraph(g, g.map.vk[(:a, :out_inode)], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     collect(g2.map.kv)
     collect(g.map.kv)
     g.map[ g2.map.vk[(:dx, :out_inode)]] = (:dx, :out_inode)
+=======
+    g2 = tm.reversegraph(g, g.set_inodes.vk[:z], [:x])
+    g.nodes = [ g.nodes, g2.nodes ]
+>>>>>>> d5abea6104ac55dcfd7672e41dd9a2ce29f35365
 
     tm.tocode(g)
+    tm.splitnary!(g); tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
 
