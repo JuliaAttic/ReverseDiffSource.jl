@@ -14,9 +14,9 @@
     end
 
     ex = quote
-        a=zeros(10+6)
+        a=zeros(1+6)
         z=sum(a)
-        for i in 1:10
+        for i in 1:4
             t = 4+3+2
             a[i] += b[i]+t
         end
@@ -31,29 +31,18 @@
     tm.prune!(g, {g.set_inodes.vk[nothing]})
     tm.tocode(g)
 
-    g.nodes[8].precedence
-    tm.evalsort!(g)
+    tm.calc!(g, params={:b => ones(10)})
     g.nodes
-    tm.ancestors(g.nodes[10], [g.nodes[8]])
-    tm.ancestors(g.nodes[4], [g.nodes[1]])
 
-    g.nodes
-    
-    tm.calc!(g, params = {:x => 1})
-
-    g2 = tm.reversegraph(g, g.map.vk[(:res, :out_inode)], [:x])
+    g2 = tm.reversegraph(g, g.set_inodes.vk[nothing], [:b])
     g.nodes = [ g.nodes, g2.nodes]
-    collect(g.map.kv)
-    collect(g2.map.kv)
-    g.map[ g2.map.vk[(:dx, :out_inode)] ] = (:dx, :out_inode)
-    nn = g.map.vk[(:a, :out_inode)]
-    delete!(g.map.kv, nn)
-    delete!(g.map.vk, (:a, :out_inode))
+    collect(g.set_inodes)
+    collect(g2.set_inodes)
+    g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
     g.nodes
     tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
-    g.map = tm.BiDict([nn], )
 
 
 ################## for loops  #######################
@@ -76,22 +65,26 @@
         z=sum(a)
     end
 
-    # reversediff(ex, :a, x = 1)
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
-    g = tm.tograph(ex);
+    g = tm.tograph(ex)
     tm.splitnary!(g)
-    collect(g.set_inodes)
-
-    tm.prune!(g, [g.set_inodes.vk[:z]])
     tm.simplify!(g)
-    tm.calc!(g, params = {:b => ones(10), :x => 1})
-    g.nodes
-    g2 = tm.reversegraph(g, g.set_inodes.vk[:z], [:x])
-    g.nodes = [ g.nodes, g2.nodes ]
-
+    tm.prune!(g, {g.set_inodes.vk[:a]})
     tm.tocode(g)
-    tm.splitnary!(g); tm.tocode(g)
+
+    tm.calc!(g, params={:x => 2})
+    g.nodes
+
+    g2 = tm.reversegraph(g, g.set_inodes.vk[:a], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    collect(g.set_inodes)
+    collect(g2.set_inodes)
+    g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g.nodes
+    g.nodes[6].main[2].nodes
+    collect(g.nodes[6].main[2].set_inodes)  # Nin pour dx pas recrée
+    tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
 

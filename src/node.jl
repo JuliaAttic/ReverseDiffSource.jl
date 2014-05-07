@@ -13,9 +13,10 @@ type ExNode{T}
   val                     # value
   alloc::Bool             # Allocation ? Forbids fusions
 
-  ExNode()                         = new(nothing,      {},     {}, NaN, false)
-  ExNode(main)                     = new(   main,      {},     {}, NaN, false)
-  ExNode(main,parents)             = new(   main, parents,     {}, NaN, false)
+  ExNode()                               = new(nothing,      {},   {}, NaN, false)
+  ExNode(main)                           = new(   main,      {},   {}, NaN, false)
+  ExNode(main,parents)                   = new(   main, parents,   {}, NaN, false)
+  ExNode(main,parents, prec, val, alloc) = new(   main, parents, prec, val, alloc)
 end
 
 copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), 
