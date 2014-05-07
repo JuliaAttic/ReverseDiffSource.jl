@@ -2,54 +2,45 @@
     ex = quote
         a=zeros(2)
         a[2] = x 
-        res = sum(a)
+        sum(a)
+    end
+
+    ex = quote
+        a = ones(5)
+        b = sum(a)*x
+        a[2] += x
+        c = sum(a)
+        b + c
+    end
+
+    ex = quote
+        a=zeros(10+6)
+        z=sum(a)
+        for i in 1:10
+            t = 4+3+2
+            a[i] += b[i]+t
+        end
+        sum(a) + z
     end
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
+
     g = tm.tograph(ex)
     tm.splitnary!(g)
     tm.simplify!(g)
+    tm.prune!(g, {g.set_inodes.vk[nothing]})
     tm.tocode(g)
 
-    tm.prune!(g, {g.set_inodes.vk[:res]})
-
-    begin
-        g.nodes[2]
-        ns2[4]
-        ns2[4] == g.nodes[2]
-        g.nodes[5] in ns2
-        dump(ns2[4])
-        dump(g.nodes[2])
-
-        g.nodes[4].parents[2] in ns2
-        mx = g.map.vk[(:x, :in_inode)]
-        mx in g.nodes
-        ma = g.map.vk[(:a, :in_inode)]
-        ma in g.nodes
-
-        g.nodes[4].parents[2] == mx
-        g.nodes[3] == mx
-        hash(g.nodes[3])
-
-        g.map[mx]
-        haskey(g.map.vk, (:x, :out_inode))
-        haskey(g.map.vk, (:x, :in_inode))
-
-
-        map(hash, g.nodes)
-        map(hash, keys(g.map.kv))
-        # map(hash, values(g.map.vk))
-        g.nodes
-
-        collect(g.map.kv)
-
-        map(hash, g.nodes[3].parents)
-        ex = :( a[2] = x )
-        ex.head
-    end
-
-    tm.calc!(g, params = {:x => 1})
+    g.nodes[8].precedence
+    tm.evalsort!(g)
     g.nodes
+    tm.ancestors(g.nodes[10], [g.nodes[8]])
+    tm.ancestors(g.nodes[4], [g.nodes[1]])
+
+    g.nodes
+    
+    tm.calc!(g, params = {:x => 1})
+
     g2 = tm.reversegraph(g, g.map.vk[(:res, :out_inode)], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     collect(g.map.kv)

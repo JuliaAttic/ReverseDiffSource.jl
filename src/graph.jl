@@ -30,7 +30,8 @@ function copy(g::ExGraph)
   evalsort!(g)
   for n in g.nodes
     n2 = addnode!(g2, copy(n))
-    n2.parents = [ nmap[n] for n in n2.parents ]
+    n2.parents    = [ nmap[n] for n in n2.parents    ]
+    n2.precedence = [ nmap[n] for n in n2.precedence ]
     nmap[n] = n2
   end
 
@@ -140,23 +141,28 @@ function prune!(g::ExGraph, exitnodes)
     haskey(g.set_onodes.vk, v) && delete!(g.set_onodes, g.set_onodes.vk[v])
   end
 
+  # remove precedence nodes that have disappeared
+  for n in ns2
+    n.precedence = intersect(n.precedence, ns2)
+  end
+
   g.nodes = intersect(g.nodes, ns2)
 end
 
-
 ####### sort graph to an evaluable order ###########
 function evalsort!(g::ExGraph)
-  g2 = ExNode[]
-  while length(g2) < length(g.nodes)
-    canary = length(g2)
-    nl = setdiff(g.nodes, g2)
-      for n in nl
-          any(x -> x in nl, n.parents) && continue
-            push!(g2,n)
-      end
-      (canary == length(g2)) && error("[evalsort!] probable cycle in graph")
+  ns = ExNode[]
+  while length(ns) < length(g.nodes)
+    canary = length(ns)
+    nl = setdiff(g.nodes, ns)
+    for n in nl
+      any(x -> x in nl, n.parents) && continue
+      any(x -> x in nl, n.precedence) && continue
+      push!(ns,n)
+    end
+    (canary == length(ns)) && error("[evalsort!] cycle in graph")
   end
-  g.nodes = g2
+  g.nodes = ns
 
   # separate pass on subgraphs
   map( n -> evalsort!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
@@ -198,13 +204,6 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     sym = g.ext_inodes[n]  # should be equal to n.main but just to be sure.. 
     haskey(g.ext_onodes.vk, sym) || return myeval(n.main)
     return g.ext_onodes.vk[sym].val  # return node val in parent graph
-
-    # if haskey(g.map.vk, (n.main, :out_onode))
-    #   pn = g.map.vk[(n.main, :out_onode)]
-    #   return pn.val      # get node val in parent graph
-    # else
-    #   return myeval(n.main)  # get value of symbol
-    # end
   end
 
   evaluate(n::NConst) = n.main
@@ -239,13 +238,15 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 end
 
 ###### inserts graph src into dest  ######
+# TODO : inserted graph may update variables and necessitate a precedence update
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   evalsort!(src)
   nmap = Dict()
   for n in src.nodes  #  n = src[1]  
     if !isa(n, NExt)
       nn = copy(n) # node of same type
-      nn.parents = [ nmap[n2] for n2 in n.parents ]
+      nn.parents =    [ nmap[n2] for n2 in n.parents    ]
+      nn.precedence = [ nmap[n2] for n2 in n.precedence ]
       push!(dest.nodes, nn)
       nmap[n] = nn
 

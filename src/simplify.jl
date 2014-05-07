@@ -34,6 +34,7 @@ end
 function identical(n,n2,g)
 	n.main != n2.main       && return false
 	n.parents != n2.parents && return false
+	#  FIXME : better criterion to identify variables that will be changed (used in NSRef, NSDot, NFor)
 	isa(n2, NAlloc)         && return false
 
 	fusenodes(g, n, n2)

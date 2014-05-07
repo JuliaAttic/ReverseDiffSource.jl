@@ -298,12 +298,23 @@ ex = quote
     y3 = x * a
     y + y2 + y3 + 12
 end
-
-res = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
-
-@test fullcycle(ex) == res  #  x*a is not factorized
+exout = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
+@test fullcycle(ex) == exout 
 
 ###  test respect of allocations
+ex = quote
+    a=zeros(2)
+    a[2] = x 
+    sum(a)
+end
+exout = quote 
+    _tmp1 = zeros(2)
+    _tmp1[2] = x
+    out = sum(_tmp1)
+end
+@test fullcycle(ex) == striplinenumbers(exout)
+
+
 ex = quote
     a = zeros(5)
     x = sum(a)
@@ -311,38 +322,13 @@ ex = quote
     y = sum(a)
     x + y
 end
+exout = quote 
+    _tmp1 = zeros(5)
+    _tmp2 = sum(_tmp1)
+    _tmp1[2] = 1
+    out = +(_tmp2,sum(_tmp1))
+end
 
-g = m.tograph(ex) ; m.tocode(g)
-g.nodes
-m.evalsort!(g)
-
-# m.splitnary!(g) ; m.tocode(g)
-g.nodes[7].parents
-
-ns2 = [g.set_inodes.vk[nothing]]
-m.evalsort!(g)
-gn = reverse(g.nodes)
-gn[1] in ns2
-ns2 = union(ns2, gn[1].parents)
-gn[2] in ns2
-ns2 = union(ns2, gn[2].parents)
-gn[3] in ns2
-ns2 = union(ns2, gn[3].parents)
-gn[4] in ns2
-ns2 = union(ns2, gn[4].parents)
-
-collect(g.set_inodes)
-
-intersect(g.nodes, ns2)
-
-g.nodes
-m.prune!(g, [g.set_inodes.vk[nothing]]) ; m.tocode(g)
-m.simplify!(g) ; m.tocode(g)
-
-fullcycle(ex)
-
-res = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
-
-@test fullcycle(ex) == res  #  x*a is not factorized
+@test fullcycle(ex) == striplinenumbers(exout)
 
 

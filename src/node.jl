@@ -9,17 +9,20 @@
 type ExNode{T}
   main                    # main payload
   parents::Vector{Any}    # parent nodes
+  precedence::Vector{Any} # nodes that should be evaluated before (but are not parents)
   val                     # value
   alloc::Bool             # Allocation ? Forbids fusions
 
-  ExNode()                         = new(nothing,      {}, NaN, false)
-  ExNode(main)                     = new(   main,      {}, NaN, false)
-  ExNode(main,parents)             = new(   main, parents, NaN, false)
-  ExNode(main,parents, val)        = new(   main, parents, val, false)
-  ExNode(main,parents, val, alloc) = new(   main, parents, val, alloc)
+  ExNode()                         = new(nothing,      {},     {}, NaN, false)
+  ExNode(main)                     = new(   main,      {},     {}, NaN, false)
+  ExNode(main,parents)             = new(   main, parents,     {}, NaN, false)
 end
 
-copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), copy(x.parents), copy(x.val), x.alloc)
+copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), 
+                                  copy(x.parents), 
+                                  copy(x.precedence), 
+                                  copy(x.val), 
+                                  x.alloc)
 
 typealias NConst     ExNode{:constant}  # for constant 
 typealias NExt       ExNode{:external}  # external var

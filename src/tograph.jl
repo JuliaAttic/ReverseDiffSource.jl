@@ -59,14 +59,16 @@ function tograph(s, svars::Vector{Any})
 
 		elseif isRef(lhs)
 			lhss = lhs.args[1]
-			rhn  = addnode!(g, NSRef(lhs.args[2:end], 
-							       [ explore(lhs.args[1]),   # var whose subpart is assigned
-							         explore(ex.args[2])] )) # assigned value
+			vn = explore(lhss) # node whose subpart is assigned
+			rhn  = addnode!(g, NSRef(lhs.args[2:end], [ vn, explore(ex.args[2])] )) 
+			rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+
 		elseif isDot(lhs)
 			lhss = lhs.args[1]
-			rhn  = addnode!(g, NSDot(lhs.args[2], 
-								   [ explore(lhs.args[1]),   # var whose subpart is assigned
-							         explore(ex.args[2])] )) # assigned value
+			vn = explore(lhss) # node whose subpart is assigned
+			rhn  = addnode!(g, NSDot(lhs.args[2], [ vn, explore(ex.args[2])] )) 
+			rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+
 		else
 			error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
 		end
@@ -107,6 +109,8 @@ function tograph(s, svars::Vector{Any})
 				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
 				g.set_inodes[rn] = sym              # signal we're setting the var
 				g2.set_onodes[rn] = sym
+
+				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
 			end
 		end
 	end
