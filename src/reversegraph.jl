@@ -63,7 +63,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NCall)
 		vargs = [ x.val for x in n.parents ]
-		for (index, arg) in zip(1:length(n.parents), n.parents)
+		for (index, arg) in enumerate(n.parents)
             if !isa(arg, Union(NConst, NComp))
             	fn = dfuncname(n.main, index)
             	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
@@ -105,37 +105,39 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		println("=== create zero nodes ===")
 		fdnodes = Dict()
-		foutmap = {}  # outmap = dnodes of initial inmap
+		ndmap = Dict()
 		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
 			# outgoing nodes become ingoing nodes
 	 		#   both for the var and its derivative accumulator
 			if haskey(fg.set_inodes, n2)
 				sym = fg.set_inodes[n2]
+				if haskey(fg.set_onodes.vk, sym)  # this is not a local var
+					on = fg.set_onodes.vk[sym]
 
-		 		nsym = newvar()
-				nn = addnode!(fg2, NExt(sym))
-				fg.ext_inodes[nn] = nsym
+					# assumption : ext_inodes / onodes already exists for this sym
+			 		dsym = dprefix(sym)  # newvar() 
 
-				on = fg.set_onodes.vk[sym]   # is it always there ? 
-				fg.ext_onodes[on] = nsym
+					#  derivative of var
+					nn = addnode!(fg2, NExt(dsym))
+					fg.ext_inodes[nn] = dsym
+					fg.ext_onodes[dnodes[on]] = dsym
+				else  # it is a local var
+					nn = createzeronode!(fg2, n2)
+				end
 
-				#  derivative of var
-				nn = addnode!(fg2, NExt(dprefix(sym)))
-				fg.ext_inodes[nn] = dprefix(nsym)
-				fg.ext_onodes[dnodes[on]] = dprefix(nsym)
-
-			# ingoing nodes only need derivative accumulator creation			
+			# ingoing nodes become potential outgoing dnodes
 			elseif haskey(fg.ext_inodes, n2)
 				sym = fg.ext_inodes[n2]
+				if sym != is
+					on = fg.ext_onodes.vk[sym]
+			 		dsym = dprefix(sym)  # newvar()
 
-		 		nsym = newvar()
-				nn = addnode!(fg2, NExt(dprefix(sym)))
-				fg.ext_inodes[nn] = dprefix(nsym)
+					nn = addnode!(fg2, NExt(dsym))
+					fg.ext_inodes[nn] = dsym
+					fg.ext_onodes[dnodes[on]] = dsym
 
-				on = fg.ext_onodes.vk[sym]   # is it always there ? 
-				fg.ext_onodes[dnodes[on]] = dprefix(nsym)
-
-				push!(foutmap, n2)
+					ndmap[n2] = (dsym, on)
+				end
 
 			else
 				nn = createzeronode!(fg2, n2)
@@ -148,61 +150,61 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		println("===  reverse pass ===")
 		reversepass!(fg2, fg, fdnodes)
 		fg.nodes = [ fg.nodes, fg2.nodes]
-		# merge!(fg.inmap, fg2.inmap)
-
-		# foutmap2 = {}
-		# for ni in foutmap
-		# 	push!(foutmap2, (fdnodes[ni], fg.map.inmap[ni]))
-		# end
+		
+		# variables of interest are derivatives only
+		# dn = [ fdnodes[n] for n in keys(ndmap)]
+		# for (n, sym) in fg.set_inodes
+		# 	n in dn && continue
+		# 	delete!(fg.)
+		# 	haskey(ndma)
+		# end	
+		fg.set_inodes = BiDict{ExNode, Any}()
+		for (ni, (sym, on)) in ndmap
+			fg.set_inodes[ fdnodes[ni] ] = sym
+		end
 
 	println("=== fg  1 ===")
 	println(fg.nodes)
-	println("foutmap = $(repr(foutmap))")
+	println("ndmap = $(collect(ndmap))")
 	println("fdnodes = $(collect(fdnodes))")
 	println("ext = $(collect(fg.ext_inodes.kv))")
 	println("set = $(collect(fg.set_inodes.kv))")
+	println("oext = $(collect(fg.ext_onodes.kv))")
+	println("oset = $(collect(fg.set_onodes.kv))")
 
-		prune!(fg, [ fdnodes[ni] for ni in foutmap ]) # reduce to derivatives evaluation only
+		prune!(fg) # reduce to derivatives evaluation only
 
 	println("=== fg  2 ===")
 	println(fg.nodes)
-	println("foutmap = $(repr(foutmap))")
+	println("ndmap = $(collect(ndmap))")
 	println("fdnodes = $(collect(fdnodes))")
 	println("ext = $(collect(fg.ext_inodes.kv))")
 	println("set = $(collect(fg.set_inodes.kv))")
-
+	println("oext = $(collect(fg.ext_onodes.kv))")
+	println("oset = $(collect(fg.set_onodes.kv))")
 		# create for loop
 		println("=== create dfor node ===")
 		v2 = addnode!(g2, NFor([ n.main[1], fg]) )
 		v2.parents = collect( keys( fg.ext_onodes))
 
-		# outmap = dnodes of fg's ingoing variables
-		for ns2 in filter(n -> haskey(fdnodes,n) & haskey(fg.set_inodes,n), foutmap)
-			# rn = addnode!(g2, NIn("dout", [v2]))  # external node, receiving loop result
-			# fdn = ns2[1]                          # final node in loop containing derivative
-			# fg.outmap[ fdn ] = rn                 # link those two
-
-			# n0 = ns2[2]
-			# pn = dnodes[n0] 
-			# fg.link[fdn] = pn
-			# dnodes[n0] = rn 
-
+		# set_onodes = dnodes of fg's ingoing variables
+		# for ns2 in filter((k,v) -> haskey(fdnodes,n) & haskey(fg2.set_inodes,n), foutmap)
+		fg.set_onodes = BiDict{ExNode, Any}()
+		for (ns2, (sym, on)) in ndmap
 			rn = addnode!(g2, NIn("dout", [v2]))  # external node, receiving loop result
 			fdn = fdnodes[ns2]                    # final node in loop containing derivative
-			nsym = fg.set_inodes.kv[fdn]
-			fg.map[fdn] = (nsym, :out_inode)
-			fg.map[rn]  = (nsym, :out_onode)
-
-			n0 = fg.map.vk[ (nsym, :in_onode)]
-			dnodes[n0] = rn 
+			fg.set_onodes[rn] = sym
+			dnodes[on] = rn 
 		end
 
 	println("=== fg  3 ===")
 	println(fg.nodes)
-	println("foutmap = $(repr(foutmap))")
+	println("ndmap = $(collect(ndmap))")
 	println("fdnodes = $(collect(fdnodes))")
 	println("ext = $(collect(fg.ext_inodes.kv))")
 	println("set = $(collect(fg.set_inodes.kv))")
+	println("oext = $(collect(fg.ext_onodes.kv))")
+	println("oset = $(collect(fg.set_onodes.kv))")
 
 	end
 

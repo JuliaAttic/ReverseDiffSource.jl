@@ -95,7 +95,7 @@ module ReverseDiffSource
   include("tocode.jl")
   include("reversegraph.jl")
   include("deriv_rules.jl")
-  # include("reversediff.jl")
+  include("reversediff.jl")
 
   ######  Exports  ######
   export 

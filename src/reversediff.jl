@@ -5,7 +5,8 @@
 #########################################################################
 
 reversediff(ex; init...) = reversediff(ex, nothing; init...)
-function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
+
+function reversediff(ex, outsym=nothing; init...)
 
     println("=== $init")
 
@@ -15,35 +16,28 @@ function reversediff(ex, outsym::Union(Symbol, Nothing); init...)
     paramsym = Symbol[ e[1] for e in init]
     paramvalues = [ e[2] for e in init]
 
-    g, d, ext, exitnode = tograph(ex)
-    (outsym != nothing) && 
-        !haskey(d, outsym) && 
-            error("can't find output var $outsym")
-    (outsym == nothing) && 
-        (exitnode == nothing) && 
-            error("can't identify unambiguously expression's output")
-    
-    (exitnode, outsym) = outsym == nothing ? (exitnode, :res) : ( d[outsym], outsym) 
-    g.exitnodes = { outsym => exitnode }
-
-    splitnary!(g)
-    simplify!(g)
-    prune!(g)
-
-    evalsort!(g)
-    # println(Dict(paramsym, paramvalues))
-    calc!(g, params=Dict(paramsym, paramvalues))
-
-    dg, dnodes = reversegraph(g, g.exitnodes[outsym], paramsym)
-    g.nodes = [g.nodes, dg]
-    for i in 1:length(paramsym)
-        g.exitnodes[dprefix(paramsym[i])] = dnodes[i]
+    g = tograph(ex)
+    !haskey(g.set_inodes.vk, outsym) && error("can't find output var $outsym")
+    exitnode = g.set_inodes.vk[outsym]
+    if outsym==nothing
+        g.set_inodes[ exitnode] = :out
     end
 
     splitnary!(g)
+    prune!(g, [exitnode])
     simplify!(g)
+
+    calc!(g, params=Dict(paramsym, paramvalues))
+
+    dg = reversegraph(g, exitnode, paramsym)
+    g.nodes = [g.nodes, dg.nodes]
+    g.set_inodes = BiDict(merge(g.set_inodes.kv, dg.set_inodes.kv))
+
+    splitnary!(g)
     prune!(g)
+    simplify!(g)
 
     resetvar()
+
     tocode(g)
 end

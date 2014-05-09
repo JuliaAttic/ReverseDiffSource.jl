@@ -9,6 +9,7 @@
 
 function simplify!(g::ExGraph, emod = Main)
 	i = 1
+	markalloc!(g)
 	while i <= length(g.nodes)
 		restart = false
 		n = g.nodes[i]
@@ -22,7 +23,12 @@ function simplify!(g::ExGraph, emod = Main)
 			rule5(n, g) ||
 			rule6(n, g)
 		
-	    i = restart ? 1 : (i + 1)
+		if restart
+			markalloc!(g)
+			i = 1
+		else
+			i += 1
+		end
 	end
 
 	# separate pass on subgraphs
@@ -30,12 +36,34 @@ function simplify!(g::ExGraph, emod = Main)
 		filter(n->isa(n, NFor), g.nodes))
 end
 
+## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
+function markalloc!(g::ExGraph)
+	for n in g.nodes
+		n.alloc = false
+	end
+
+	for n in g.nodes
+		if isa(n, Union(NSRef, NSDot))
+			n.parents[1].alloc = true
+		elseif isa(n, NFor)
+			g2 = n.main[2]  # subgraph
+			syms = collect(values(g2.set_onodes))
+			sn = collect(keys(filter((k,v) -> v in syms, g2.ext_onodes.kv)))
+			for n2 in sn
+				n2.alloc = true
+			end
+		end
+	end
+
+end
+
+
 ## fusion of identical nodes
 function identical(n,n2,g)
 	n.main != n2.main       && return false
 	n.parents != n2.parents && return false
-	#  FIXME : better criterion to identify variables that will be changed (used in NSRef, NSDot, NFor)
-	isa(n2, NAlloc)         && return false
+	n.alloc	                && return false
+	n2.alloc	            && return false
 
 	fusenodes(g, n, n2)
 	true

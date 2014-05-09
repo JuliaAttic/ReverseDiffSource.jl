@@ -57,6 +57,14 @@
     end
 
     ex = quote
+        a=0
+        for i in 1:2
+            a += x^2    
+        end
+    end
+
+
+    ex = quote
         a=zeros(10+6)
         for i in 1:10
             t = 4+3+2
@@ -78,8 +86,6 @@
 
     g2 = tm.reversegraph(g, g.set_inodes.vk[:a], [:x])
     g.nodes = [ g.nodes, g2.nodes]
-    collect(g.set_inodes)
-    collect(g2.set_inodes)
     g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
     g.nodes
     g.nodes[6].main[2].nodes
@@ -87,27 +93,58 @@
     tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
+    tm.markalloc!(g)
+    [ (n, n.alloc) for n in g.nodes]
 
+
+    ex = quote
+        a=zeros(1+3)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]+t
+        end
+        z=sum(a)
+    end
 
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
-    ex = quote
-        a=zeros(2)
-        for i in 1:2
-            a[i] = x 
-        end
-        res = sum(a)
-    end
-    g = tm.tograph(ex); tm.tocode(g)
-    tm.prune!(g); tm.tocode(g)
-    tm.simplify!(g); tm.tocode(g)
-    tm.calc!(g, params = {:x => 1})
-    g2 = tm.reversegraph(g, g.setmap[:res], [:x])
+    res = tm.reversediff(ex, :z, b=ones(5))
+    @eval exref(b) = ($ex ; (z,))
+    @eval exrds(b) = ($res ; (z, db))
+
+    exref(ones(6))
+    exrds(ones(6))
+    exref(2ones(5))
+    exrds(2ones(5))
+    exref(ones(6))
+    exrds(ones(6))
+
+
+    g = tm.tograph(ex)
+    tm.splitnary!(g)
+    tm.simplify!(g)
+    tm.prune!(g, {g.set_inodes.vk[:z]})
+    tm.tocode(g)
+
+    tm.calc!(g, params={:b => ones(5)})
+    g.nodes
+
+    b = ones(5)
+    res = tm.tocode(g)
+    @eval myfunc(b) = ($res ; (z, db))
+    myfunc(3ones(6))
+
+
+    g2 = tm.reversegraph(g, g.set_inodes.vk[:z], [:b])
     g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
+    g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g.nodes
+    g.nodes[6].main[2].nodes
+    collect(g.nodes[6].main[2].set_inodes)  # Nin pour dx pas recrée
     tm.tocode(g)
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
-
+    tm.markalloc!(g)
+    [ (n, n.alloc) for n in g.nodes]
 
 
 
@@ -190,14 +227,14 @@
         sum(a)
     end
 
-    reversediff(ex, nothing, v=1, b=[1], x=4)
 
     g = tm.tograph(ex);
     tm.splitnary!(g)
     tm.simplify!(g) ; tm.tocode(g)
     tm.calc!(g, params = {:x => 4, :v => 1, :b =>zeros(10)})
+    g.nodes
 
-    g2 = tm.reversegraph(g, g.setmap[nothing], [:x])
+    g2 = tm.reversegraph(g, g.set_inodes.vk[nothing], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.setmap = merge(g.setmap, g2.setmap)
     tm.tocode(g)
@@ -237,60 +274,71 @@
     tm.type_decl(Test1, 2)
     tm.@type_decl Main.Test1 2 
 
-    reversediff(:( sin(x * a.x)), nothing, x=1)
-    reversediff(:( x * a.x), [:x])
-    reversediff(:( x * a.x), [:a])
+    tm.reversediff(:( x * a.x), x=1)
+    tm.reversediff(:( x ^ a.x), x=1)
+    tm.reversediff(:( x ^ c.x), c=Test1(2,2))
 
     norm(t::Test1) = t.x*t.x + t.y*t.y
-    norm(a)
-    Proto.@deriv_rule norm(t::Main.Test1) t    [ 2*t.x*ds , 2*t.y*ds ]
+    tm.@deriv_rule    norm(t::Test1)  t  [ 2t.x*ds , 2t.y*ds ]
+    tm.deriv_rule( :(norm(t::Test1)), :t, :([ 2. , 2. ]) )
 
-    out = reversediff( :( norm(a) ), [:a] )
+    ex = :( norm(c) )
+    res = tm.reversediff(ex, c=Test1(2,2))
+    @eval exref(c) = ($ex )
+    @eval exrds(c) = ($res ; (out, dc))
 
-    @eval function myf(a)
-            $out
-            (res, da)
-        end
-
-    myf(a)
-    myf(Test1(3,3))
-
+    exref(Test1(4,2))
+    exrds(Test1(4,2))
+    exrds(Test1(4.001,2))
+    exrds(Test1(4,2.001))
 
     using Distributions
 
-    testedmod.type_decl(Normal,2)    
+    tm.type_decl(Normal, 2)    
 
-    testedmod.@deriv_rule mean(d::Main.Normal)          d      [ ds , 0. ]
-    testedmod.@deriv_rule mean(d::Array{Main.Normal})   d      [ ds , zeros(size(ds)) ]
-    testedmod.@deriv_rule Normal(mu, sigma)      mu     ds[1]
-    testedmod.@deriv_rule Normal(mu, sigma)      sigma  ds[2]
+    tm.@deriv_rule    Normal(mu, sigma)     mu     ds[1]
+    tm.@deriv_rule    Normal(mu, sigma)     sigma  ds[2]
+    tm.@deriv_rule    mean(d::Normal)       d      [ ds , 0. ]
 
-    ex = quote
-        d = Normal(x,y)
-        res = mean(d)
-    end
+    ex = :( d = Normal(x,1.) ; mean(d) )
+    res = tm.reversediff(ex, x=1.)
+    @eval exref(x) = ($ex )
+    @eval exrds(x) = ($res ; (out, dx))
 
-    @eval function exf(x,y)
-        $(testedmod.reversediff(ex, :res, x=1.0, y=1.0))
-        (res, dx, dy)
-    end
+    exref(2.)
+    exref(2.001)
+    exrds(2.)
 
-    exf(2,2)
+    foo( d::Array{Main.Normal} ) = [ mean(de) for de in d]
+    tm.@deriv_rule    foo(d::Array{Normal})   d      [ ds , 0. ]
+    tm.@deriv_rule    vcat(a,b)               a      [ ds , zeros(length(b)) ]
+    tm.@deriv_rule    vcat(a,b)               b      [ zeros(length(a)) , ds ]
+    mean([Normal(1,1), Normal(2,1)])
 
-    ex = quote
-        d = [ Normal(x,y), Normal(2x, y/2)]
-        res = mean(d)
-    end
+    ex = :( ds = [Normal(x,1.), Normal(2x,1)] ; z = sum(foo(ds)) )
+    res = tm.reversediff(ex, :z, x=1.)
+    @eval exref(x) = ($ex  ; (z,) )
+    @eval exrds(x) = ($res ; (z, dx))
 
-    mean( d::Array{Main.Normal}) = [ mean(de) for de in d]
-    testedmod.reversediff(ex, :res, x=1.0, y=1.0)
+    exref(2.)
+    exref(2.001)
+    exrds(2.)
 
-    @eval function exf(x,y)
-        $(testedmod.reversediff(ex, :res, x=1.0, y=1.0))
-        (res, dx, dy)
-    end
+    x = 2.
+    _tmp1 = Normal(x,1.0)
+    _tmp2 = zeros(2)
+    _tmp3 = Normal(*(2,x),1.0)
+    _tmp4 = vcat(_tmp1,_tmp3)
+    _tmp5 = foo(_tmp4)
+    z = sum(_tmp5)
+    _tmp6 = zeros(size(_tmp4))
+    _tmp7 = size(_tmp5)
+    _tmp8 = +(vcat(_tmp6,_tmp6),vcat(+(zeros(_tmp7),ones(_tmp7)),0.0))
+    dx = +(*(2,+(_tmp2,vcat(zeros(length(_tmp1)),_tmp8))[1]),+(_tmp2,vcat(_tmp8,zeros(length(_tmp3))))[1])
 
-    exf(2,2)
+
+
+
 
 ##############   tests for composite types 2   #####################
 
@@ -308,18 +356,22 @@
     bar(x)
     bar([x,x])
 
-    ReverseDiffSource.@type_decl    Foo                                2   
-    ReverseDiffSource.@deriv_rule   Foo(x,y)                           x      ds[1]
-    ReverseDiffSource.@deriv_rule   Foo(x,y)                           y      ds[2]
+    tm.@type_decl    Foo             2   
+    tm.@deriv_rule   Foo(x,y)        x      ds[1]
+    tm.@deriv_rule   Foo(x,y)        y      ds[2]
     ReverseDiffSource.@deriv_rule   vcat(x,y)                          x      ds[1]
     ReverseDiffSource.@deriv_rule   vcat(x,y)                          y      ds[2]
 
     # ReverseDiffSource.@deriv_rule   Main.Sandbox.Foo(x,y)              x      ds[1]
     # ReverseDiffSource.@deriv_rule   Main.Sandbox.Foo(x,y)              y      ds[2]
 
-    ReverseDiffSource.@deriv_rule   bar(t::Foo)                        t      [ 2*t.x*ds , 2*t.y*ds ]
-    ReverseDiffSource.@deriv_rule   bar(ta::Array{Foo})                ta     [ 2*ta.x .* ds , 2*ta[2].*ds ]
+    tm.@deriv_rule   bar(t::Foo)           t      [ 2*t.x*ds , 2*t.y*ds ]
+    tm.@deriv_rule   bar(ta::Array{Foo})   ta   [(na=length(ta);res=zeros(na);for i in 1:na;res[i]=2ta[i].x*ds[i];end;res) ,
+                                                 (na=length(ta);res=zeros(na);for i in 1:na;res[i]=2ta[i].y*ds[i];end;res) ]
 
+
+
+    
 
     import Base.getfield
 
@@ -341,104 +393,6 @@
         res = sum( bar(v) )
     end
 
-    out = ReverseDiffSource.reversediff(ex, :res, y=1.0)
-    @eval myf(y) = ( $out ; (res, dy) )
-    myf(1.)
-
-    g, d, exitnode  = ReverseDiffSource.tograph(ex)
-    g.nodes
-
-    # ReverseDiffSource.reversediff(ex, :res, y=1.)
-
-        g.exitnodes = { :res => d[:res] }
-        ReverseDiffSource.splitnary!(g)
-        ReverseDiffSource.dedup!(g)
-        ReverseDiffSource.simplify!(g)
-        ReverseDiffSource.prune!(g)
-        ReverseDiffSource.evalsort!(g)
-        ReverseDiffSource.calc!(g, params={ :y => 1.})
-    g.nodes
-
-        dg, dnodes = ReverseDiffSource.reversegraph(g, g.exitnodes[:res], [:y])
-        g.nodes = [g.nodes, dg]
-        g.exitnodes[:dy] = dnodes[1]
-        for i in 1:length(paramsym)
-            g.exitnodes[ReverseDiffSource.dprefix(paramsym[i])] = dnodes[i]
-        end
-        # println(g.nodes)
-
-        # g.exitnodes[:dy] == g.nodes[4]
-        # g.exitnodes[:dx] == g.nodes[4]
-        # g.exitnodes[:res] == g.nodes[3]
-        # println(g.nodes)
-
-        # (g2, length(g2))
-        ReverseDiffSource.splitnary!(g)
-        ReverseDiffSource.dedup!(g)
-        ReverseDiffSource.evalconstants!(g)
-        ReverseDiffSource.simplify!(g)
-        ReverseDiffSource.prune!(g)
-        #  (g2, length(g2))
-        ReverseDiffSource.evalsort!(g)
-    g.nodes
-
-        # println(g.nodes)
-        ReverseDiffSource.tocode(g)
-
-
-
-
-
-
-
-
-    module Test1
-        type Foo
-            a
-        end
-
-        f(x::Foo) = x.a
-
-        export f
-    end
-
-
-    object_id(Test1)
-    object_id(Test1.Foo)
-    object_id(Test1.f)
-
-    X = Test1.Foo
-    "$X"
-    names(X)
-
-    Base.exprtype(:a)
-    Base.resolve_relative(:Foo, Test1, Main, DataType, "blah")
-    Base.resolve_globals(:(a+5 ; sin(x)), Main, Test1, [], [])
-    Base.resolve_globals(:( bar(x::Foo, y::Real) ), Main, Test1, [], [])
-
-    typeof(X)
-    object_id(X)
-
-    f2 = Test1.f
-    object_id(f2)
-    object_id(Real)
-    object_id(Union(Float64, Int))
-    object_id(Union(Int, Float64))
-    object_id(Union(Int, Float64, Complex))
-    object_id(Array{Int})
-    object_id(Array{Int,2})
-
-    import Test1.f
-
-    object_id(Test1.f)
-
-    f2(x::Int) = 3x
-    Test1.f(x::Float64) = 2x
-
-        dump(f2.env.defs)
-
-    methods(Test1.Foo)
-    methodswith(Test1.Foo)
 
 ############ higher order  ndiff #####################
 
