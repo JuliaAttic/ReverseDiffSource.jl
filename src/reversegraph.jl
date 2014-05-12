@@ -70,9 +70,9 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
             	smap = Dict( dd, [n.parents, dnodes[n]])
 
-            	nmap = addgraph!(dg, g2, smap)
+            	exitnode = addgraph!(dg, g2, smap)
 
-        		v2 = addnode!(g2, NCall(:+, [dnodes[arg], nmap[de]]) )
+        		v2 = addnode!(g2, NCall(:+, [dnodes[arg], exitnode]) )
         		dnodes[arg] = v2
             end
         end
@@ -152,12 +152,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		fg.nodes = [ fg.nodes, fg2.nodes]
 		
 		# variables of interest are derivatives only
-		# dn = [ fdnodes[n] for n in keys(ndmap)]
-		# for (n, sym) in fg.set_inodes
-		# 	n in dn && continue
-		# 	delete!(fg.)
-		# 	haskey(ndma)
-		# end	
 		fg.set_inodes = BiDict{ExNode, Any}()
 		for (ni, (sym, on)) in ndmap
 			fg.set_inodes[ fdnodes[ni] ] = sym

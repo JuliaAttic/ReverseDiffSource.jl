@@ -260,7 +260,7 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   length(src.set_onodes.kv)>0 && warn("[addgraph] adding graph with set onodes")
   # TODO : this control should be done at the deriv_rules.jl levels
 
-  ig = copy(src)
+  ig = copy(src) # make a copy, update references
   evalsort!(ig)
 
   nmap = Dict()
@@ -272,6 +272,9 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
         error("unmapped symbol in source graph $(n.main)")
       end
     else
+      # update references to NExt that have been remapped
+      n.parents =    [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.parents    ]
+      n.precedence = [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.precedence ]
       push!(dest.nodes, n)
     end
   end
@@ -301,7 +304,8 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   #   end
   # end
 
-  nmap
+  # return exitnode of subgraph
+  ig.set_inodes.vk[nothing]
 end
 
 ###### plots graph using GraphViz

@@ -360,15 +360,16 @@
 
     foo( d::Array{Main.Normal} ) = [ mean(de) for de in d ]
 
+    foo( d::Array{Normal} ) = [ mean(de) for de in d ]
     tm.@deriv_rule    foo(d::Array{Normal})   d      { (nds=zeros(2); 
                                                         for i in 1:2 ;
                                                             nds[i] = ds[i] ;
                                                         end ; nds) , zeros(2) }
     tm.@deriv_rule    vcat(a,b)               a      ds[1]
     tm.@deriv_rule    vcat(a,b)               b      ds[2]
+
     foo([Normal(1,1), Normal(2,1)])
 
-    foo( d::Array{Normal} ) = [ mean(de) for de in d ]
     tm.@deriv_rule    foo(d::Array{Normal})      d      {ds, zeros(size(d)) } 
 
     tm.@deriv_rule    vcat(a,                b               )   a      ds[1]
