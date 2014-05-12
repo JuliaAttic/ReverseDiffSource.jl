@@ -23,7 +23,7 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, Any}(),
 
 #####  ExGraph functions  #####
 
-# copies a graph and its nodes, leaves external nodes references intact
+# copies a graph and its nodes, leaves onodes references intact
 function copy(g::ExGraph)
   g2 = ExGraph()
   nmap = Dict()
@@ -33,6 +33,22 @@ function copy(g::ExGraph)
     n2.parents    = [ nmap[n] for n in n2.parents    ]
     n2.precedence = [ nmap[n] for n in n2.precedence ]
     nmap[n] = n2
+  end
+
+  # update onodes of subgraphs (for loops)
+  for n in filter(x -> isa(x, NFor), g2.nodes)
+    fg = n.main[2]
+    no = BiDict{ExNode, Any}()
+    for (k,v) in fg.ext_onodes.kv
+      no[ nmap[k] ] = v
+    end
+    fg.ext_onodes = no
+
+    no = BiDict{ExNode, Any}()
+    for (k,v) in fg.set_onodes.kv
+      no[ nmap[k] ] = v
+    end
+    fg.set_onodes = no
   end
 
   # copy node mapping and translate inner nodes to newly created ones
@@ -240,29 +256,50 @@ end
 ###### inserts graph src into dest  ######
 # TODO : inserted graph may update variables and necessitate a precedence update
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
-  evalsort!(src)
-  nmap = Dict()
-  for n in src.nodes  #  n = src[1]  
-    if !isa(n, NExt)
-      nn = copy(n) # node of same type
-      nn.parents =    [ nmap[n2] for n2 in n.parents    ]
-      nn.precedence = [ nmap[n2] for n2 in n.precedence ]
-      push!(dest.nodes, nn)
-      nmap[n] = nn
+  length(src.ext_onodes.kv)>0 && warn("[addgraph] adding graph with external onodes")
+  length(src.set_onodes.kv)>0 && warn("[addgraph] adding graph with set onodes")
+  # TODO : this control should be done at the deriv_rules.jl levels
 
-    else
+  ig = copy(src)
+  evalsort!(ig)
+
+  nmap = Dict()
+  for n in ig.nodes  #  n = src[1]  
+    if isa(n, NExt)
       if haskey(smap, n.main)
         nmap[n] = smap[n.main]
       else
-        nn = copy(n)
-        push!(dest.nodes, nn)
-        # nn = addnode!(dest, n.nodetype, n.main, [])
-        nmap[n] = nn
-        warn("unmapped symbol in source graph $(n.main)")
+        error("unmapped symbol in source graph $(n.main)")
       end
-
+    else
+      push!(dest.nodes, n)
     end
   end
+
+  # translate new external references
+
+  
+
+  #   if !isa(n, NExt)
+  #     nn = copy(n) # node of same type
+  #     nn.parents =    [ nmap[n2] for n2 in n.parents    ]
+  #     nn.precedence = [ nmap[n2] for n2 in n.precedence ]
+  #     push!(dest.nodes, nn)
+  #     nmap[n] = nn
+
+  #   else
+  #     if haskey(smap, n.main)
+  #       nmap[n] = smap[n.main]
+  #     else
+  #       nn = copy(n)
+  #       push!(dest.nodes, nn)
+  #       # nn = addnode!(dest, n.nodetype, n.main, [])
+  #       nmap[n] = nn
+  #       warn("unmapped symbol in source graph $(n.main)")
+  #     end
+
+  #   end
+  # end
 
   nmap
 end

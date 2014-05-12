@@ -271,37 +271,85 @@
     a = Test1(1,2)
 
     x = 1.5
+
     tm.type_decl(Test1, 2)
     tm.@type_decl Main.Test1 2 
+    tm.@deriv_rule    Test1(x,y)   x  ds[1]
+    tm.@deriv_rule    Test1(x,y)   y  ds[2]
 
     tm.reversediff(:( x * a.x), x=1)
+
+        ex = :( x * a.x)
+        g = tm.tograph(ex)
+        exitnode = g.set_inodes.vk[nothing]
+            # g.set_inodes[ exitnode] = :out
+
+        tm.splitnary!(g)
+        println("=== prune")
+        tm.prune!(g, [exitnode])
+        println("=== simplify")
+        tm.simplify!(g)
+        tm.tocode(g)
+
+        println("=== calc")
+        tm.calc!(g, params={:x => 1.})
+        
+        g.nodes
+        println("=== reversegraph")
+        dg = tm.reversegraph(g, exitnode, [:x])
+        g.nodes = [g.nodes, dg.nodes]
+        g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, dg.set_inodes.kv))
+
+        g.nodes[30:40]
+        g2 = g.nodes[33].main[2]
+        collect(g2.set_inodes.kv)
+        collect(g2.set_onodes.kv)
+        collect(g2.ext_onodes.kv)
+        collect(g2.ext_inodes.kv)
+        g2.nodes
+
+        tm.splitnary!(g)
+        println("=== prune2")
+        tm.prune!(g)
+        println("=== simplify2")
+        tm.simplify!(g)
+
+        resetvar()
+
+        println("=== tocode")
+        tm.tocode(g)
+        collect(g.nodes)
+
+        ex = :( (nds=zeros(size(d)); for i in 1:length(d) ; nds[i] = ds[i] ; end ; nds)  )
+        g = tm.tograph(ex)
+        tm.simplify!(g)
+        tm.prune!(g, [g.set_inodes.vk[nothing]])
+        tm.tocode(g)
+
     tm.reversediff(:( x ^ a.x), x=1)
-    tm.reversediff(:( x ^ c.x), c=Test1(2,2))
+    tm.reversediff(:( x ^ c.x), c=Test1(2,2))  # doesn't throw error but incorrect
 
     norm(t::Test1) = t.x*t.x + t.y*t.y
-    tm.@deriv_rule    norm(t::Test1)  t  [ 2t.x*ds , 2t.y*ds ]
-    tm.deriv_rule( :(norm(t::Test1)), :t, :([ 2. , 2. ]) )
+    tm.@deriv_rule    norm(t::Test1)  t  { 2t.x*ds , 2t.y*ds }
 
-    ex = :( norm(c) )
-    res = tm.reversediff(ex, c=Test1(2,2))
-    @eval exref(c) = ($ex )
-    @eval exrds(c) = ($res ; (out, dc))
+    ex = :( c = Test1(x, 2x) ; norm(c) )
+    res = tm.reversediff(ex, x=1.)
+    @eval exref(x) = ($ex )
+    @eval exrds(x) = ($res ; (out, dx))
 
-    exref(Test1(4,2))
-    exrds(Test1(4,2))
-    exrds(Test1(4.001,2))
-    exrds(Test1(4,2.001))
+    exref(1.)
+    exref(1.001)  # dx = 10
+    exrds(1.)     # (5.0, 10.0)   ok
 
     using Distributions
     reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
     tm.type_decl(Normal, 2)    
-
     tm.@deriv_rule    Normal(mu, sigma)     mu     ds[1]
     tm.@deriv_rule    Normal(mu, sigma)     sigma  ds[2]
-
     tm.@deriv_rule    mean(d::Normal)       d      { ds , 0. }
-    ex = :( d = Normal(x,1.) ; mean(d) )
+
+    ex = :( d = Normal( x, sin(x)) ; mean(d) )
     res = tm.reversediff(ex, x=1.)
     @eval exref(x) = ($ex )
     @eval exrds(x) = ($res ; (out, dx))
@@ -310,6 +358,15 @@
     exref(2.001)
     exrds(2.)
 
+    foo( d::Array{Main.Normal} ) = [ mean(de) for de in d ]
+
+    tm.@deriv_rule    foo(d::Array{Normal})   d      { (nds=zeros(2); 
+                                                        for i in 1:2 ;
+                                                            nds[i] = ds[i] ;
+                                                        end ; nds) , zeros(2) }
+    tm.@deriv_rule    vcat(a,b)               a      ds[1]
+    tm.@deriv_rule    vcat(a,b)               b      ds[2]
+    foo([Normal(1,1), Normal(2,1)])
 
     foo( d::Array{Normal} ) = [ mean(de) for de in d ]
     tm.@deriv_rule    foo(d::Array{Normal})      d      {ds, zeros(size(d)) } 
@@ -321,6 +378,55 @@
 
     ex = :( ns = [Normal(x,1.), Normal(2x,1)] ; z = sum(foo(ns)) )
     res = tm.reversediff(ex, :z, x=1.)
+
+        g = tm.tograph(ex)
+        exitnode = g.set_inodes.vk[:z]
+            # g.set_inodes[ exitnode] = :out
+
+        tm.splitnary!(g)
+        println("=== prune")
+        tm.prune!(g, [exitnode])
+        println("=== simplify")
+        tm.simplify!(g)
+        tm.tocode(g)
+
+        println("=== calc")
+        tm.calc!(g, params={:x => 1.})
+        
+
+        println("=== reversegraph")
+        dg = tm.reversegraph(g, exitnode, [:x])
+        g.nodes = [g.nodes, dg.nodes]
+        g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, dg.set_inodes.kv))
+
+        g.nodes[30:40]
+        g2 = g.nodes[33].main[2]
+        collect(g2.set_inodes.kv)
+        collect(g2.set_onodes.kv)
+        collect(g2.ext_onodes.kv)
+        collect(g2.ext_inodes.kv)
+        g2.nodes
+
+        tm.splitnary!(g)
+        println("=== prune2")
+        tm.prune!(g)
+        println("=== simplify2")
+        tm.simplify!(g)
+
+        resetvar()
+
+        println("=== tocode")
+        tm.tocode(g)
+        collect(g.nodes)
+
+        ex = :( (nds=zeros(size(d)); for i in 1:length(d) ; nds[i] = ds[i] ; end ; nds)  )
+        g = tm.tograph(ex)
+        tm.simplify!(g)
+        tm.prune!(g, [g.set_inodes.vk[nothing]])
+        tm.tocode(g)
+
+        d2 = 
+
     @eval exref(x) = ($ex  ; (z,) )
     @eval exrds(x) = ($res ; (z, dx))
 

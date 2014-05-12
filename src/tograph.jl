@@ -17,7 +17,7 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::ExLine)         = nothing     # remove line info
 	explore(ex::LineNumberNode) = nothing     # remove line info
 
-	explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )     # translate to vcat() call, and explore
+	explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
 	explore(ex::ExCell1d)  = explore(Expr(:call, :(Base.cell_1d), ex.args...) )  # translate to cell_1d() call, and explore
 	explore(ex::ExTrans)   = explore(Expr(:call, :transpose, ex.args[1]) )  # translate to transpose() and explore
 

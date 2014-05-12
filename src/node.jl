@@ -25,6 +25,12 @@ copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main),
                                   copy(x.val), 
                                   x.alloc)
 
+copy(x::ExNode{:for}) = ExNode{:for}({x.main[1], copy(x.main[2])},    # make a copy of subgraph
+                              copy(x.parents), 
+                              copy(x.precedence), 
+                              copy(x.val), 
+                              x.alloc)
+
 typealias NConst     ExNode{:constant}  # for constant 
 typealias NExt       ExNode{:external}  # external var
 typealias NCall      ExNode{:call}      # function call
