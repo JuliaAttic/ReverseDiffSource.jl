@@ -258,7 +258,7 @@ end
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   length(src.ext_onodes.kv)>0 && warn("[addgraph] adding graph with external onodes")
   length(src.set_onodes.kv)>0 && warn("[addgraph] adding graph with set onodes")
-  # TODO : this control should be done at the deriv_rules.jl levels
+  # TODO : this control should be done at the deriv_rules.jl level
 
   ig = copy(src) # make a copy, update references
   evalsort!(ig)
@@ -271,38 +271,26 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
       else
         error("unmapped symbol in source graph $(n.main)")
       end
-    else
-      # update references to NExt that have been remapped
+
+    elseif isa(n, NFor) # update references, including onodes
+      n.parents =    [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.parents    ]
+      n.precedence = [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.precedence ]
+
+      g2 = n.main[2]
+      for (n2, sym) in g2.ext_onodes
+        haskey(nmap, n2) || continue
+        g2.ext_onodes[ nmap[n2]] = sym
+      end
+
+      push!(dest.nodes, n)
+
+    else  # update references to NExt that have been remapped
       n.parents =    [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.parents    ]
       n.precedence = [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.precedence ]
       push!(dest.nodes, n)
+
     end
   end
-
-  # translate new external references
-
-  
-
-  #   if !isa(n, NExt)
-  #     nn = copy(n) # node of same type
-  #     nn.parents =    [ nmap[n2] for n2 in n.parents    ]
-  #     nn.precedence = [ nmap[n2] for n2 in n.precedence ]
-  #     push!(dest.nodes, nn)
-  #     nmap[n] = nn
-
-  #   else
-  #     if haskey(smap, n.main)
-  #       nmap[n] = smap[n.main]
-  #     else
-  #       nn = copy(n)
-  #       push!(dest.nodes, nn)
-  #       # nn = addnode!(dest, n.nodetype, n.main, [])
-  #       nmap[n] = nn
-  #       warn("unmapped symbol in source graph $(n.main)")
-  #     end
-
-  #   end
-  # end
 
   # return exitnode of subgraph
   ig.set_inodes.vk[nothing]

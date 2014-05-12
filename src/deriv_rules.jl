@@ -86,8 +86,6 @@ end
 ####################  rules  ######################################
 
 # addition
-deriv_rule(:(+(x::Real         , y::Real )), :x, :(ds))
-
 @deriv_rule +(x::Real         , y::Real )            x     ds
 @deriv_rule +(x::Real         , y::AbstractArray)    x     sum(ds)
 @deriv_rule +(x::AbstractArray, y       )            x     ds

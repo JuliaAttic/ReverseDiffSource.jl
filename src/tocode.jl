@@ -121,7 +121,7 @@ function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
 		(np == 0) && continue
 
 		isa(n2, NFor) && (nbref=2 ; break)   # force assignment if used in for loops
-		isa(n2, Union(NSRef, NSDot)) && 
+		isa(n2, Union(NSRef, NSDot, NRef, NDot)) && 
 			n2.parents[1] == n && (nbref = 2 ; break )  # force if setindex/setfield applies to it
 
 		nbref += np

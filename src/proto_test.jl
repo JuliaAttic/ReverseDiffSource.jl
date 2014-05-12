@@ -358,60 +358,61 @@
     exref(2.001)
     exrds(2.)
 
-    foo( d::Array{Main.Normal} ) = [ mean(de) for de in d ]
-
     foo( d::Array{Normal} ) = [ mean(de) for de in d ]
-    tm.@deriv_rule    foo(d::Array{Normal})   d      { (nds=zeros(2); 
-                                                        for i in 1:2 ;
+    tm.@deriv_rule    foo(d::Array{Normal})   d      (nds=zeros(2); 
+                                                        for i in 1:length(d) ;
                                                             nds[i] = ds[i] ;
-                                                        end ; nds) , zeros(2) }
+                                                        end ; { nds , zeros(2) } )
+    # tm.@deriv_rule    foo(d::Array{Normal})   d      { copy(ds) , zeros(size(d)) } 
     tm.@deriv_rule    vcat(a,b)               a      ds[1]
     tm.@deriv_rule    vcat(a,b)               b      ds[2]
+    tm.@deriv_rule    vcat(a::Normal,b::Normal)  a   { ds[1][1], ds[2][1] }
+    tm.@deriv_rule    vcat(a::Normal,b::Normal)  b   { ds[1][2], ds[2][2] }
 
     foo([Normal(1,1), Normal(2,1)])
-
-    tm.@deriv_rule    foo(d::Array{Normal})      d      {ds, zeros(size(d)) } 
-
-    tm.@deriv_rule    vcat(a,                b               )   a      ds[1]
-    tm.@deriv_rule    vcat(a,                b               )   b      ds[2]
 
     foo([Normal(1,1), Normal(2,1)])
 
     ex = :( ns = [Normal(x,1.), Normal(2x,1)] ; z = sum(foo(ns)) )
     res = tm.reversediff(ex, :z, x=1.)
 
+        ex2 = :(nds=zeros(2); for i in 1:2 ;
+                nds[i] = ds[i] ; end ; { nds , zeros(2) } )
+        g = tm.tograph(ex2)
+        collect(g.set_inodes.kv)
+        collect(g.ext_inodes.kv)
+        g.nodes
+
+
         g = tm.tograph(ex)
         exitnode = g.set_inodes.vk[:z]
-            # g.set_inodes[ exitnode] = :out
 
         tm.splitnary!(g)
-        println("=== prune")
         tm.prune!(g, [exitnode])
-        println("=== simplify")
         tm.simplify!(g)
         tm.tocode(g)
 
         println("=== calc")
         tm.calc!(g, params={:x => 1.})
-        
+        g.nodes        
 
         println("=== reversegraph")
         dg = tm.reversegraph(g, exitnode, [:x])
         g.nodes = [g.nodes, dg.nodes]
         g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, dg.set_inodes.kv))
 
-        g.nodes[30:40]
+        g.nodes[20:40]
         g2 = g.nodes[33].main[2]
         collect(g2.set_inodes.kv)
         collect(g2.set_onodes.kv)
-        collect(g2.ext_onodes.kv)
         collect(g2.ext_inodes.kv)
+        collect(g2.ext_onodes.kv)
+        dsn = g2.ext_onodes.vk[:ds]
+        dsn in g.nodes
         g2.nodes
 
         tm.splitnary!(g)
-        println("=== prune2")
         tm.prune!(g)
-        println("=== simplify2")
         tm.simplify!(g)
 
         resetvar()
@@ -436,15 +437,16 @@
     exrds(2.)
 
     x = 2.
-    _tmp1 = zeros(2)
-    _tmp2 = vcat(Normal(x,1.0),Normal(2x,1.0))
-    _tmp3 = foo(_tmp2)
-    z = sum(_tmp3)
-    _tmp4 = zeros(size(_tmp2))
-    _tmp5 = size(_tmp3)
-    _tmp6 = Base.cell_1d(_tmp4,_tmp4) + Base.cell_1d(zeros(_tmp5) + ones(_tmp5),_tmp4)
-    dx = 2 * _tmp1 + _tmp6[2][1] + _tmp1 + _tmp6[1][1]
-
+        _tmp1 = zeros(2)
+        _tmp2 = vcat(Normal(x,1.0),Normal(2x,1.0))
+        _tmp3 = foo(_tmp2)
+        z = sum(_tmp3)
+        _tmp4 = zeros(size(_tmp2))
+        _tmp5 = size(_tmp3)
+        _tmp6 = Base.cell_1d(_tmp4,_tmp4) + Base.cell_1d(zeros(_tmp5) + ones(_tmp5),_tmp4)
+        _tmp7 = _tmp1 + _tmp6[1]
+        _tmp8 = _tmp1 + _tmp6[2]
+        dx = 2 * _tmp8[1] + _tmp7[1]
 
 
 
