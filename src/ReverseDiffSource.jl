@@ -56,6 +56,7 @@ module ReverseDiffSource
   typealias ExBlock    ExH{:block}
   typealias ExLine     ExH{:line}
   typealias ExVcat     ExH{:vcat}
+  typealias ExCell1d   ExH{:cell1d}
   typealias ExFor      ExH{:for}
   typealias ExRef      ExH{:ref}
   typealias ExIf       ExH{:if}
