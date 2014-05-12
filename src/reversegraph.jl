@@ -215,15 +215,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))
 			println(" $n3,  dn = $(repr(dn))")
 		end
-		# tg = copy(g)
-		# # tg2 = copy(g2)
-	 #    tg.nodes = [ tg.nodes, g2.nodes]
-	 #    tsetmap = Dict()
-	 #   	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, [:x]), dnodes)
-		# 	tsetmap[dprefix(k.main)] = v
-		# end
-  #   	tg.setmap = merge(tg.setmap, tsetmap)
-  #   	println(tocode(tg))
 
 		rev(n2)
 	end
