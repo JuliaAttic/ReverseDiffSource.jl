@@ -293,13 +293,14 @@
     exrds(Test1(4,2.001))
 
     using Distributions
+    reload("ReverseDiffSource") ; tm = ReverseDiffSource
 
     tm.type_decl(Normal, 2)    
 
     tm.@deriv_rule    Normal(mu, sigma)     mu     ds[1]
     tm.@deriv_rule    Normal(mu, sigma)     sigma  ds[2]
-    tm.@deriv_rule    mean(d::Normal)       d      [ ds , 0. ]
 
+    tm.@deriv_rule    mean(d::Normal)       d      { ds , 0. }
     ex = :( d = Normal(x,1.) ; mean(d) )
     res = tm.reversediff(ex, x=1.)
     @eval exref(x) = ($ex )
@@ -309,13 +310,16 @@
     exref(2.001)
     exrds(2.)
 
-    foo( d::Array{Main.Normal} ) = [ mean(de) for de in d]
-    tm.@deriv_rule    foo(d::Array{Normal})   d      [ ds , 0. ]
-    tm.@deriv_rule    vcat(a,b)               a      [ ds , zeros(length(b)) ]
-    tm.@deriv_rule    vcat(a,b)               b      [ zeros(length(a)) , ds ]
-    mean([Normal(1,1), Normal(2,1)])
 
-    ex = :( ds = [Normal(x,1.), Normal(2x,1)] ; z = sum(foo(ds)) )
+    foo( d::Array{Normal} ) = [ mean(de) for de in d ]
+    tm.@deriv_rule    foo(d::Array{Normal})      d      {ds, zeros(size(d)) } 
+
+    tm.@deriv_rule    vcat(a,                b               )   a      ds[1]
+    tm.@deriv_rule    vcat(a,                b               )   b      ds[2]
+
+    foo([Normal(1,1), Normal(2,1)])
+
+    ex = :( ns = [Normal(x,1.), Normal(2x,1)] ; z = sum(foo(ns)) )
     res = tm.reversediff(ex, :z, x=1.)
     @eval exref(x) = ($ex  ; (z,) )
     @eval exrds(x) = ($res ; (z, dx))
@@ -325,17 +329,14 @@
     exrds(2.)
 
     x = 2.
-    _tmp1 = Normal(x,1.0)
-    _tmp2 = zeros(2)
-    _tmp3 = Normal(*(2,x),1.0)
-    _tmp4 = vcat(_tmp1,_tmp3)
-    _tmp5 = foo(_tmp4)
-    z = sum(_tmp5)
-    _tmp6 = zeros(size(_tmp4))
-    _tmp7 = size(_tmp5)
-    _tmp8 = +(vcat(_tmp6,_tmp6),vcat(+(zeros(_tmp7),ones(_tmp7)),0.0))
-    dx = +(*(2,+(_tmp2,vcat(zeros(length(_tmp1)),_tmp8))[1]),+(_tmp2,vcat(_tmp8,zeros(length(_tmp3))))[1])
-
+    _tmp1 = zeros(2)
+    _tmp2 = vcat(Normal(x,1.0),Normal(2x,1.0))
+    _tmp3 = foo(_tmp2)
+    z = sum(_tmp3)
+    _tmp4 = zeros(size(_tmp2))
+    _tmp5 = size(_tmp3)
+    _tmp6 = Base.cell_1d(_tmp4,_tmp4) + Base.cell_1d(zeros(_tmp5) + ones(_tmp5),_tmp4)
+    dx = 2 * _tmp1 + _tmp6[2][1] + _tmp1 + _tmp6[1][1]
 
 
 

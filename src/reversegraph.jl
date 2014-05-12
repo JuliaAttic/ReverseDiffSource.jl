@@ -49,10 +49,10 @@ function createzeronode!(g2::ExGraph, n)
 		v1 = addnode!(g2, NCall(:size, [n]) )
 		aa = ExNode[ addnode!(g2, NAlloc(:zeros, [v1]) )
 		               for i in 1:(tdict[eltype(n.val)]) ]
-		return addnode!(g2, NCall(:vcat, aa) )
+		return addnode!(g2, NCall(:(Base.cell_1d), aa) )
 
 	else
-		error("[reversegraph] Unknown type for node $n")
+		error("[reversegraph] Unknown type $(typeof(n)) for node $n")
 	end
 end
 
