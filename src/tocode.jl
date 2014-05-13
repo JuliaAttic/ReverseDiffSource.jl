@@ -21,8 +21,6 @@ function tocode(g::ExGraph)
 	translate(n::NRef)   = Expr(:ref, valueof(n.parents[1],n), n.main...)
 	translate(n::NDot)   = Expr(:(.), valueof(n.parents[1],n), n.main)
 	translate(n::NIn)    = n.parents[1].val[n]
-	translate(n::NAlloc) = Expr(:call, n.main, 
-		                        { valueof(x,n) for x in n.parents}...)
 
 	function translate(n::NExt)
 	    haskey(g.ext_inodes, n) || return n.main
@@ -41,7 +39,9 @@ function tocode(g::ExGraph)
     	:( $(Expr(:., valueof(np[1],n), n.main)) = $(valueof(np[2],n)) )
 	end
 
-	translate(n::NFor) = Expr(:for, n.main[1], tocode(n.main[2]))
+	translate(n::NFor) = Expr(:for, 
+		                      Expr(:(=), n.main[1], valueof(n.parents[1],n)), 
+		                      tocode(n.main[2]))
 
 	evalsort!(g)
 	out = Expr[]
@@ -111,7 +111,7 @@ function ispivot(n::Union(NConst, NIn), g::ExGraph)
 	return (false, nothing)
 end
 
-function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
+function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	sym = getnames(n, g)
 	sym == nothing || return (true, sym)
 
@@ -138,33 +138,4 @@ function ispivot(n::Union(NCall, NAlloc, NComp), g::ExGraph)
 
 	return (false, nothing)
 end
-
-
-
-
-
-
-# ispivot(n::Union(NExt, NRef, NDot, NFor), g::ExGraph) = false
-
-# function ispivot(n::Union(NCall, NAlloc, NComp, NSRef, NSDot), g::ExGraph)
-# 	nbref = 0
-# 	for n2 in g.nodes
-# 		np = sum(i -> i == n, n2.parents)
-# 		(np == 0) && continue
-
-# 		isa(n2, NFor) && return true    # force assignment if used in for loops
-# 		isa(n2, Union(NSRef, NSDot)) && 
-# 			n2.parents[1] == n && return true  # force if setindex/setfield applies to it
-
-# 		nbref += np
-# 		(nbref >= 2) && return true  # if used more than once
-# 	end
-
-# 	false
-# end
-
-# function ispivot(n::Union(NConst, NIn), g::ExGraph)
-# 	any( i -> n in i.parents && isa(i, NFor), g.nodes)
-# end
-
 

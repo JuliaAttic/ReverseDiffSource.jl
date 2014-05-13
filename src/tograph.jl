@@ -20,6 +20,7 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
 	explore(ex::ExCell1d)  = explore(Expr(:call, :(Base.cell_1d), ex.args...) )  # translate to cell_1d() call, and explore
 	explore(ex::ExTrans)   = explore(Expr(:call, :transpose, ex.args[1]) )  # translate to transpose() and explore
+	explore(ex::ExColon)   = explore(Expr(:call, :colon, ex.args...) )  # translate to transpose() and explore
 
 	explore(ex::ExPEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :+, args[1], args[2])) ) )
 	explore(ex::ExMEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :-, args[1], args[2])) ) )
@@ -83,14 +84,18 @@ function tograph(s, svars::Vector{Any})
 	function explore(ex::ExFor)
 		is = ex.args[1].args[1]
 		isa(is, Symbol) || 
-			error("[tograph] for loop not using a single variable : $is ")
+			error("[tograph] for loop using several indexes : $is ")
+
+		# explore the index range
+		nir = explore(ex.args[1].args[2])
 
 		# explore the for block as a separate graph 
 		nsvars = union(svars, collect(keys(g.set_inodes.vk)))
 		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node
-		nf = addnode!(g, NFor( [ ex.args[1], g2 ] ))
+		nf = addnode!(g, NFor( { is, g2 } ))
+		nf.parents = [nir]  # first parent is indexing range fo the loop
 
 		# create onodes (node in parent graph) for each :in_inode
 		for (k, sym) in g2.ext_inodes.kv

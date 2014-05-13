@@ -71,7 +71,7 @@ addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 function splitnary!(g::ExGraph)
   for n in g.nodes
       if isa(n, NCall) &&
-          in(n.main, [:+, :*, :sum, :min, :max]) && 
+          in(n.main, [:+, :*, :sum, :min, :max, :vcat]) && 
           (length(n.parents) > 2 )
 
           nn = addnode!(g, NCall( n.main, n.parents[2:end] ) )
@@ -138,7 +138,7 @@ function prune!(g::ExGraph, exitnodes)
       prune!(g2, exitnodes2)
 
       # update parents
-      n.parents = intersect(n.parents, collect(keys(g2.ext_onodes)) )
+      n.parents = [n.parents[1], intersect(n.parents, collect(keys(g2.ext_onodes)) ) ]
     end
 
     ns2 = union(ns2, n.parents)
@@ -202,7 +202,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     end
   end
 
-  function evaluate(n::Union(NAlloc, NCall))
+  function evaluate(n::NCall)
     local ret
     try
       ret = invoke(emod.eval(n.main), 
@@ -232,12 +232,12 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   function evaluate(n::NFor)
     g2 = n.main[2]
-    is = n.main[1].args[1]           # symbol of loop index
-    iter = myeval(n.main[1].args[2])
-    is0 = next(iter, start(iter))[2] # first value of index
-    params2 = merge(params, { is => is0 }) 
+    is = n.main[1]                          # symbol of loop index
+    iter = evaluate(n.parents[1])           #  myeval(n.main[1].args[2])
+    is0 = next(iter, start(iter))[2]        # first value of index
+    params2 = merge(params, { is => is0 })  # set loop index to first value
     # println("params2 : $(params2)")
-    calc!(n.main[2], params=params2)
+    calc!(g2, params=params2)
     
     valdict = Dict()
     for (k, sym) in g2.set_onodes
@@ -315,8 +315,6 @@ function plot(g::ExGraph)
     "$(nn[n]) [label=\"$(n.main)\", shape=\"larrow\", style=filled, fillcolor=\"lightblue\"];"
   gshow(n::NSDot)  = 
     "$(nn[n]) [label=\"$(n.main)\", shape=\"larrow\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NAlloc) = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"parallelogram\", style=filled, fillcolor=\"lightblue\"];"
   gshow(n::NIn)    = 
     "$(nn[n]) [label=\"in\", shape=\"box3d\", style=filled, fillcolor=\"pink\"];"
 

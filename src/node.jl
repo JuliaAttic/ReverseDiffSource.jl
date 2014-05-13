@@ -39,7 +39,6 @@ typealias NRef       ExNode{:ref}       # getindex
 typealias NDot       ExNode{:dot}       # getfield
 typealias NSRef      ExNode{:subref}    # setindex
 typealias NSDot      ExNode{:subdot}    # setfield
-typealias NAlloc     ExNode{:alloc}     # function call allocating memory
 typealias NFor       ExNode{:for}       # for loop
 typealias NIn        ExNode{:within}    # reference to var set in a loop
 

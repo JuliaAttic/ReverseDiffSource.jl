@@ -48,6 +48,7 @@ module ReverseDiffSource
 
   typealias ExEqual    ExH{:(=)}
   typealias ExDColon   ExH{:(::)}
+  typealias ExColon    ExH{:(:)}
   typealias ExPEqual   ExH{:(+=)}
   typealias ExMEqual   ExH{:(-=)}
   typealias ExTEqual   ExH{:(*=)}

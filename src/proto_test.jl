@@ -44,6 +44,9 @@
     tm.prune!(g); tm.tocode(g)
     tm.simplify!(g); tm.tocode(g)
 
+    res = fullcycle(ex)
+    @eval myf(x) = ($res; a)
+    myf(3)
 
 ################## for loops  #######################
 

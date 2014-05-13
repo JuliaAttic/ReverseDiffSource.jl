@@ -37,22 +37,22 @@ function createzeronode!(g2::ExGraph, n)
 	# Array of Real
 	elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
 		v1 = addnode!(g2, NCall(:size, [n]))
-		return addnode!(g2, NAlloc(:zeros, [v1]))
+		return addnode!(g2, NCall(:zeros, [v1]))
 
 	# Composite type
 	elseif haskey(tdict, typeof(n.val))   # known composite type
 		v1 = addnode!(g2, NConst( tdict[typeof(n.val)]) )
-		return addnode!(g2, NAlloc(:zeros, [v1]) )
+		return addnode!(g2, NCall(:zeros, [v1]) )
 
 	# Array of composite type
 	elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
 		v1 = addnode!(g2, NCall(:size, [n]) )
-		aa = ExNode[ addnode!(g2, NAlloc(:zeros, [v1]) )
+		aa = ExNode[ addnode!(g2, NCall(:zeros, [v1]) )
 		               for i in 1:(tdict[eltype(n.val)]) ]
 		return addnode!(g2, NCall(:(Base.cell_1d), aa) )
 
 	else
-		error("[reversegraph] Unknown type $(typeof(n)) for node $n")
+		error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
 	end
 end
 
@@ -158,28 +158,28 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 	println("=== fg  1 ===")
-	println(fg.nodes)
-	println("ndmap = $(collect(ndmap))")
-	println("fdnodes = $(collect(fdnodes))")
-	println("ext = $(collect(fg.ext_inodes.kv))")
-	println("set = $(collect(fg.set_inodes.kv))")
-	println("oext = $(collect(fg.ext_onodes.kv))")
-	println("oset = $(collect(fg.set_onodes.kv))")
+	# println(fg.nodes)
+	# println("ndmap = $(collect(ndmap))")
+	# println("fdnodes = $(collect(fdnodes))")
+	# println("ext = $(collect(fg.ext_inodes.kv))")
+	# println("set = $(collect(fg.set_inodes.kv))")
+	# println("oext = $(collect(fg.ext_onodes.kv))")
+	# println("oset = $(collect(fg.set_onodes.kv))")
 
 		prune!(fg) # reduce to derivatives evaluation only
 
 	println("=== fg  2 ===")
-	println(fg.nodes)
-	println("ndmap = $(collect(ndmap))")
-	println("fdnodes = $(collect(fdnodes))")
-	println("ext = $(collect(fg.ext_inodes.kv))")
-	println("set = $(collect(fg.set_inodes.kv))")
-	println("oext = $(collect(fg.ext_onodes.kv))")
-	println("oset = $(collect(fg.set_onodes.kv))")
+	# println(fg.nodes)
+	# println("ndmap = $(collect(ndmap))")
+	# println("fdnodes = $(collect(fdnodes))")
+	# println("ext = $(collect(fg.ext_inodes.kv))")
+	# println("set = $(collect(fg.set_inodes.kv))")
+	# println("oext = $(collect(fg.ext_onodes.kv))")
+	# println("oset = $(collect(fg.set_onodes.kv))")
 		# create for loop
 		println("=== create dfor node ===")
-		v2 = addnode!(g2, NFor([ n.main[1], fg]) )
-		v2.parents = collect( keys( fg.ext_onodes))
+		v2 = addnode!(g2, NFor({ n.main[1], fg}) )
+		v2.parents = [n.parent[1], collect( keys( fg.ext_onodes)) ]
 
 		# set_onodes = dnodes of fg's ingoing variables
 		# for ns2 in filter((k,v) -> haskey(fdnodes,n) & haskey(fg2.set_inodes,n), foutmap)
@@ -192,13 +192,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 	println("=== fg  3 ===")
-	println(fg.nodes)
-	println("ndmap = $(collect(ndmap))")
-	println("fdnodes = $(collect(fdnodes))")
-	println("ext = $(collect(fg.ext_inodes.kv))")
-	println("set = $(collect(fg.set_inodes.kv))")
-	println("oext = $(collect(fg.ext_onodes.kv))")
-	println("oset = $(collect(fg.set_onodes.kv))")
+	# println(fg.nodes)
+	# println("ndmap = $(collect(ndmap))")
+	# println("fdnodes = $(collect(fdnodes))")
+	# println("ext = $(collect(fg.ext_inodes.kv))")
+	# println("set = $(collect(fg.set_inodes.kv))")
+	# println("oext = $(collect(fg.ext_onodes.kv))")
+	# println("oset = $(collect(fg.set_onodes.kv))")
 
 	end
 
