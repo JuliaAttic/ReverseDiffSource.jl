@@ -93,13 +93,13 @@ g = m.tograph(ex)
 @test length(g.set_onodes.kv) == 0
 @test length(g.ext_onodes.kv) == 0
 
-g2 = g.nodes[4].main[2]  # first level loop
+g2 = g.nodes[7].main[2]  # first level loop
 @test sort(collect(values(g2.ext_inodes.kv))) == [:a, :b, :v, :x, :z]
 @test sort(collect(values(g2.set_inodes.kv))) == [:a, :t]
 @test sort(collect(values(g2.ext_onodes.kv))) == [:a, :b, :v, :x, :z]
 @test sort(collect(values(g2.set_onodes.kv))) == [:a]
 
-g3 = g2.nodes[4].main[2] # second level loop
+g3 = g2.nodes[7].main[2] # second level loop
 @test sort(collect(values(g3.ext_inodes.kv))) == [:a, :b, :t, :v, :z]
 @test sort(collect(values(g3.set_inodes.kv))) == [:a, :u]
 @test sort(collect(values(g3.ext_onodes.kv))) == [:a, :b, :t, :v, :z]
@@ -159,8 +159,9 @@ end
 @test fullcycle(:(a += b+6))        == Expr(:block, :(a = a + (b+6)) )
 @test fullcycle(:(a -= b+6))        == Expr(:block, :(a = a - (b+6)) )
 @test fullcycle(:(a *= b+6))        == Expr(:block, :(a = a * (b+6)) )
-@test fullcycle(:(a = b'))          == Expr(:block, :(a = transpose(b)) )
-@test fullcycle(:(a = [1,2]))       == Expr(:block, :(a = vcat(1,2)) )
+@test fullcycle(:(a = b'))          == Expr(:block, :(a = b') )
+@test fullcycle(:(a = [1,2]))       == Expr(:block, :(a = [1,2]) )
+@test fullcycle(:(a = 4:5 ))        == Expr(:block, :(a = 4:5) )
 
 @test fullcycle(:(a = b+4+5))       == Expr(:block, :(a = b+9) )
 @test fullcycle(:(a = b+0))         == Expr(:block, :(a = b) )    

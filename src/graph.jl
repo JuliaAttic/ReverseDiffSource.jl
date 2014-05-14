@@ -21,6 +21,38 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, Any}(),
                                            BiDict{ExNode, Any}() )
 
 
+function show(io::IO, g::ExGraph)
+  # construct node number
+  for (i,n) in enumerate(g.nodes)
+    print(io, rpad("#$i",4))
+
+    if haskey(g.ext_inodes, n)
+      print(io, rpad("< $(g.ext_inodes[n])", 6))
+    elseif haskey(g.set_inodes, n)
+      print(io, rpad("> $(g.set_inodes[n])", 6))
+    else
+      print(io, rpad("", 6))
+    end
+
+    print(io, rpad("[$(subtype(n))]", 12))
+    main = isa(n, NFor) ? n.main[1] : n.main
+    print(io, rpad("$(repr(main)) ", 10))
+    print(io, rpad("($(repr(n.val)))", 10))
+
+    if length(n.parents) > 0
+      pnn = join( map( x -> "#$x", indexin(n.parents, {g.nodes...})), ", ")
+      print(io, ", parents : $pnn")
+    end
+
+    if length(n.precedence) > 0
+      pnn = join( map( x -> "#$x", indexin(n.precedence, {g.nodes...})), ", ")
+      print(io, ", precedence : $pnn")
+    end
+
+    println() 
+  end
+end
+
 #####  ExGraph functions  #####
 
 # copies a graph and its nodes, leaves onodes references intact
@@ -163,6 +195,7 @@ function prune!(g::ExGraph, exitnodes)
   end
 
   g.nodes = intersect(g.nodes, ns2)
+  nothing
 end
 
 ####### sort graph to an evaluable order ###########

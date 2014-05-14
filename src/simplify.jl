@@ -75,7 +75,7 @@ function evalconstants(n, g, emod)
 	!isa(n, NCall)                       && return false
 	any(m -> !isa(m, NConst), n.parents) && return false
 	# keep the function form for these
-	n.main in [:zeros, :ones, :vcat]     && return false 
+	n.main in [:zeros, :ones, :vcat, :colon] && return false 
 
 	# calculate value
 	# TODO : add error catching here

@@ -11,8 +11,6 @@ function tocode(g::ExGraph)
 	valueof(n::NFor,   child::ExNode) = valueof(n.val[child], n)
 
 	translate(n::NConst) = n.main
-	translate(n::NCall)  = Expr(:call, n.main, 
-		                       { valueof(x,n) for x in n.parents}...)
 	translate(n::NComp)  = Expr(:comparison, 
 		                       	{ valueof(n.parents[1],n), 
 		                       	  n.main, 
@@ -21,6 +19,20 @@ function tocode(g::ExGraph)
 	translate(n::NRef)   = Expr(:ref, valueof(n.parents[1],n), n.main...)
 	translate(n::NDot)   = Expr(:(.), valueof(n.parents[1],n), n.main)
 	translate(n::NIn)    = n.parents[1].val[n]
+
+	function translate(n::NCall)
+	  	# special translation cases
+	  	if n.main == :vcat
+	  		return Expr(:vcat, { valueof(x,n) for x in n.parents}...)
+	  	elseif n.main == :colon
+	  		return Expr(:(:), { valueof(x,n) for x in n.parents}...)
+	  	elseif n.main == :transpose
+	  		return Expr(symbol("'"), valueof(n.parents[1], n) )
+		end
+
+		# default translation
+		Expr(:call, n.main, { valueof(x,n) for x in n.parents}...)
+	end
 
 	function translate(n::NExt)
 	    haskey(g.ext_inodes, n) || return n.main
@@ -103,39 +115,57 @@ function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	return (false, nothing)
 end
 
-# evaluate only if used in For loop  (TODO : not sure about this)
+# evaluate only if used in For loop
 function ispivot(n::Union(NConst, NIn), g::ExGraph)
 	sym = getnames(n, g)
-	sym == nothing || return (true, sym)
-	any( i -> n in i.parents && isa(i, NFor), g.nodes) && return (true, sym)
+	sym != nothing && return (true, sym)
+
+	any(x -> isa(x, NFor) && n in x.parents[2:end], g.nodes) && 
+		return (true, sym)
+
 	return (false, nothing)
 end
 
 function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	sym = getnames(n, g)
-	sym == nothing || return (true, sym)
 
-	nbref = 0	
-	for n2 in filter(x -> n in x.parents, g.nodes)
-		np = sum(i -> i == n, n2.parents)
-		(np == 0) && continue
+	# it has a name assigned
+	sym != nothing && return (true, sym)
 
-		isa(n2, NFor) && (nbref=2 ; break)   # force assignment if used in for loops
-		isa(n2, Union(NSRef, NSDot, NRef, NDot)) && 
-			n2.parents[1] == n && (nbref = 2 ; break )  # force if setindex/setfield applies to it
+	# it is used in a for loop (except index range)
+	any(x -> isa(x, NFor) && n in x.parents[2:end], g.nodes) && 
+		return (true, sym)
 
-		nbref += np
-		(nbref >= 2) && break  # if used more than once
+	# it is used in a setfield/index or getfield/index 
+	any(x -> isa(x, Union(NSRef, NSDot, NRef, NDot)) && n == x.parents[1], g.nodes) &&
+		return (true, sym)
+
+	# it is used more than once
+	(sum(x -> sum([ p == n for p in x.parents ]), g.nodes) > 1) &&
+		return (true, sym)
+
+	# it is in the precedence of another node
+	ps = filter(x -> n in x.precedence, g.nodes)
+	if length(ps) > 0
+		sv = collect(keys(g.set_inodes))
+		(n in ancestors(sv, ps)) && return (true, sym)
 	end
 
-	nbref > 1 && return (true, getnames(n, g))
-
-	# another cause could be n in precedence of a node changing a variable state
-	ps = filter(x -> n in x.precedence, g.nodes)
-	length(ps) == 0 && return (false, nothing)
-	sv = collect(keys(g.set_inodes))
-	(n in ancestors(sv, ps)) && return (true, getnames(n, g))
-
+	# otherwise do not create assignment
 	return (false, nothing)
 end
 
+	# nbref = 0	
+	# for n2 in filter(x -> n in x.parents, g.nodes)
+	# 	np = sum(i -> i == n, n2.parents)
+	# 	(np == 0) && continue
+
+	# 	isa(n2, NFor) && (nbref=2 ; break)   # force assignment if used in for loops
+	# 	isa(n2, Union(NSRef, NSDot, NRef, NDot)) && 
+	# 		n2.parents[1] == n && (nbref = 2 ; break )  # force if setindex/setfield applies to it
+
+	# 	nbref += np
+	# 	(nbref >= 2) && break  # if used more than once
+	# end
+
+	# nbref > 1 && return (true, getnames(n, g))

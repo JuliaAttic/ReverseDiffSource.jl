@@ -50,7 +50,7 @@
 
 ################## for loops  #######################
 
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     ex = quote
         a=0
@@ -68,35 +68,42 @@
 
 
     ex = quote
-        a=zeros(10+6)
-        for i in 1:10
+        a=zeros(1+4)
+        for i in 1:4
             t = 4+3+2
             a[i] += b[i]+t
         end
         z=sum(a)
     end
 
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
 
-    g = tm.tograph(ex)
-    tm.splitnary!(g)
-    tm.simplify!(g)
-    tm.prune!(g, {g.set_inodes.vk[:a]})
-    tm.tocode(g)
+ex = :(a = 4:5)
+    g = m.tograph(ex)
+    m.splitnary!(g)
+    m.simplify!(g)
+    m.prune!(g, {g.set_inodes.vk[:z]})
+    m.tocode(g)
 
-    tm.calc!(g, params={:x => 2})
-    g.nodes
+    m.calc!(g, params={:b => ones(5)})
+    g
+    typeof(g.nodes[1].val)
+    m.ispivot(g.nodes[3], g)
+    g.nodes[4].parents
+    g.nodes[5].parents
 
-    g2 = tm.reversegraph(g, g.set_inodes.vk[:a], [:x])
+
+
+    g2 = m.reversegraph(g, g.set_inodes.vk[:a], [:x])
     g.nodes = [ g.nodes, g2.nodes]
-    g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g.set_inodes = m.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
     g.nodes
     g.nodes[6].main[2].nodes
     collect(g.nodes[6].main[2].set_inodes)  # Nin pour dx pas recrée
-    tm.tocode(g)
-    tm.prune!(g); tm.tocode(g)
-    tm.simplify!(g); tm.tocode(g)
-    tm.markalloc!(g)
+    m.tocode(g)
+    m.prune!(g); m.tocode(g)
+    m.simplify!(g); m.tocode(g)
+    m.markalloc!(g)
     [ (n, n.alloc) for n in g.nodes]
 
 
@@ -109,8 +116,9 @@
         z=sum(a)
     end
 
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
-    res = tm.reversediff(ex, :z, b=ones(5))
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    m.tograph(ex)
+    res = m.reversediff(ex, :z, b=ones(5))
     @eval exref(b) = ($ex ; (z,))
     @eval exrds(b) = ($res ; (z, db))
 

@@ -52,7 +52,7 @@ function createzeronode!(g2::ExGraph, n)
 		return addnode!(g2, NCall(:(Base.cell_1d), aa) )
 
 	else
-		error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
+		isa(n, NConst) || error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
 	end
 end
 

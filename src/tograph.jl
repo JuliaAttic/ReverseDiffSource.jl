@@ -30,7 +30,8 @@ function tograph(s, svars::Vector{Any})
 
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
 
-	explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
+	# explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
+	explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], map(explore, ex.args)))
 	explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
 
 	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
@@ -44,13 +45,7 @@ function tograph(s, svars::Vector{Any})
 		return nn
 	end
 
-	function explore(ex::ExCall)
-		if in(ex.args[1], [:zeros, :ones, :vcat])
-			addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
-	    else
-	    	addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
-	    end
-	end
+	explore(ex::ExCall) = addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
 
 	function explore(ex::ExEqual) 
 		lhs = ex.args[1]
