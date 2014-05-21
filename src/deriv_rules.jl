@@ -85,6 +85,9 @@ end
 
 ####################  rules  ######################################
 
+@type_decl UnitRange 2    # to allow parsing of things like a[1:5], for i in 2:7
+
+
 # addition
 @deriv_rule +(x::Real         , y::Real )            x     ds
 @deriv_rule +(x::Real         , y::AbstractArray)    x     sum(ds)

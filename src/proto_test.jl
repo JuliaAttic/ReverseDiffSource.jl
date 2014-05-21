@@ -1,4 +1,15 @@
 ################## setindex  #######################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    m.tograph(:( z=a[12] ))
+    m.tograph(:( z=a[i]  ))
+    m.tograph(:( z=a[i,12] ))
+    m.tograph(:( z=a[i,:] ))
+    m.tograph(:( z=a[i,end] ))
+    m.tograph(:( z=a[1:3] ))
+    m.tograph(:( z=a[1:end-1] ))
+
+
+
     ex = quote
         a=zeros(2)
         a[2] = x 
@@ -23,18 +34,20 @@
         sum(a) + z
     end
 
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
 
-    g = tm.tograph(ex)
-    tm.splitnary!(g)
-    tm.simplify!(g)
-    tm.prune!(g, {g.set_inodes.vk[nothing]})
-    tm.tocode(g)
+    g = m.tograph(ex)
+    m.splitnary!(g)
+    m.simplify!(g)
+    m.prune!(g, {g.set_inodes.vk[nothing]})
+    m.tocode(g)
 
-    tm.calc!(g, params={:b => ones(10)})
-    g.nodes
+    m.calc!(g, params={:b => ones(4)})
+    g
 
-    g2 = tm.reversegraph(g, g.set_inodes.vk[nothing], [:b])
+
+
+    g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:b])
     g.nodes = [ g.nodes, g2.nodes]
     collect(g.set_inodes)
     collect(g2.set_inodes)
@@ -82,7 +95,7 @@ ex = :(a = 4:5)
     g = m.tograph(ex)
     m.splitnary!(g)
     m.simplify!(g)
-    m.prune!(g, {g.set_inodes.vk[:z]})
+    m.prune!(g, {g.set_inodes.vk[:a]})
     m.tocode(g)
 
     m.calc!(g, params={:b => ones(5)})

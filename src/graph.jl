@@ -256,9 +256,10 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end
 
   evaluate(n::NConst) = n.main
-  evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
-                                     map(a->myeval(a), n.main)... ) )
-  evaluate(n::NDot)   = myeval( Expr(  :., n.parents[1].val, n.main) )
+  # evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
+  #                                    map(a->myeval(a), n.main)... ) )
+  evaluate(n::NRef)   = myeval( Expr(:ref , { x.val for x in n.parents}...))
+  evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
   evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
   evaluate(n::NIn)    = n.parents[1].val[n]

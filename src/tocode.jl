@@ -16,7 +16,7 @@ function tocode(g::ExGraph)
 		                       	  n.main, 
 		                       	  valueof(n.parents[2],n) }...)
 
-	translate(n::NRef)   = Expr(:ref, valueof(n.parents[1],n), n.main...)
+	translate(n::NRef)   = Expr(:ref, { valueof(x,n) for x in n.parents}...)
 	translate(n::NDot)   = Expr(:(.), valueof(n.parents[1],n), n.main)
 	translate(n::NIn)    = n.parents[1].val[n]
 
@@ -59,14 +59,18 @@ function tocode(g::ExGraph)
 	out = Expr[]
 	for n in g.nodes
 
+		println(n)
 	    # translate to Expr
 		n.val = translate(n)
+		print("+")
 
 		stat, lhs = ispivot(n, g)
+		print("+")
 
 	    if stat && isa(n, Union(NSRef, NSDot))
 	    	push!(out, n.val)
 	    	n.val = n.parents[1].val
+		print("+")
 
 	    elseif stat && isa(n, NFor)
    			push!(out, n.val)
@@ -77,11 +81,13 @@ function tocode(g::ExGraph)
 		      valdict[k] = g2.set_inodes.vk[sym].val
 		    end
 	        n.val = valdict
+		print("+")
 
 		elseif stat && (lhs != n.val)  
 			nlhs = lhs == nothing ? newvar() : lhs
 			push!(out, :( $nlhs = $(n.val) ))
 	        n.val = nlhs
+		print("+")
 
 	    end
 
@@ -90,8 +96,13 @@ function tocode(g::ExGraph)
 	return Expr(:block, out...)
 end 
 
-ancestors(ns::Vector, except=[]) = mapreduce(n -> ancestors(n,except), union, setdiff(ns, except))
-ancestors(ns::ExNode, except=[]) = union([ns], ancestors(ns.parents, except))
+# ancestors(ns::Vector, except=[]) = mapreduce(n -> ancestors(n,except), union, setdiff(ns, except))
+# ancestors(ns::ExNode, except=[]) = union([ns], ancestors(ns.parents, except))
+function ancestors(ns::Vector, except=[])
+    ss = setdiff(ns, except)
+    isempty(ss) ? [] : mapreduce(n -> ancestors(n,except), union, ss)
+end
+ancestors(ns, except=[]) = union([ns], ancestors(ns.parents, except))
 
 #  variable names assigned to this node
 function getnames(n::ExNode, g::ExGraph)

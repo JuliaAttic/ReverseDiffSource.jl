@@ -30,13 +30,15 @@ function tograph(s, svars::Vector{Any})
 
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
 
-	# explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
-	explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], map(explore, ex.args)))
 	explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
 
 	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
+	# explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
+	explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], map(explore, ex.args)))
+
 	function explore(ex::Symbol)
+		ex in {:(:), symbol("end")} && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
 		haskey(g.set_inodes.vk, ex) && return g.set_inodes.vk[ex]
 		haskey(g.ext_inodes.vk, ex) && return g.ext_inodes.vk[ex]
 

@@ -79,7 +79,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end		 
 
 	function rev(n::NRef)
-        v2 = addnode!(g2, NRef(n.main, [ dnodes[n.parents[1]] ]) )
+        v2 = addnode!(g2, NRef(n.main, [ dnodes[n.parents[1]], n.parents[2:end] ]) )
         v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
 		v4 = addnode!(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
 		dnodes[n.parents[1]] = v4
