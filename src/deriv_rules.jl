@@ -73,15 +73,6 @@ end
 
 #####  composite type - vector equivalence declaration  ######
 
-tdict = Dict()
-
-type_decl(typ::DataType, n::Real) = tdict[typ] = n
-
-# macro version
-macro type_decl(typ::Union(Symbol, Expr), n::Int)
-    type_decl(eval(Main, typ), n)
-end
-
 macro typeequiv(typ::Union(Symbol, Expr), n::Int)
     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
@@ -90,10 +81,8 @@ end
 
 ####################  rules  ######################################
 
-# @type_decl UnitRange 2    # to allow parsing of things like a[1:5], for i in 2:7
-# @type_decl UnitRange 2    # to allow parsing of things like a[1:5], for i in 2:7
-
 @typeequiv    Real     1    # derivatives of scalars are scalars
+@typeequiv    Range    2    # usualy not derived against but useful for reversegraph anyway
 
 # addition
 @deriv_rule +(x::Real         , y::Real )            x     ds

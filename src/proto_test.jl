@@ -7,10 +7,18 @@
     include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
     ex = quote
-        a=zeros(2)
-        a[2] = x 
+        a=zeros(5)
+        a[3:5] = x 
         sum(a)
     end
+
+a = reshape(1:6, (3,2))
+a[1:end-1, 2:end]
+
+getindex(a, 1:2, 1:2)
+getindex(a, 1:(end-1), 1:2)
+
+dump( :( a[1:end, 2:end]))
 
     ex = quote
         a = ones(5)
@@ -31,9 +39,6 @@
     end
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
-
-    m.@typeequiv Real 1
-    m.@typeequiv Range 2
 
     g = m.tograph(ex)
     m.splitnary!(g)
@@ -90,27 +95,20 @@
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
-ex = :(a = 4:5)
     g = m.tograph(ex)
     m.splitnary!(g)
     m.simplify!(g)
     m.prune!(g, {g.set_inodes.vk[:a]})
     m.tocode(g)
 
-    m.calc!(g, params={:b => ones(5)})
+    m.calc!(g, params={:b => ones(5), :x => 2.})
     g
-    typeof(g.nodes[1].val)
-    m.ispivot(g.nodes[3], g)
-    g.nodes[4].parents
-    g.nodes[5].parents
-
-
 
     g2 = m.reversegraph(g, g.set_inodes.vk[:a], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.set_inodes = m.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
     g.nodes
-    g.nodes[6].main[2].nodes
+    g.nodes[8].main[2]
     collect(g.nodes[6].main[2].set_inodes)  # Nin pour dx pas recrée
     m.tocode(g)
     m.prune!(g); m.tocode(g)

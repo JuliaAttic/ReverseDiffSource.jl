@@ -31,10 +31,11 @@ end
 
 # creates the starting points for derivatives accumulation variables
 function createzeronode!(g2::ExGraph, n)
-	isa(n, NConst) && return nothing  # not needed for constants
+	# isa(n, NConst) && return nothing  # not needed for constants
 
 	# d_equivnode_1 is the name of function returning dnodes constructors
 	#   as defined by calls to the macro @typeequiv
+
 	if method_exists(d_equivnode_1, (typeof(n.val),) )
 		rn = invoke(d_equivnode_1, (typeof(n.val),) , n.val)
     	dg, dd, de = rdict[ rn ]
@@ -126,7 +127,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	function rev(n::NFor)
 		fg  = copy(n.main[2])      # subgraph of for loop, copied to make new loop
 		fg2 = ExGraph()            # will contain dnodes
-		is  = n.main[1].args[1]    # symbol of loop index
+		# is  = n.main[1].args[1]    # symbol of loop index
+		is  = n.main[1]            # symbol of loop index
 
 		println("=== create zero nodes ===")
 		fdnodes = Dict()
@@ -204,7 +206,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# create for loop
 		println("=== create dfor node ===")
 		v2 = addnode!(g2, NFor({ n.main[1], fg}) )
-		v2.parents = [n.parent[1], collect( keys( fg.ext_onodes)) ]
+		v2.parents = [n.parents[1], collect( keys( fg.ext_onodes)) ]
 
 		# set_onodes = dnodes of fg's ingoing variables
 		# for ns2 in filter((k,v) -> haskey(fdnodes,n) & haskey(fg2.set_inodes,n), foutmap)

@@ -181,6 +181,15 @@ end
 @test fullcycle(:( b = a ; b[2] = x; 1 + b[2] )) == :(a[2] = x ; out = 1+a[2]) 
 @test fullcycle(:( b = a ; b[2] = x; 1 + b[1] )) == :(a[2] = x ; out = 1+a[1]) 
 @test fullcycle(:( a[1] + a[2] ))                == Expr(:block, :( out = a[1] + a[2]) )
+@test fullcycle(:( a[1:2] ))                     == Expr(:block, :( out = a[1:2]) )
+
+#  end not fully supported
+# @test fullcycle(:( a[1:end] ))                   == Expr(:block, :( out = a[1:end]) )            
+# @test fullcycle(:( a[1:end-1] ))                 == Expr(:block, :( out = a[1:end-1]) )         
+# @test fullcycle(:( a[1:end, 3, 10:15] ))         == Expr(:block, :( out = a[1:end, 3, 10:15]) )
+# @test fullcycle(:( a[1:end, :, 10:15] ))         == Expr(:block, :( out = a[1:end, :, 10:15]) )
+
+
 
 @test fullcycle(:( a.x ))                     == Expr(:block, :(out = a.x) )
 @test fullcycle(:( y = a.x ))                 == Expr(:block, :(y = a.x) )
