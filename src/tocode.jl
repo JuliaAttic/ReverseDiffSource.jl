@@ -43,7 +43,7 @@ function tocode(g::ExGraph)
 
 	function translate(n::NSRef)
 		np = n.parents
-    	:( $(Expr(:ref, valueof(np[1],n), n.main...)) = $(valueof(np[2],n)) ) 
+    	:( $(Expr(:ref, valueof(np[1],n), { valueof(x,n) for x in np[3:end]}...)) = $(valueof(np[2],n)) ) 
 	end
 
 	function translate(n::NSDot)
@@ -58,19 +58,14 @@ function tocode(g::ExGraph)
 	evalsort!(g)
 	out = Expr[]
 	for n in g.nodes
-
-		println(n)
 	    # translate to Expr
 		n.val = translate(n)
-		print("+")
 
 		stat, lhs = ispivot(n, g)
-		print("+")
 
 	    if stat && isa(n, Union(NSRef, NSDot))
 	    	push!(out, n.val)
 	    	n.val = n.parents[1].val
-		print("+")
 
 	    elseif stat && isa(n, NFor)
    			push!(out, n.val)
@@ -81,13 +76,11 @@ function tocode(g::ExGraph)
 		      valdict[k] = g2.set_inodes.vk[sym].val
 		    end
 	        n.val = valdict
-		print("+")
 
 		elseif stat && (lhs != n.val)  
 			nlhs = lhs == nothing ? newvar() : lhs
 			push!(out, :( $nlhs = $(n.val) ))
 	        n.val = nlhs
-		print("+")
 
 	    end
 

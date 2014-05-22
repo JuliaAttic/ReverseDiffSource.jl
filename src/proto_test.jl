@@ -1,14 +1,10 @@
 ################## setindex  #######################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
-    m.tograph(:( z=a[12] ))
-    m.tograph(:( z=a[i]  ))
-    m.tograph(:( z=a[i,12] ))
-    m.tograph(:( z=a[i,:] ))
-    m.tograph(:( z=a[i,end] ))
-    m.tograph(:( z=a[1:3] ))
-    m.tograph(:( z=a[1:end-1] ))
 
+    m.tograph(:(  a[5] ))
+    m.tograph(:(  a[5] = 3 ))
 
+    include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
     ex = quote
         a=zeros(2)
@@ -36,26 +32,29 @@
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
+    m.@typeequiv Real 1
+    m.@typeequiv Range 2
+
     g = m.tograph(ex)
     m.splitnary!(g)
     m.simplify!(g)
     m.prune!(g, {g.set_inodes.vk[nothing]})
     m.tocode(g)
 
-    m.calc!(g, params={:b => ones(4)})
+    m.calc!(g, params={:b => ones(4), :x => 2.0})
     g
 
-
-
-    g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:b])
+    g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:x])
+    g2
     g.nodes = [ g.nodes, g2.nodes]
     collect(g.set_inodes)
     collect(g2.set_inodes)
-    g.set_inodes = tm.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g.set_inodes = m.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g
     g.nodes
-    tm.tocode(g)
-    tm.prune!(g); tm.tocode(g)
-    tm.simplify!(g); tm.tocode(g)
+    m.tocode(g)
+    m.prune!(g); m.tocode(g)
+    m.simplify!(g); m.tocode(g)
 
     res = fullcycle(ex)
     @eval myf(x) = ($res; a)

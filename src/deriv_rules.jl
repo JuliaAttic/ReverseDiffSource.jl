@@ -67,6 +67,7 @@ end
 
 # macro version
 macro deriv_rule(func::Expr, dv::Symbol, diff)
+
     deriv_rule(func, dv, diff)
 end
 
@@ -81,12 +82,18 @@ macro type_decl(typ::Union(Symbol, Expr), n::Int)
     type_decl(eval(Main, typ), n)
 end
 
+macro typeequiv(typ::Union(Symbol, Expr), n::Int)
+    ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
+    deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
+end
 
 
 ####################  rules  ######################################
 
-@type_decl UnitRange 2    # to allow parsing of things like a[1:5], for i in 2:7
+# @type_decl UnitRange 2    # to allow parsing of things like a[1:5], for i in 2:7
+# @type_decl UnitRange 2    # to allow parsing of things like a[1:5], for i in 2:7
 
+@typeequiv    Real     1    # derivatives of scalars are scalars
 
 # addition
 @deriv_rule +(x::Real         , y::Real )            x     ds

@@ -94,15 +94,15 @@ g = m.tograph(ex)
 @test length(g.ext_onodes.kv) == 0
 
 g2 = g.nodes[7].main[2]  # first level loop
-@test sort(collect(values(g2.ext_inodes.kv))) == [:a, :b, :v, :x, :z]
+@test sort(collect(values(g2.ext_inodes.kv))) == [:a, :b, :i, :v, :x, :z]
 @test sort(collect(values(g2.set_inodes.kv))) == [:a, :t]
 @test sort(collect(values(g2.ext_onodes.kv))) == [:a, :b, :v, :x, :z]
 @test sort(collect(values(g2.set_onodes.kv))) == [:a]
 
 g3 = g2.nodes[7].main[2] # second level loop
-@test sort(collect(values(g3.ext_inodes.kv))) == [:a, :b, :t, :v, :z]
+@test sort(collect(values(g3.ext_inodes.kv))) == [:a, :b, :i, :t, :v, :z]
 @test sort(collect(values(g3.set_inodes.kv))) == [:a, :u]
-@test sort(collect(values(g3.ext_onodes.kv))) == [:a, :b, :t, :v, :z]
+@test sort(collect(values(g3.ext_onodes.kv))) == [:a, :b, :i, :t, :v, :z]
 @test sort(collect(values(g3.set_onodes.kv))) == [:a]
 
 m.resetvar()

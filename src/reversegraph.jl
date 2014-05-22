@@ -31,29 +31,54 @@ end
 
 # creates the starting points for derivatives accumulation variables
 function createzeronode!(g2::ExGraph, n)
-	if isa(n.val, Real)
-		return addnode!(g2, NConst(0.0))
+	isa(n, NConst) && return nothing  # not needed for constants
+
+	# d_equivnode_1 is the name of function returning dnodes constructors
+	#   as defined by calls to the macro @typeequiv
+	if method_exists(d_equivnode_1, (typeof(n.val),) )
+		rn = invoke(d_equivnode_1, (typeof(n.val),) , n.val)
+    	dg, dd, de = rdict[ rn ]
+    	smap = { dd[1] => n }  # map 'x' node to n
+    	exitnode = addgraph!(dg, g2, smap)
+
+    	return exitnode
 	
-	# Array of Real
-	elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
-		v1 = addnode!(g2, NCall(:size, [n]))
-		return addnode!(g2, NCall(:zeros, [v1]))
+	# try the array of defined types
+	elseif isa(n.val, Array) && method_exists(d_equivnode_1, (eltype(n.val),) )
+		rn = invoke(d_equivnode_1, (eltype(n.val),) , n.val[1])
+    	dg, dd, de = rdict[ rn ]
+    	smap = { dd[1] => n }  # map 'x' node to n
+    	exitnode = addgraph!(dg, g2, smap)
 
-	# Composite type
-	elseif haskey(tdict, typeof(n.val))   # known composite type
-		v1 = addnode!(g2, NConst( tdict[typeof(n.val)]) )
-		return addnode!(g2, NCall(:zeros, [v1]) )
+    	v1 = addnode!(g2, NCall(:size, [n]))
+		return addnode!(g2, NCall(:fill, [exitnode, v1]))
 
-	# Array of composite type
-	elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
-		v1 = addnode!(g2, NCall(:size, [n]) )
-		aa = ExNode[ addnode!(g2, NCall(:zeros, [v1]) )
-		               for i in 1:(tdict[eltype(n.val)]) ]
-		return addnode!(g2, NCall(:(Base.cell_1d), aa) )
-
-	else
-		isa(n, NConst) || error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
 	end
+
+	error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
+	# if isa(n.val, Real)
+	# 	return addnode!(g2, NConst(0.0))
+	
+	# # Array of Real
+	# elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
+	# 	v1 = addnode!(g2, NCall(:size, [n]))
+	# 	return addnode!(g2, NCall(:zeros, [v1]))
+
+	# # Composite type
+	# elseif haskey(tdict, typeof(n.val))   # known composite type
+	# 	v1 = addnode!(g2, NConst( tdict[typeof(n.val)]) )
+	# 	return addnode!(g2, NCall(:zeros, [v1]) )
+
+	# # Array of composite type
+	# elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
+	# 	v1 = addnode!(g2, NCall(:size, [n]) )
+	# 	aa = ExNode[ addnode!(g2, NCall(:zeros, [v1]) )
+	# 	               for i in 1:(tdict[eltype(n.val)]) ]
+	# 	return addnode!(g2, NCall(:(Base.cell_1d), aa) )
+
+	# else
+	# 	isa(n, NConst) || error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
+	# end
 end
 
 #  climbs the reversed evaluation tree
@@ -64,7 +89,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	function rev(n::NCall)
 		vargs = [ x.val for x in n.parents ]
 		for (index, arg) in enumerate(n.parents)
-            if !isa(arg, Union(NConst, NComp))
+			if !isa(arg, Union(NConst, NComp))
             	fn = dfuncname(n.main, index)
             	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
@@ -79,14 +104,14 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end		 
 
 	function rev(n::NRef)
-        v2 = addnode!(g2, NRef(n.main, [ dnodes[n.parents[1]], n.parents[2:end] ]) )
+        v2 = addnode!(g2, NRef("getidx",  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
         v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
-		v4 = addnode!(g2, NSRef(n.main, [dnodes[n.parents[1]], v3]) )
+		v4 = addnode!(g2, NSRef("setidx", [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
 		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NSRef)
-		v2 = addnode!(g2, NRef(n.main, [ dnodes[n] ]) )
+		v2 = addnode!(g2, NRef("getidx", [ dnodes[n] , n.parents[3:end] ]) )
 		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		dnodes[n.parents[2]] = v3
 	end
@@ -204,11 +229,12 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	evalsort!(g)
 	for n2 in reverse(g.nodes)
-		println("=======")
-		for n3 in g2.nodes
-			dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))
-			println(" $n3,  dn = $(repr(dn))")
-		end
+		println("======  $n2  ======")
+		println(g2)
+		# for n3 in g2.nodes
+		# 	dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))
+		# 	println(" $n3,  dn = $(repr(dn))")
+		# end
 
 		rev(n2)
 	end
