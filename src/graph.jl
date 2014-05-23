@@ -295,6 +295,8 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   # TODO : this control should be done at the deriv_rules.jl level
 
   ig = copy(src) # make a copy, update references
+  exitnode = ig.set_inodes.vk[nothing] # result of added subgraph
+
   evalsort!(ig)
 
   nmap = Dict()
@@ -302,6 +304,12 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
     if isa(n, NExt)
       if haskey(smap, n.main)
         nmap[n] = smap[n.main]
+
+        # should the exitnode be a NExt, it has to be updated
+        if n == exitnode
+          exitnode = nmap[n]
+        end
+
       else
         error("unmapped symbol in source graph $(n.main)")
       end
@@ -327,7 +335,8 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   end
 
   # return exitnode of subgraph
-  ig.set_inodes.vk[nothing]
+  # ig.set_inodes.vk[nothing]
+  exitnode
 end
 
 ###### plots graph using GraphViz

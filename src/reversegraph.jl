@@ -230,15 +230,15 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	evalsort!(g)
+	# println(g2)
 	for n2 in reverse(g.nodes)
 		println("======  $n2  ======")
-		println(g2)
+		rev(n2)
 		# for n3 in g2.nodes
 		# 	dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))
 		# 	println(" $n3,  dn = $(repr(dn))")
 		# end
-
-		rev(n2)
+		# println(g2)
 	end
 end
 

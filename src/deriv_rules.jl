@@ -84,6 +84,12 @@ end
 @typeequiv    Real     1    # derivatives of scalars are scalars
 @typeequiv    Range    2    # usualy not derived against but useful for reversegraph anyway
 
+@deriv_rule colon(x,y)   x     0.
+@deriv_rule colon(x,y)   y     0.
+@deriv_rule length(x)    x     0.
+
+@deriv_rule sqrt(x)    x     0.5 * x ^ (-0.5) * ds
+
 # addition
 @deriv_rule +(x::Real         , y::Real )            x     ds
 @deriv_rule +(x::Real         , y::AbstractArray)    x     sum(ds)

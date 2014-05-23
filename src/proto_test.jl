@@ -11,14 +11,8 @@
         a[3:5] = x 
         sum(a)
     end
-
-a = reshape(1:6, (3,2))
-a[1:end-1, 2:end]
-
-getindex(a, 1:2, 1:2)
-getindex(a, 1:(end-1), 1:2)
-
-dump( :( a[1:end, 2:end]))
+    # TODO : deriv incorrect when broadcasting,  a[3:5] = x and x scalar
+    m.reversediff(ex, x=2.0)
 
     ex = quote
         a = ones(5)
@@ -27,6 +21,7 @@ dump( :( a[1:end, 2:end]))
         c = sum(a)
         b + c
     end
+    m.reversediff(ex, x=1)
 
     ex = quote
         a=zeros(1+6)
@@ -37,6 +32,7 @@ dump( :( a[1:end, 2:end]))
         end
         sum(a) + z
     end
+    m.reversediff(ex, b=ones(6))
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
@@ -45,11 +41,16 @@ dump( :( a[1:end, 2:end]))
     m.simplify!(g)
     m.prune!(g, {g.set_inodes.vk[nothing]})
     m.tocode(g)
-
     m.calc!(g, params={:b => ones(4), :x => 2.0})
     g
 
     g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:x])
+
+    for (i,n) in enumerate(g2.nodes)
+        all( x -> in(x, g.nodes) || in(x, g2.nodes), n.parents) && continue
+        println("#$i  $n")
+    end
+
     g2
     g.nodes = [ g.nodes, g2.nodes]
     collect(g.set_inodes)
