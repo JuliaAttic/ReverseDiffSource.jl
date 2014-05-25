@@ -120,6 +120,16 @@ end
 # removes node nr and keeps node nk 
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
+  # this should not happen...
+  haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
+
+  # test if nr is associated to a variable
+  # if true, we create an NIn on nk, an associate var to it
+  if haskey(g.set_inodes, nr)
+    nn = addnode!(g, NIn(g.set_inodes[nr], [nk]))
+    g.set_inodes[nn] = g.set_inodes[nr]  # nn replaces nr as set_inode
+  end
+
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
     for i in 1:length(n.parents)
@@ -127,13 +137,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     end
   end
 
-  haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
-  if haskey(g.set_inodes, nr)
-    haskey(g.set_inodes, nk) && error("[fusenodes] $nk (nk) is a set_inode, can't remove $nr")
-    g.set_inodes[nk] = g.set_inodes[nr]  # nk replaces nr as set_inode
-  end
-
-  # now check for loops that may refer to nr
+  # now check for subgraphs that may refer to nr
   for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
     g2 = n.main[2]
 
@@ -146,6 +150,34 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 
   # remove node nr in g
   filter!(n -> n != nr, g.nodes)
+
+################### old version ########################""  
+  # # replace references to nr by nk in parents of other nodes
+  # for n in filter(n -> n != nr && n != nk, g.nodes)
+  #   for i in 1:length(n.parents)
+  #     n.parents[i] == nr && (n.parents[i] = nk)
+  #   end
+  # end
+
+  # haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
+  # if haskey(g.set_inodes, nr)
+  #   haskey(g.set_inodes, nk) && error("[fusenodes] $nk (nk) is a set_inode, can't remove $nr")
+  #   g.set_inodes[nk] = g.set_inodes[nr]  # nk replaces nr as set_inode
+  # end
+
+  # # now check for loops that may refer to nr
+  # for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
+  #   g2 = n.main[2]
+
+  #   haskey(g2.set_onodes, nr) && error("[fusenodes (for)] attempt to fuse out_onode $nr")
+  #   if haskey(g2.ext_onodes, nr)
+  #     haskey(g2.ext_onodes, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
+  #     g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
+  #   end  
+  # end
+
+  # # remove node nr in g
+  # filter!(n -> n != nr, g.nodes)
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
@@ -262,7 +294,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
   evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
-  evaluate(n::NIn)    = n.parents[1].val[n]
+
+  function evaluate(n::NIn)
+      isa(n.parents[1], NFor) && return n.parents[1].val[n]
+      n.parents[1].val
+  end
 
   function evaluate(n::NFor)
     g2 = n.main[2]

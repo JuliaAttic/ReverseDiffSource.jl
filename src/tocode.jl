@@ -18,7 +18,11 @@ function tocode(g::ExGraph)
 
 	translate(n::NRef)   = Expr(:ref, { valueof(x,n) for x in n.parents}...)
 	translate(n::NDot)   = Expr(:(.), valueof(n.parents[1],n), n.main)
-	translate(n::NIn)    = n.parents[1].val[n]
+
+	function translate(n::NIn)
+	    isa(n.parents[1], NFor) && return n.parents[1].val[n]
+	    return n.parents[1].val
+	end
 
 	function translate(n::NCall)
 	  	# special translation cases
@@ -89,8 +93,6 @@ function tocode(g::ExGraph)
 	return Expr(:block, out...)
 end 
 
-# ancestors(ns::Vector, except=[]) = mapreduce(n -> ancestors(n,except), union, setdiff(ns, except))
-# ancestors(ns::ExNode, except=[]) = union([ns], ancestors(ns.parents, except))
 function ancestors(ns::Vector, except=[])
     ss = setdiff(ns, except)
     isempty(ss) ? [] : mapreduce(n -> ancestors(n,except), union, ss)
@@ -159,17 +161,3 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	return (false, nothing)
 end
 
-	# nbref = 0	
-	# for n2 in filter(x -> n in x.parents, g.nodes)
-	# 	np = sum(i -> i == n, n2.parents)
-	# 	(np == 0) && continue
-
-	# 	isa(n2, NFor) && (nbref=2 ; break)   # force assignment if used in for loops
-	# 	isa(n2, Union(NSRef, NSDot, NRef, NDot)) && 
-	# 		n2.parents[1] == n && (nbref = 2 ; break )  # force if setindex/setfield applies to it
-
-	# 	nbref += np
-	# 	(nbref >= 2) && break  # if used more than once
-	# end
-
-	# nbref > 1 && return (true, getnames(n, g))

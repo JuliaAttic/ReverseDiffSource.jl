@@ -4,8 +4,15 @@
     m.tograph(:(  a[5] ))
     m.tograph(:(  a[5] = 3 ))
 
-    g = m.tograph(:(  α = 3.0 ; β = α ))
-    g.set_inodes
+    g = m.tograph(:(  α = x ; β = α ; γ = α)) 
+    m.reversediff( :(  α = x ; β = α ; γ = α), :α, x=1)  # correct
+    m.reversediff( :(  α = x ; β = α ; γ = α), :β, x=1)  # faux !
+    m.reversediff( :(  α = x ; β = α ; γ = α), :γ, x=1)  # faux !
+
+    m.tocode(g)
+
+    g = m.tograph(:(  α = fill(x,5) ; β = α[2] ))
+    [collect(values(g.set_inodes))]
 
 
     include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
@@ -43,7 +50,7 @@
     g = m.tograph(ex)
     m.splitnary!(g)
     m.simplify!(g)
-    m.prune!(g, {g.set_inodes.vk[nothing]})
+    m.prune!(g, {g.set_inodes.vk[:α]})
     m.tocode(g)
     m.calc!(g, params={:b => ones(4), :x => 2.0})
     g

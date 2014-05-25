@@ -55,6 +55,11 @@ function tograph(s, svars::Vector{Any})
 		if isSymbol(lhs)
 			lhss = lhs
 			rhn  = explore(ex.args[2])
+			# we test if RHS has already a symbol
+			# if it does, to avoid loosing it, we create an NIn node
+			if haskey(g.set_inodes, rhn) 
+				rhn = addnode!(g, NIn(lhss, [rhn]))
+			end
 
 		elseif isRef(lhs)
 			lhss = lhs.args[1]
