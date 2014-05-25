@@ -42,7 +42,7 @@ function reversediff(ex, outsym=nothing; init...)
     println("=== prune2")
     prune!(g)
     println("=== simplify2")
-    # simplify!(g)
+    simplify!(g)
 
     resetvar()
 

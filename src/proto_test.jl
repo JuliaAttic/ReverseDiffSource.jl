@@ -4,6 +4,10 @@
     m.tograph(:(  a[5] ))
     m.tograph(:(  a[5] = 3 ))
 
+    g = m.tograph(:(  α = 3.0 ; β = α ))
+    g.set_inodes
+
+
     include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
     ex = quote
@@ -236,8 +240,30 @@
 
 ############### double loop   ################################
 
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
     ex = quote
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += x
+            end
+        end
+        a
+    end
+
+    v, b = 2., ones(10)
+    res = m.reversediff(ex, x=1.0)
+
+    @eval exref(x) = ($ex )
+    @eval exrds(x) = ($res ; (out, dx))
+
+    exref(3)
+    exref(4)
+    exrds(3)
+
+
+    ex = quote                #  issue here, a is rewritten but derivation sums over all loops
         a=zeros(10) ; z = 12 
         for i in 1:10
             t = x+z
@@ -249,38 +275,17 @@
         sum(a)
     end
 
+    v, b = 2., ones(10)
+    res = m.reversediff(ex, x=1.0)
 
-    g = tm.tograph(ex);
-    tm.splitnary!(g)
-    tm.simplify!(g) ; tm.tocode(g)
-    tm.calc!(g, params = {:x => 4, :v => 1, :b =>zeros(10)})
-    g.nodes
+    @eval exref(x) = ($ex )
+    @eval exrds(x) = ($res ; (out, dx))
 
-    g2 = tm.reversegraph(g, g.set_inodes.vk[nothing], [:x])
-    g.nodes = [ g.nodes, g2.nodes]
-    g.setmap = merge(g.setmap, g2.setmap)
-    tm.tocode(g)
+    exref(3)
+    exref(4)
+    exrds(3)
 
-    tm.prune!(g); tm.tocode(g)
 
-    g.nodes
-
-    g2 = tm.copy(g)
-
-    tm.simplify!(g); tm.tocode(g)
-
-    g = tm.tograph(ex)
-    collect(keys(g.inmap))
-    tm.calc!(g, params= {:v => 1., :b => -1, :x => 4})
-    g.setmap[:a].val
-
-    collect(keys(g.inmap))
-    collect(keys(g.outmap))
-    collect(keys(g.setmap))
-    g.nodes
-    tm.evalsort!(g)
-    tm.tocode(g)
-    g.setmap[:a]
 
 
 ##############   tests for composite types    #####################
