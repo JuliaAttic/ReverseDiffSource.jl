@@ -124,17 +124,10 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
 
   # test if nr is associated to a variable
-  # if true, we create an NIn on nk, an associate var to it
+  # if true, we create an NIn on nk, and associate var to it
   if haskey(g.set_inodes, nr)
     nn = addnode!(g, NIn(g.set_inodes[nr], [nk]))
     g.set_inodes[nn] = g.set_inodes[nr]  # nn replaces nr as set_inode
-  end
-
-  # replace references to nr by nk in parents of other nodes
-  for n in filter(n -> n != nr && n != nk, g.nodes)
-    for i in 1:length(n.parents)
-      n.parents[i] == nr && (n.parents[i] = nk)
-    end
   end
 
   # now check for subgraphs that may refer to nr
@@ -147,6 +140,15 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
     end  
   end
+
+  # replace references to nr by nk in parents of other nodes
+  for n in filter(n -> n != nr && n != nk, g.nodes)
+    for i in 1:length(n.parents)
+      n.parents[i] == nr && (n.parents[i] = nk)
+    end
+  end
+
+  # TODO : should cleanup onodes too ! (in case we are in a subgraph)
 
   # remove node nr in g
   filter!(n -> n != nr, g.nodes)

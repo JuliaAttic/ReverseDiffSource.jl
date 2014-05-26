@@ -45,6 +45,43 @@
     end
     m.reversediff(ex, b=ones(6))
 
+    ex = quote
+        a=0.
+        b=0.
+        for i in 1:4
+            a += x
+            b += 2x
+        end
+        a + b
+    end
+    m.reversediff(ex, x=1.0)
+    g = m.tograph(ex)
+    m.splitnary!(g)
+    m.simplify!(g)
+    m.prune!(g, {g.set_inodes.vk[nothing]})
+    m.tocode(g)
+    m.calc!(g, params={:x => 1.0})
+    g
+
+    g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:x])
+    append!(g.nodes, g2.nodes)
+    g.set_inodes = m.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g
+    m.tocode(g)
+    m.prune!(g); m.tocode(g)
+    m.simplify!(g); m.tocode(g)
+    g
+
+    m.markalloc!(g)
+    m.evalsort!(g)
+    g
+    map(n -> n.alloc, g.nodes[[11,12]])
+    collect(keys(g.nodes[14].main[2].ext_onodes))
+    collect(values(g.nodes[14].main[2].ext_onodes))
+    collect(values(g.nodes[14].main[2].set_onodes))
+    g.nodes[14].main[2]
+    map(n -> n.alloc, g.nodes[[8,9,6,9]])
+
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     g = m.tograph(ex)
