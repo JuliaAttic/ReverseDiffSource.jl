@@ -67,7 +67,6 @@ end
 
 # macro version
 macro deriv_rule(func::Expr, dv::Symbol, diff)
-
     deriv_rule(func, dv, diff)
 end
 

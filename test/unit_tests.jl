@@ -131,7 +131,6 @@ function fullcycle(ex)
 
     length(g.set_inodes.kv) == 0 && error("nothing defined here")
 
-
     # keep last evaluated only for testing
     m.evalsort!(g)
     lastnode = (g.nodes[1], :out)
@@ -183,12 +182,17 @@ end
 @test fullcycle(:( a[1] + a[2] ))                == Expr(:block, :( out = a[1] + a[2]) )
 @test fullcycle(:( a[1:2] ))                     == Expr(:block, :( out = a[1:2]) )
 
-#  end not fully supported
+
+@test fullcycle(:( a = x ; b = a ))              == Expr(:block, :( b = x ) )
+@test fullcycle(:( a = x ; b = a ; a + b))       == Expr(:block, :( out = x+x ) )
+# @test fullcycle(:( a = x ; b = a ; c = b ; b))   == Expr(:block, :( out = x ) )  # problem here !
+
+
+#  'end' and ':' not fully supported
 # @test fullcycle(:( a[1:end] ))                   == Expr(:block, :( out = a[1:end]) )            
 # @test fullcycle(:( a[1:end-1] ))                 == Expr(:block, :( out = a[1:end-1]) )         
 # @test fullcycle(:( a[1:end, 3, 10:15] ))         == Expr(:block, :( out = a[1:end, 3, 10:15]) )
 # @test fullcycle(:( a[1:end, :, 10:15] ))         == Expr(:block, :( out = a[1:end, :, 10:15]) )
-
 
 
 @test fullcycle(:( a.x ))                     == Expr(:block, :(out = a.x) )

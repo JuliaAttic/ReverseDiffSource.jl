@@ -124,6 +124,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		dnodes[n.parents[1]] = v4
 	end
 
+	function rev(n::NIn)
+		isa(n.parents[1], NFor) && return nothing  # do nothing in the case of for loops
+
+        v2 = addnode!(g2, NCall(:+, [dnodes[n], dnodes[n.parents[1]]]) )
+		dnodes[n.parents[1]] = v2
+	end
+
 	function rev(n::NFor)
 		fg  = copy(n.main[2])      # subgraph of for loop, copied to make new loop
 		fg2 = ExGraph()            # will contain dnodes
@@ -184,7 +191,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			fg.set_inodes[ fdnodes[ni] ] = sym
 		end
 
-	println("=== fg  1 ===")
+	# println("=== fg  1 ===")
 	# println(fg.nodes)
 	# println("ndmap = $(collect(ndmap))")
 	# println("fdnodes = $(collect(fdnodes))")
@@ -195,7 +202,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		prune!(fg) # reduce to derivatives evaluation only
 
-	println("=== fg  2 ===")
+	# println("=== fg  2 ===")
 	# println(fg.nodes)
 	# println("ndmap = $(collect(ndmap))")
 	# println("fdnodes = $(collect(fdnodes))")
@@ -204,7 +211,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	# println("oext = $(collect(fg.ext_onodes.kv))")
 	# println("oset = $(collect(fg.set_onodes.kv))")
 		# create for loop
-		println("=== create dfor node ===")
+		# println("=== create dfor node ===")
 		v2 = addnode!(g2, NFor({ n.main[1], fg}) )
 		v2.parents = [n.parents[1], collect( keys( fg.ext_onodes)) ]
 
@@ -212,13 +219,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# for ns2 in filter((k,v) -> haskey(fdnodes,n) & haskey(fg2.set_inodes,n), foutmap)
 		fg.set_onodes = BiDict{ExNode, Any}()
 		for (ns2, (sym, on)) in ndmap
-			rn = addnode!(g2, NIn("dout", [v2]))  # external node, receiving loop result
+			rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
 			fdn = fdnodes[ns2]                    # final node in loop containing derivative
 			fg.set_onodes[rn] = sym
 			dnodes[on] = rn 
 		end
 
-	println("=== fg  3 ===")
+	# println("=== fg  3 ===")
 	# println(fg.nodes)
 	# println("ndmap = $(collect(ndmap))")
 	# println("fdnodes = $(collect(fdnodes))")
@@ -232,7 +239,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	evalsort!(g)
 	# println(g2)
 	for n2 in reverse(g.nodes)
-		println("======  $n2  ======")
+		# println("======  $n2  ======")
 		rev(n2)
 		# for n3 in g2.nodes
 		# 	dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))

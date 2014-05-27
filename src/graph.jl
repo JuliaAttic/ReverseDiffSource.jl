@@ -121,23 +121,31 @@ end
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   # this should not happen...
-  haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
+  @assert !haskey(g.ext_inodes, nr) "[fusenodes] attempt to fuse ext_inode $nr"
 
   # test if nr is associated to a variable
   # if true, we create an NIn on nk, and associate var to it
   if haskey(g.set_inodes, nr)
     nn = addnode!(g, NIn(g.set_inodes[nr], [nk]))
     g.set_inodes[nn] = g.set_inodes[nr]  # nn replaces nr as set_inode
+
+    if haskey(g.set_onodes, nr)   # change onodes too (if we are in a subgraph)
+      g.set_onodes[nn] = g.set_onodes[nr]  # nn replaces nr as set_onode
+    end  
   end
 
-  # now check for subgraphs that may refer to nr
+  # same for references to nr in subgraphs
   for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
     g2 = n.main[2]
 
-    haskey(g2.set_onodes, nr) && error("[fusenodes (for)] attempt to fuse out_onode $nr")
+    # this should not happen...
+    @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+
     if haskey(g2.ext_onodes, nr)
-      haskey(g2.ext_onodes, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
-      g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
+      nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
+      g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
+      # haskey(g2.ext_onodes, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
+      # g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
     end  
   end
 
