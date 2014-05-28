@@ -1,13 +1,25 @@
 ################## setindex  #######################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
+    include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
     m.tograph(:(  a[5] ))
     m.tograph(:(  a[5] = 3 ))
 
     g = m.tograph(:(  α = x ; β = α ; γ = α)) 
+    m.plot(g)
+
     m.reversediff( :(  α = x ; β = α ; γ = α), :α, x=1)  # correct
     m.reversediff( :(  α = x ; β = α ; γ = α), :β, x=1)  # ok, corrigé
     m.reversediff( :(  α = x ; β = α ; γ = α), :γ, x=1)  # ok, corrigé
+    res = m.reversediff( :(  α = zeros(5,2) ; α[2:4,1:2] = x ; sum(α)), x=1) 
+    @eval myf(x) = ($res ; (out, dx))
+    myf(3)
+
+    res = m.reversediff( :(  α = 1. ; for i in 1:3 ; α *= x ; end; α), x=1) 
+    @eval myf(x) = ($res ; (out, dx))
+    myf(2)
+    myf(2.001)
+    myf(3)
 
     (x = 1 ; α = x ; α += 1 ; x + α)
     (x = [1] ; α = x ; α += 1 ; x + α)
@@ -16,7 +28,6 @@
     [collect(values(g.set_inodes))]
 
 
-    include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
     ex = quote
         a=zeros(5)
@@ -384,3 +395,81 @@
     exref(1.001)
     exrds(1.)
 
+
+##############   tests for nth order derivation    #################
+
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
+
+    function diff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+
+        length(params) >= 1 || error("There should be at least one parameter specified, none found")
+        order <= 1 || length(params) == 1 || error("Only one param allowed for order >= 2")
+        order <= 1 || isa(params[1][2], Vector) || error("Param should be a vector for order >= 2")
+
+        paramsym = Symbol[ e[1] for e in params]
+        paramvalues = [ e[2] for e in params]
+
+        println("=== tograph")
+        g = m.tograph(ex)
+
+        haskey(g.set_inodes.vk, outsym) || error("can't find output var $outsym")
+        exitnode = g.set_inodes.vk[outsym]
+
+        m.splitnary!(g)
+        m.prune!(g, [exitnode])
+        m.simplify!(g)
+        m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+
+        ov = exitnode.val 
+        isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+        voi = { exitnode }
+        if order == 1
+            dg = m.reversegraph(g, voi[1], paramsym)
+            m.append!(g.nodes, dg.nodes)
+            nn = m.addnode!( g, m.NCall(:tuple, collect(keys(dg.set_inodes))) )
+            push!(voi, nn)
+            g.set_inodes[nn] = :d
+
+            m.splitnary!(g)
+            m.prune!(g, voi)
+            m.simplify!(g)
+
+        else
+            for i in 1:order
+                println("=== reversegraph  $i")
+
+                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+
+                dg = m.reversegraph(g, voi[i], paramsym)
+                m.append!(g.nodes, dg.nodes)
+
+                g.set_inodes = m.BiDict(merge(g.set_inodes.kv, dg.set_inodes.kv))
+
+                m.splitnary!(g)
+                println("=== prune2")
+                m.prune!(g)
+                println("=== simplify2")
+                m.simplify!(g)
+            end
+        end
+
+        ex = m.addnode!(g, m.NCall(:tuple, voi))
+        g.set_inodes = m.BiDict(Dict{m.ExNode,Any}( [ex], [:out]) )
+
+        m.resetvar()
+        println("=== tocode")
+        m.tocode(g)
+    end
+
+
+diff( :(sin(x^2-log(y))) , x=2., y=1.)
+diff( :(sin(x^2-log(y))) , x=2., y=1., order=0)
+diff( :(sin(x[1])) , order=2, x=[2.])
+
+
+prod( [(3,4)...])
+
+
+dump( :( (1, "abcd") ) )

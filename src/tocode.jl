@@ -32,6 +32,8 @@ function tocode(g::ExGraph)
 	  		return Expr(:(:), { valueof(x,n) for x in n.parents}...)
 	  	elseif n.main == :transpose
 	  		return Expr(symbol("'"), valueof(n.parents[1], n) )
+	  	elseif n.main == :tuple
+	  		return Expr(:tuple, { valueof(x,n) for x in n.parents}... )
 		end
 
 		# default translation
@@ -85,6 +87,9 @@ function tocode(g::ExGraph)
 			nlhs = lhs == nothing ? newvar() : lhs
 			push!(out, :( $nlhs = $(n.val) ))
 	        n.val = nlhs
+
+		# elseif n == g.nodes[end]  # if last statement, evaluate anyway
+		# 	push!(out, :( $(n.val) ) )
 
 	    end
 

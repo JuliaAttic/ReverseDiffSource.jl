@@ -31,8 +31,6 @@ end
 
 # creates the starting points for derivatives accumulation variables
 function createzeronode!(g2::ExGraph, n)
-	# isa(n, NConst) && return nothing  # not needed for constants
-
 	# d_equivnode_1 is the name of function returning dnodes constructors
 	#   as defined by calls to the macro @typeequiv
 
@@ -57,33 +55,11 @@ function createzeronode!(g2::ExGraph, n)
 	end
 
 	error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
-	# if isa(n.val, Real)
-	# 	return addnode!(g2, NConst(0.0))
-	
-	# # Array of Real
-	# elseif isa(n.val, Array{Float64}) | isa(n.val, Array{Int})
-	# 	v1 = addnode!(g2, NCall(:size, [n]))
-	# 	return addnode!(g2, NCall(:zeros, [v1]))
-
-	# # Composite type
-	# elseif haskey(tdict, typeof(n.val))   # known composite type
-	# 	v1 = addnode!(g2, NConst( tdict[typeof(n.val)]) )
-	# 	return addnode!(g2, NCall(:zeros, [v1]) )
-
-	# # Array of composite type
-	# elseif isa( n.val, Array) && haskey(tdict, eltype(n.val))  
-	# 	v1 = addnode!(g2, NCall(:size, [n]) )
-	# 	aa = ExNode[ addnode!(g2, NCall(:zeros, [v1]) )
-	# 	               for i in 1:(tdict[eltype(n.val)]) ]
-	# 	return addnode!(g2, NCall(:(Base.cell_1d), aa) )
-
-	# else
-	# 	isa(n, NConst) || error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
-	# end
 end
 
 #  climbs the reversed evaluation tree
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
+	# TODO : update precedence field when creating NSRef / NSDot / NFor
 
 	rev(n::ExNode) = nothing  # do nothing
 
@@ -113,6 +89,15 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NSRef)
 		v2 = addnode!(g2, NRef("getidx", [ dnodes[n] , n.parents[3:end] ]) )
+		
+		# treat case where a single value is allocated to several array elements
+		if length(dnodes[n.parents[2]].val) == 1 
+			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
+			if sz > 1
+				v2 = addnode!(g2, NCall(:sum, [ v2]))
+			end
+		end
+
 		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		dnodes[n.parents[2]] = v3
 	end
@@ -134,10 +119,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	function rev(n::NFor)
 		fg  = copy(n.main[2])      # subgraph of for loop, copied to make new loop
 		fg2 = ExGraph()            # will contain dnodes
-		# is  = n.main[1].args[1]    # symbol of loop index
 		is  = n.main[1]            # symbol of loop index
 
-		println("=== create zero nodes ===")
 		fdnodes = Dict()
 		ndmap = Dict()
 		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
@@ -181,9 +164,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 		# builds the graph for derivatives calculations
-		println("===  reverse pass ===")
 		reversepass!(fg2, fg, fdnodes)
-		fg.nodes = [ fg.nodes, fg2.nodes]
+		append!(fg.nodes, fg2.nodes)
 		
 		# variables of interest are derivatives only
 		fg.set_inodes = BiDict{ExNode, Any}()
@@ -210,17 +192,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	# println("set = $(collect(fg.set_inodes.kv))")
 	# println("oext = $(collect(fg.ext_onodes.kv))")
 	# println("oset = $(collect(fg.set_onodes.kv))")
+
 		# create for loop
-		# println("=== create dfor node ===")
 		v2 = addnode!(g2, NFor({ n.main[1], fg}) )
 		v2.parents = [n.parents[1], collect( keys( fg.ext_onodes)) ]
 
 		# set_onodes = dnodes of fg's ingoing variables
-		# for ns2 in filter((k,v) -> haskey(fdnodes,n) & haskey(fg2.set_inodes,n), foutmap)
 		fg.set_onodes = BiDict{ExNode, Any}()
 		for (ns2, (sym, on)) in ndmap
 			rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
-			fdn = fdnodes[ns2]                    # final node in loop containing derivative
+			fdn = fdnodes[ns2]                 # final node in loop containing derivative
 			fg.set_onodes[rn] = sym
 			dnodes[on] = rn 
 		end

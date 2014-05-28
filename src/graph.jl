@@ -144,50 +144,21 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     if haskey(g2.ext_onodes, nr)
       nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
       g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
-      # haskey(g2.ext_onodes, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
-      # g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
     end  
   end
 
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
-    for i in 1:length(n.parents)
-      n.parents[i] == nr && (n.parents[i] = nk)
+    for (i, n2) in enumerate(n.parents)
+      n2 == nr && (n.parents[i] = nk)
+    end
+    for (i, n2) in enumerate(n.precedence)
+      n2 == nr && (n.precedence[i] = nk)
     end
   end
 
-  # TODO : should cleanup onodes too ! (in case we are in a subgraph)
-
   # remove node nr in g
   filter!(n -> n != nr, g.nodes)
-
-################### old version ########################""  
-  # # replace references to nr by nk in parents of other nodes
-  # for n in filter(n -> n != nr && n != nk, g.nodes)
-  #   for i in 1:length(n.parents)
-  #     n.parents[i] == nr && (n.parents[i] = nk)
-  #   end
-  # end
-
-  # haskey(g.ext_inodes, nr) && error("[fusenodes] attempt to fuse ext_inode $nr")
-  # if haskey(g.set_inodes, nr)
-  #   haskey(g.set_inodes, nk) && error("[fusenodes] $nk (nk) is a set_inode, can't remove $nr")
-  #   g.set_inodes[nk] = g.set_inodes[nr]  # nk replaces nr as set_inode
-  # end
-
-  # # now check for loops that may refer to nr
-  # for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
-  #   g2 = n.main[2]
-
-  #   haskey(g2.set_onodes, nr) && error("[fusenodes (for)] attempt to fuse out_onode $nr")
-  #   if haskey(g2.ext_onodes, nr)
-  #     haskey(g2.ext_onodes, nk) && error("[fusenodes (for)] $nk (nk) already in map, can't remove $nr")
-  #     g2.ext_onodes[nk] = g2.ext_onodes[nr] # nk replaces nr as ext_onode
-  #   end  
-  # end
-
-  # # remove node nr in g
-  # filter!(n -> n != nr, g.nodes)
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
@@ -385,90 +356,3 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   exitnode
 end
 
-###### plots graph using GraphViz
-function plot(g::ExGraph)
-
-  gshow(n::NConst) = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"square\", style=filled, fillcolor=\"lightgreen\"];"
-  gshow(n::NExt)   = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"circle\", style=filled, fillcolor=\"orange\"];"
-  gshow(n::NCall)  = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"box\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NComp)  = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"box\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NRef)   = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"rarrow\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NDot)   = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"rarrow\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NSRef)  = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"larrow\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NSDot)  = 
-    "$(nn[n]) [label=\"$(n.main)\", shape=\"larrow\", style=filled, fillcolor=\"lightblue\"];"
-  gshow(n::NIn)    = 
-    "$(nn[n]) [label=\"in\", shape=\"box3d\", style=filled, fillcolor=\"pink\"];"
-
-  nn = Dict() # node names for GraphViz
-  i = 1
-  out = ""
-  for n in g.nodes
-    if isa(n, NFor)  # FIXME : will fail for nested for loops
-      nn[n] = "cluster_$i"
-      i += 1
-      out = out * """
-          subgraph $(nn[n]) { label=\"for $(n.main[1])\" ; 
-          color=pink;
-        """
-
-      # for n2 in filter(n -> !isa(n, NExt), n.main[2].nodes)
-      for n2 in n.main[2].nodes
-          nn[n2] = "n$i"
-        i += 1
-        out = out * gshow(n2)
-      end
-
-      out = out * "};"
-    else
-      nn[n] = "n$i"
-      i += 1
-      out = out * gshow(n)
-    end 
-  end
-
-  for n in g.nodes 
-    if isa(n, NFor)  # FIXME : will fail for nested for loops
-      g2 = n.main[2]
-      for n2 in g2.nodes
-        if isa(n2, NExt)
-          p = g2.inmap[n2]
-              out = out * "$(nn[p]) -> $(nn[n2]) [style=dashed];"
-        else  
-            for p in n2.parents
-              out = out * "$(nn[p]) -> $(nn[n2]);"
-            end
-        end
-
-        if haskey(g2.outmap, n2)
-          p = g2.outmap[n2]
-              out = out * "$(nn[n2]) -> $(nn[p]) [style=dashed];"
-            end
-
-        if haskey(g2.link, n2)
-          p = g2.link[n2]
-              out = out * "$(nn[n2]) -> $(nn[p]) [style=dotted, color=\"blue\"];"
-            end
-
-      end
-    else
-        for p in filter(n -> !isa(n, NFor), n.parents)
-            out = out * "$(nn[p]) -> $(nn[n]);"
-        end
-    end 
-  end
-
-  for (el, en) in g.setmap
-      out = out * "n$el [label=\"$el\", shape=\"note\", stype=filled, fillcolor=\"lightgrey\"];"
-      out = out * "$(nn[en]) -> n$el [ style=dotted];"
-  end
-
-  "digraph gp {layout=dot; $out }"
-end
