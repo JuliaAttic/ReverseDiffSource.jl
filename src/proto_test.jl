@@ -8,6 +8,8 @@
     g = m.tograph(:(  α = x ; β = α ; γ = α)) 
     m.plot(g)
 
+
+
     m.reversediff( :(  α = x ; β = α ; γ = α), :α, x=1)  # correct
     m.reversediff( :(  α = x ; β = α ; γ = α), :β, x=1)  # ok, corrigé
     m.reversediff( :(  α = x ; β = α ; γ = α), :γ, x=1)  # ok, corrigé
@@ -34,7 +36,6 @@
         a[3:5] = x 
         sum(a)
     end
-    # TODO : deriv incorrect when broadcasting,  a[3:5] = x and x scalar
     m.reversediff(ex, x=2.0)
 
     ex = quote
@@ -403,9 +404,15 @@
 
     function diff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
+        # ex = :(sin(x)) ; order=2 ; evalmod=Main ; params = [(:x, 1.)]; outsym=nothing
+
         length(params) >= 1 || error("There should be at least one parameter specified, none found")
-        order <= 1 || length(params) == 1 || error("Only one param allowed for order >= 2")
-        order <= 1 || isa(params[1][2], Vector) || error("Param should be a vector for order >= 2")
+        order <= 1 || 
+            length(params) == 1 || error("Only one param allowed for order >= 2")
+        order <= 1 || 
+            isa(params[1][2], Vector) || 
+            isa(params[1][2], Real) || 
+            error("Param should be a real or vector for order >= 2")
 
         paramsym = Symbol[ e[1] for e in params]
         paramvalues = [ e[2] for e in params]
@@ -413,49 +420,52 @@
         println("=== tograph")
         g = m.tograph(ex)
 
-        haskey(g.set_inodes.vk, outsym) || error("can't find output var $outsym")
+        haskey(g.set_inodes.vk, outsym) || 
+            error("can't find output var $( outsym==nothing ? "" : outsym)")
         exitnode = g.set_inodes.vk[outsym]
 
         m.splitnary!(g)
-        m.prune!(g, [exitnode])
+        m.prune!(g, [ g.set_inodes.vk[outsym] ])
         m.simplify!(g)
         m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
 
-        ov = exitnode.val 
+        ov = g.set_inodes.vk[outsym].val 
         isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
-        voi = { exitnode }
+        voi = { outsym }
         if order == 1
-            dg = m.reversegraph(g, voi[1], paramsym)
+            dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
             m.append!(g.nodes, dg.nodes)
             nn = m.addnode!( g, m.NCall(:tuple, collect(keys(dg.set_inodes))) )
-            push!(voi, nn)
-            g.set_inodes[nn] = :d
+            ns = m.newvar("_out")
+            g.set_inodes[nn] = ns
+            push!(voi, ns)
 
             m.splitnary!(g)
-            m.prune!(g, voi)
+            m.prune!(g)
             m.simplify!(g)
 
-        else
-            for i in 1:order
+        elseif order > 1
+            for i in 1:order  # i=1
                 println("=== reversegraph  $i")
 
-                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
-
-                dg = m.reversegraph(g, voi[i], paramsym)
-                m.append!(g.nodes, dg.nodes)
-
-                g.set_inodes = m.BiDict(merge(g.set_inodes.kv, dg.set_inodes.kv))
+                dg = m.reversegraph(g, g.set_inodes.vk[voi[i]], paramsym)
+                append!(g.nodes, dg.nodes)
+                nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
+                ns = m.newvar("_out")
+                g.set_inodes[nn] = ns
+                push!(voi, ns)
 
                 m.splitnary!(g)
-                println("=== prune2")
                 m.prune!(g)
-                println("=== simplify2")
                 m.simplify!(g)
+                
+                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
             end
         end
 
-        ex = m.addnode!(g, m.NCall(:tuple, voi))
+        voin = map( s -> g.set_inodes.vk[s], voi)
+        ex = m.addnode!(g, m.NCall(:tuple, voin))
         g.set_inodes = m.BiDict(Dict{m.ExNode,Any}( [ex], [:out]) )
 
         m.resetvar()
@@ -464,12 +474,10 @@
     end
 
 
-diff( :(sin(x^2-log(y))) , x=2., y=1.)
-diff( :(sin(x^2-log(y))) , x=2., y=1., order=0)
-diff( :(sin(x[1])) , order=2, x=[2.])
+diff( :(sin(x^2-log(y))) ,    x=2., y=1.)
+diff( :(sin(x^2-log(y))) ,    x=2., y=1., order=0)
+diff( :(sin(x))       , order=10, x=2.)
+
+diff( :(x^3)  , order=6, x=2.)
 
 
-prod( [(3,4)...])
-
-
-dump( :( (1, "abcd") ) )
