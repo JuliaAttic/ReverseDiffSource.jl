@@ -63,6 +63,7 @@ module ReverseDiffSource
   typealias ExIf       ExH{:if}
   typealias ExComp     ExH{:comparison}
   typealias ExDot      ExH{:.}
+  typealias ExTuple    ExH{:tuple}
 
   # variable symbol sampling functions
   getSymbols(ex::Any)    = Set{Symbol}()

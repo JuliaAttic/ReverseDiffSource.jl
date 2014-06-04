@@ -83,10 +83,24 @@ end
 @typeequiv    Real     1    # derivatives of scalars are scalars
 @typeequiv    Range    2    # usualy not derived against but useful for reversegraph anyway
 
+
+# derivation neutral functions
 @deriv_rule colon(x,y)   x     0.
 @deriv_rule colon(x,y)   y     0.
 @deriv_rule length(x)    x     0.
+@deriv_rule fill(x,y)    x     0.
+@deriv_rule fill(x,y)    y     0.
+@deriv_rule zeros(x)     x     0.
+@deriv_rule size(x)      x     0.
 
+
+#  tuple  TODO : add definitions of the type  @deriv_tuple  func(x...)
+@deriv_rule tuple(x)        x     ds[1]
+@deriv_rule tuple(x,y)      x     ds[1]
+@deriv_rule tuple(x,y)      y     ds[2]
+
+
+# square root
 @deriv_rule sqrt(x)    x     0.5 * x ^ (-0.5) * ds
 
 # addition

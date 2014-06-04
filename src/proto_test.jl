@@ -405,6 +405,7 @@
     function diff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
         # ex = :(sin(x)) ; order=2 ; evalmod=Main ; params = [(:x, 1.)]; outsym=nothing
+        ex = :( x[1]*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])]; outsym=nothing
 
         length(params) >= 1 || error("There should be at least one parameter specified, none found")
         order <= 1 || 
@@ -445,7 +446,7 @@
             m.prune!(g)
             m.simplify!(g)
 
-        elseif order > 1
+        elseif order > 1 && isa(paramvalues[1], Real)
             for i in 1:order  # i=1
                 println("=== reversegraph  $i")
 
@@ -462,6 +463,104 @@
                 
                 m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
             end
+
+        elseif order > 1 && isa(paramvalues[1], Vector)
+            sz = length( paramvalues[1] )
+
+            # do first order as usual
+            dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
+            m.append!(g.nodes, dg.nodes)
+            ns = m.newvar()
+            g.set_inodes[ collect(keys(dg.set_inodes))[1] ] = ns
+            push!(voi, ns)
+
+            m.splitnary!(g)
+            m.prune!(g)
+            m.simplify!(g)
+
+            for i in 2:order  # i=2
+                println("=== reversegraph  $i")
+
+                no = g.set_inodes.vk[voi[i]]
+                si = m.newvar()
+                ni = m.addnode!(g, m.NExt(si))
+                nn = m.addnode!(g, m.NRef(:pivot, [ no, ni ]))
+
+                dg = m.reversegraph(g, nn, paramsym)
+
+                #### we will now wrap dg in a loop scanning all the elements of no
+                nz = m.addnode!(g, m.NConst(sz))
+
+                dg2 = m.ExNode[]
+                nmap = Dict()
+                for n in dg.nodes
+                    for (j,np) in enumerate(n.parents)
+                        if haskey(nmap, np) # already remapped
+                            n.parents[j] = nmap[np]
+
+                        elseif np in g # it's not in dg (but in g)
+                            ns = m.newvar()
+                            nn = NExt(ns)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = ns
+                            dg.ext_onodes[np] = ns
+                            n.parents[j] = nn
+                            nmap[np] = nn
+
+                        elseif np == ni # it's the loop index
+                            nn = NExt(si)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = si
+                            n.parents[j] = nn
+                            nmap[np] = nn
+
+                        end    
+                    end
+                end
+                    
+                # m.tograph( :( for i in 1:sz ; end ) )
+                sa = m.newvar()
+                fex = quote
+                    sz = length( x )
+                    st = sz ^ $(i-1)
+                    $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
+                    for $si in 1:sz
+                        ($sa)[ (($si-1)*st+1):($si*st) ] = result
+                    end
+                    $sa
+                end
+                nr = m.addgraph!( m.tograph(fex), g, 
+                    { :sz => nz, :x => g.ext_inodes.vk[paramsym[1]] } )
+
+
+
+                nf = m.addnode!(g, m.NFor({ si, dg }), [nr] )  (graph(m.togra)
+                m.addgraph((node!
+                exs = collect(values(dg.set_inodes))[1]
+                ne = 
+
+                rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
+                g.set_inodes[rn] = sym              # signal we're setting the var
+                g2.set_onodes[rn] = sym
+
+
+
+                dg.set_onodes
+                for n in dg.nodes
+
+                append!(g.nodes, dg.nodes)
+                nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
+                ns = m.newvar("_out")
+                g.set_inodes[nn] = ns
+                push!(voi, ns)
+
+                m.splitnary!(g)
+                m.prune!(g)
+                m.simplify!(g)
+                
+                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+            end
+
         end
 
         voin = map( s -> g.set_inodes.vk[s], voi)
@@ -474,10 +573,11 @@
     end
 
 
-diff( :(sin(x^2-log(y))) ,    x=2., y=1.)
-diff( :(sin(x^2-log(y))) ,    x=2., y=1., order=0)
-diff( :(sin(x))       , order=10, x=2.)
-
-diff( :(x^3)  , order=6, x=2.)
+diff( :(sin(x^2-log(y))) ,       x=2.,  y=1.)
+diff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
+diff( :(sin(x))          ,   order=10,  x=2.)
+diff( :(x^3)             ,    order=6,  x=2.)
+diff( :(exp(x))          ,    order=6,  x=2.)
+diff( :(exp(-2x))        ,    order=6,  x=2.)
 
 

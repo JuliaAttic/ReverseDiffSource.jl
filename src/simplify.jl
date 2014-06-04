@@ -21,7 +21,9 @@ function simplify!(g::ExGraph, emod = Main)
 			rule3(n, g) ||
 			rule4(n, g) ||
 			rule5(n, g) ||
-			rule6(n, g)
+			rule6(n, g) ||
+			rule8(n, g) ||
+			rule9(n, g)
 		
 		if restart
 			markalloc!(g)
@@ -193,4 +195,30 @@ end
 # 	true
 # end
 
- 
+
+## change (-1 * x)  to  (-x) 
+function rule8(n, g)
+	!isa(n, NCall)             && return false
+	(length(n.parents) != 2)   && return false # restricted to binary ops
+	!in(n.main, [:*, :.*])     && return false
+	!isa(n.parents[1], NConst) && return false
+	(n.parents[1].main != -1)  && return false
+
+	nn = addnode!(g, NCall(:-, [n.parents[2]]) )
+	fusenodes(g, nn, n)
+	true
+end
+
+## change (x * -1)  to  (-x) 
+function rule9(n, g)
+	!isa(n, NCall)             && return false
+	(length(n.parents) != 2)   && return false # restricted to binary ops
+	!in(n.main, [:*, :.*])     && return false
+	!isa(n.parents[2], NConst) && return false
+	(n.parents[2].main != -1)  && return false
+
+	nn = addnode!(g, NCall(:-, [n.parents[1]]) )
+	fusenodes(g, nn, n)
+	true
+end
+
