@@ -396,7 +396,6 @@
     exref(1.001)
     exrds(1.)
 
-
 ##############   tests for nth order derivation    #################
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -481,43 +480,67 @@
             for i in 2:order  # i=2
                 println("=== reversegraph  $i")
 
+                # launch derivation on a single value of the preceding
+                #   derivation vector
                 no = g.set_inodes.vk[voi[i]]
                 si = m.newvar()
                 ni = m.addnode!(g, m.NExt(si))
-                nn = m.addnode!(g, m.NRef(:pivot, [ no, ni ]))
+                ns = m.addnode!(g, m.NRef(:select, [ no, ni ]))
 
                 dg = m.reversegraph(g, nn, paramsym)
 
-                #### we will now wrap dg in a loop scanning all the elements of no
-                nz = m.addnode!(g, m.NConst(sz))
-
+                #### We will now wrap dg in a loop scanning all the elements of 'no'
+                
+                # first create nodes to make dg a complete subgraph
                 dg2 = m.ExNode[]
                 nmap = Dict()
-                for n in dg.nodes
-                    for (j,np) in enumerate(n.parents)
+                for n in dg.nodes  # n = dg.nodes[2]
+                    for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
                         if haskey(nmap, np) # already remapped
                             n.parents[j] = nmap[np]
 
-                        elseif np in g # it's not in dg (but in g)
-                            ns = m.newvar()
-                            nn = NExt(ns)
+                        elseif np == ni # it's the loop index
+                            nn = m.NExt(si)
                             push!(dg2, nn)
-                            dg.ext_inodes[nn] = ns
-                            dg.ext_onodes[np] = ns
+                            dg.ext_inodes[nn] = si
                             n.parents[j] = nn
                             nmap[np] = nn
 
-                        elseif np == ni # it's the loop index
-                            nn = NExt(si)
+                        elseif np == ns # it's the selected element of the deriv vector
+                            # create 'no' ref if needed
+                            if !haskey(nmap, no)
+                                sn = m.newvar()
+                                nn = m.NExt(sn)
+                                push!(dg2, nn)
+                                dg.ext_inodes[nn] = sn
+                                dg.ext_onodes[no] = sn
+                                nmap[no] = nn
+                            end
+
+                            nn = m.NRef(:select, [ nmap[no], nmap[ni] ])
                             push!(dg2, nn)
-                            dg.ext_inodes[nn] = si
+                            nmap[ns] = nn                            
+
+                        elseif np in g.nodes # it's not in dg (but in g)
+                            sn = m.newvar()
+                            nn = m.NExt(sn)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = sn
+                            dg.ext_onodes[np] = sn
                             n.parents[j] = nn
                             nmap[np] = nn
 
                         end    
                     end
                 end
-                    
+                append!(dg.nodes, dg2)    
+                dg
+                collect(dg.ext_inodes)
+                collect(dg.ext_onodes)
+                collect(dg.set_inodes)
+                collect(dg.set_onodes)
+
+                nz = m.addnode!(g, m.NConst(sz))
                 # m.tograph( :( for i in 1:sz ; end ) )
                 sa = m.newvar()
                 fex = quote
@@ -525,29 +548,26 @@
                     st = sz ^ $(i-1)
                     $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
                     for $si in 1:sz
-                        ($sa)[ (($si-1)*st+1):($si*st) ] = result
+                        ($sa)[ (($si-1)*st+1):($si*st) ] = 1.
                     end
                     $sa
                 end
+test = m.tograph(fex)
+sg = test.nodes[9].main[2]
+                collect(sg.ext_inodes)
+                collect(sg.ext_onodes)
+                collect(dg.set_inodes)
+                collect(dg.set_onodes)
+
+
                 nr = m.addgraph!( m.tograph(fex), g, 
-                    { :sz => nz, :x => g.ext_inodes.vk[paramsym[1]] } )
+                    { :x => g.ext_inodes.vk[paramsym[1]] } )
+                
+                sg = nr.parents[1].main[2].set_onodes[nr]
+                nr.parents[1].main[2].set_inodes.vk[sg].parents[2] = 
 
-
-
-                nf = m.addnode!(g, m.NFor({ si, dg }), [nr] )  (graph(m.togra)
-                m.addgraph((node!
-                exs = collect(values(dg.set_inodes))[1]
-                ne = 
-
-                rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
-                g.set_inodes[rn] = sym              # signal we're setting the var
-                g2.set_onodes[rn] = sym
-
-
-
-                dg.set_onodes
-                for n in dg.nodes
-
+                blah blah  
+                
                 append!(g.nodes, dg.nodes)
                 nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
                 ns = m.newvar("_out")
