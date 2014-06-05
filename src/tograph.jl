@@ -36,7 +36,7 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
 	# explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
-	explore(ex::ExRef)     = addnode!(g, NRef("getidx", map(explore, ex.args)))
+	explore(ex::ExRef)     = addnode!(g, NRef(:getidx, map(explore, ex.args)))
 
 	function explore(ex::Symbol)
 		ex in {:(:), symbol("end")} && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
@@ -66,9 +66,9 @@ function tograph(s, svars::Vector{Any})
 			lhss = lhs.args[1]
 			vn = explore(lhss) # node whose subpart is assigned
 			# rhn  = addnode!(g, NSRef(lhs.args[2:end], [ vn, explore(ex.args[2])] )) 
-			rhn  = addnode!(g, NSRef("setidx", [ vn,    # var modified in pos #1
-				                                 explore(ex.args[2]), # value affected in pos #2
-				                                 map(explore, lhs.args[2:end])] ))  # indexing starting at #3
+			rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
+				                                explore(ex.args[2]), # value affected in pos #2
+				                                map(explore, lhs.args[2:end])] ))  # indexing starting at #3
 			rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
 
 		elseif isDot(lhs)

@@ -181,7 +181,9 @@ end
 @test fullcycle(:( b = a ; b[2] = x; 1 + b[1] )) == :(a[2] = x ; out = 1+a[1]) 
 @test fullcycle(:( a[1] + a[2] ))                == Expr(:block, :( out = a[1] + a[2]) )
 @test fullcycle(:( a[1:2] ))                     == Expr(:block, :( out = a[1:2]) )
-
+@test fullcycle(:( a = x ; a[1:2] = a[1:2] ))    == Expr(:block, :( a = x ) )
+@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,3] ))== Expr(:block, :( a = x ) )
+@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,4] ))== :( _tmp1 = 1:2 ; x[_tmp1,3] = x[_tmp1,4])
 
 @test fullcycle(:( a = x ; b = a ))              == Expr(:block, :( b = x ) )
 @test fullcycle(:( a = x ; b = a ; a + b))       == Expr(:block, :( out = x+x ) )

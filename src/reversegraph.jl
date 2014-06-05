@@ -43,7 +43,7 @@ function createzeronode!(g2::ExGraph, n)
     	return exitnode
 	
 	# try the array of defined types
-	elseif isa(n.val, Array) && method_exists(d_equivnode_1, (eltype(n.val),) )
+	elseif (isa(n.val, Array) || isa(n.val, Tuple)) && method_exists(d_equivnode_1, (eltype(n.val),) )
 		rn = invoke(d_equivnode_1, (eltype(n.val),) , n.val[1])
     	dg, dd, de = rdict[ rn ]
     	smap = { dd[1] => n }  # map 'x' node to n

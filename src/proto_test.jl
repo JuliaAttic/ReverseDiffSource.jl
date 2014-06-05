@@ -414,8 +414,9 @@
             isa(params[1][2], Real) || 
             error("Param should be a real or vector for order >= 2")
 
-        paramsym = Symbol[ e[1] for e in params]
+        paramsym    = Symbol[ e[1] for e in params]
         paramvalues = [ e[2] for e in params]
+        parval      = Dict(paramsym, paramvalues)
 
         println("=== tograph")
         g = m.tograph(ex)
@@ -427,7 +428,7 @@
         m.splitnary!(g)
         m.prune!(g, [ g.set_inodes.vk[outsym] ])
         m.simplify!(g)
-        m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+        m.calc!(g, params=parval, emod=evalmod)
 
         ov = g.set_inodes.vk[outsym].val 
         isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
@@ -460,7 +461,7 @@
                 m.prune!(g)
                 m.simplify!(g)
                 
-                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+                m.calc!(g, params=parval, emod=evalmod)
             end
 
         elseif order > 1 && isa(paramvalues[1], Vector)
@@ -487,8 +488,9 @@
                 ni = m.addnode!(g, m.NExt(si))
                 ns = m.addnode!(g, m.NRef(:select, [ no, ni ]))
 
-                dg = m.reversegraph(g, nn, paramsym)
-
+                m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
+                dg = m.reversegraph(g, ns, paramsym)
+m.tocode(g)
                 #### We will now wrap dg in a loop scanning all the elements of 'no'
                 
                 # first create nodes to make dg a complete subgraph
@@ -535,12 +537,15 @@
                 end
                 append!(dg.nodes, dg2)    
                 dg
+                m.prune!(dg)
+                m.simplify!(dg)
                 collect(dg.ext_inodes)
                 collect(dg.ext_onodes)
                 collect(dg.set_inodes)
                 collect(dg.set_onodes)
 
-                nz = m.addnode!(g, m.NConst(sz))
+m.tocode(dg)
+
                 # m.tograph( :( for i in 1:sz ; end ) )
                 sa = m.newvar()
                 fex = quote
@@ -552,8 +557,10 @@
                     end
                     $sa
                 end
+
 test = m.tograph(fex)
 sg = test.nodes[9].main[2]
+
                 collect(sg.ext_inodes)
                 collect(sg.ext_onodes)
                 collect(dg.set_inodes)

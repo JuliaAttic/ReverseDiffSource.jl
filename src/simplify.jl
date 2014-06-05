@@ -164,10 +164,13 @@ end
 
 ## setindex on same getindex
 function rule5(n, g)
-	!isa(n, NSRef)                            && return false
-	!isa(n.parents[2], NRef)                  && return false
-	(n.main != n.parents[2].main)             && return false
-	(n.parents[1] != n.parents[2].parents[1]) && return false
+	!isa(n, NSRef)                              && return false
+	!isa(n.parents[2], NRef)                    && return false
+	n2 = n.parents[2]
+	(n.parents[1] != n2.parents[1])             && return false
+	# check that indexing is the same
+	(length(n.parents)-1 != length(n2.parents))   && return false
+	!all( n.parents[3:end] .== n2.parents[2:end]) && return false
 
 	fusenodes(g, n.parents[1], n)
 	true
