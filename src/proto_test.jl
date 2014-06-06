@@ -406,34 +406,38 @@
         # ex = :(sin(x)) ; order=2 ; evalmod=Main ; params = [(:x, 1.)]; outsym=nothing
         ex = :( x[1]*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])]; outsym=nothing
 
-        length(params) >= 1 || error("There should be at least one parameter specified, none found")
-        order <= 1 || 
+        begin 
+            length(params) >= 1 || error("There should be at least one parameter specified, none found")
+            
+            order <= 1 || 
             length(params) == 1 || error("Only one param allowed for order >= 2")
-        order <= 1 || 
+            
+            order <= 1 || 
             isa(params[1][2], Vector) || 
-            isa(params[1][2], Real) || 
-            error("Param should be a real or vector for order >= 2")
+            isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
 
-        paramsym    = Symbol[ e[1] for e in params]
-        paramvalues = [ e[2] for e in params]
-        parval      = Dict(paramsym, paramvalues)
+            paramsym    = Symbol[ e[1] for e in params]
+            paramvalues = [ e[2] for e in params]
+            parval      = Dict(paramsym, paramvalues)
 
-        println("=== tograph")
-        g = m.tograph(ex)
+            println("=== tograph")
+            g = m.tograph(ex)
 
-        haskey(g.set_inodes.vk, outsym) || 
-            error("can't find output var $( outsym==nothing ? "" : outsym)")
-        exitnode = g.set_inodes.vk[outsym]
+            haskey(g.set_inodes.vk, outsym) || 
+                error("can't find output var $( outsym==nothing ? "" : outsym)")
+            exitnode = g.set_inodes.vk[outsym]
 
-        m.splitnary!(g)
-        m.prune!(g, [ g.set_inodes.vk[outsym] ])
-        m.simplify!(g)
-        m.calc!(g, params=parval, emod=evalmod)
+            m.splitnary!(g)
+            m.prune!(g, [ g.set_inodes.vk[outsym] ])
+            m.simplify!(g)
+            m.calc!(g, params=parval, emod=evalmod)
 
-        ov = g.set_inodes.vk[outsym].val 
-        isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+            ov = g.set_inodes.vk[outsym].val 
+            isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
-        voi = { outsym }
+            voi = { outsym }
+        end
+
         if order == 1
             dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
             m.append!(g.nodes, dg.nodes)
@@ -478,7 +482,8 @@
             m.prune!(g)
             m.simplify!(g)
 
-            for i in 2:order  # i=2
+            # for i in 2:order  
+            i=2
                 println("=== reversegraph  $i")
 
                 # launch derivation on a single value of the preceding
@@ -490,9 +495,8 @@
 
                 m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
                 dg = m.reversegraph(g, ns, paramsym)
-m.tocode(g)
+
                 #### We will now wrap dg in a loop scanning all the elements of 'no'
-                
                 # first create nodes to make dg a complete subgraph
                 dg2 = m.ExNode[]
                 nmap = Dict()
@@ -539,52 +543,51 @@ m.tocode(g)
                 dg
                 m.prune!(dg)
                 m.simplify!(dg)
+                collect(nmap)
                 collect(dg.ext_inodes)
                 collect(dg.ext_onodes)
                 collect(dg.set_inodes)
                 collect(dg.set_onodes)
 
-m.tocode(dg)
+                nmap2 = Dict()
+                for (onode, inode) in nmap
+                    inode == ni && continue
+                    nmap2[ inode.main ] = onode
+                end
+                collect(nmap2)
 
-                # m.tograph( :( for i in 1:sz ; end ) )
+                m.tocode(g)
+                dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
+                fex = m.tocode(dg)
+
+                sres = collect(dg.set_inodes)[1][1].val
                 sa = m.newvar()
                 fex = quote
                     sz = length( x )
                     st = sz ^ $(i-1)
                     $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
                     for $si in 1:sz
-                        ($sa)[ (($si-1)*st+1):($si*st) ] = 1.
+                        $fex
+                        ($sa)[ (($si-1)*st+1):($si*st) ] = $sres
                     end
                     $sa
                 end
 
-test = m.tograph(fex)
-sg = test.nodes[9].main[2]
+                nmap2[:x] = g.ext_inodes.vk[paramsym[1]]
 
-                collect(sg.ext_inodes)
-                collect(sg.ext_onodes)
-                collect(dg.set_inodes)
-                collect(dg.set_onodes)
+                nr = m.addgraph!( m.tograph(fex), g, nmap2)
 
-
-                nr = m.addgraph!( m.tograph(fex), g, 
-                    { :x => g.ext_inodes.vk[paramsym[1]] } )
-                
-                sg = nr.parents[1].main[2].set_onodes[nr]
-                nr.parents[1].main[2].set_inodes.vk[sg].parents[2] = 
-
-                blah blah  
-                
-                append!(g.nodes, dg.nodes)
-                nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
+                # nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
                 ns = m.newvar("_out")
-                g.set_inodes[nn] = ns
+                g.set_inodes[nr] = ns
                 push!(voi, ns)
 
                 m.splitnary!(g)
                 m.prune!(g)
                 m.simplify!(g)
                 
+                # m.tocode(g)
+
                 m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
             end
 
@@ -598,6 +601,32 @@ sg = test.nodes[9].main[2]
         println("=== tocode")
         m.tocode(g)
     end
+
+
+
+function myf(x) 
+    _tmp1 = 1
+    _tmp2 = 2
+    _tmp3 = length(x)
+    _tmp4 = fill(0.0,size(x))
+    _tmp5 = _tmp3^1
+    _tmp6 = zeros((_tmp3,_tmp3))
+    _tmp4[_tmp2] = _tmp4[_tmp2] + x[_tmp1]
+    _tmp4[_tmp1] = _tmp4[_tmp1] + x[_tmp2]
+    for _tmp65 = 1:_tmp3
+        _tmp7 = fill(0.0,size(x))
+        _tmp8 = fill(0.0,size(_tmp4))
+        _tmp9 = fill(0.0,size(_tmp4))
+        _tmp9[_tmp65] = _tmp9[_tmp65] + 1.0
+        _tmp8[_tmp1] = _tmp8[_tmp1] + _tmp9[_tmp1]
+        _tmp7[_tmp2] = _tmp7[_tmp2] + _tmp9[_tmp1]
+        _tmp7[_tmp1] = _tmp7[_tmp1] + _tmp8[_tmp2]
+        _tmp6[(_tmp65 - 1) * _tmp5 + 1:_tmp65 * _tmp5] = _tmp7
+    end
+    (x[_tmp1] * x[_tmp2],_tmp4,_tmp6)
+end
+myf( [2.,3] )
+
 
 
 diff( :(sin(x^2-log(y))) ,       x=2.,  y=1.)
