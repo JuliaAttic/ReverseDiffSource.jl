@@ -81,14 +81,14 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end		 
 
 	function rev(n::NRef)
-        v2 = addnode!(g2, NRef("getidx",  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
+        v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
         v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
-		v4 = addnode!(g2, NSRef("setidx", [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
+		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
 		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NSRef)
-		v2 = addnode!(g2, NRef("getidx", [ dnodes[n] , n.parents[3:end] ]) )
+		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
 		
 		# treat case where a single value is allocated to several array elements
 		if length(dnodes[n.parents[2]].val) == 1 

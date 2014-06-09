@@ -66,6 +66,7 @@ function identical(n,n2,g)
 	n.parents != n2.parents && return false
 	n.alloc	                && return false
 	n2.alloc	            && return false
+	isa(n, NConst) && isa(n.main, Real) && return false # no need for small constants
 
 	fusenodes(g, n, n2)
 	true

@@ -474,7 +474,7 @@
             # do first order as usual
             dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
             m.append!(g.nodes, dg.nodes)
-            ns = m.newvar()
+            ns = m.newvar(:dv)
             g.set_inodes[ collect(keys(dg.set_inodes))[1] ] = ns
             push!(voi, ns)
 
@@ -489,9 +489,9 @@
                 # launch derivation on a single value of the preceding
                 #   derivation vector
                 no = g.set_inodes.vk[voi[i]]
-                si = m.newvar()
+                si = m.newvar(:idx)
                 ni = m.addnode!(g, m.NExt(si))
-                ns = m.addnode!(g, m.NRef(:select, [ no, ni ]))
+                ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
 
                 m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
                 dg = m.reversegraph(g, ns, paramsym)
@@ -523,7 +523,7 @@
                                 nmap[no] = nn
                             end
 
-                            nn = m.NRef(:select, [ nmap[no], nmap[ni] ])
+                            nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
                             push!(dg2, nn)
                             nmap[ns] = nn                            
 
@@ -561,7 +561,7 @@
                 fex = m.tocode(dg)
 
                 sres = collect(dg.set_inodes)[1][1].val
-                sa = m.newvar()
+                sa = m.newvar(:lv)
                 fex = quote
                     sz = length( x )
                     st = sz ^ $(i-1)
@@ -578,7 +578,7 @@
                 nr = m.addgraph!( m.tograph(fex), g, nmap2)
 
                 # nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
-                ns = m.newvar("_out")
+                ns = m.newvar(:dv)
                 g.set_inodes[nr] = ns
                 push!(voi, ns)
 
@@ -626,6 +626,28 @@ function myf(x)
     (x[_tmp1] * x[_tmp2],_tmp4,_tmp6)
 end
 myf( [2.,3] )
+
+function myf2(x)
+    _tmp1 = 1
+    _tmp2 = 2
+    _tmp3 = length(x)
+    _tmp4 = fill(0.0,size(x))
+    _tmp5 = zeros((_tmp3,_tmp3))
+    _tmp4[_tmp2] = _tmp4[_tmp2] + x[_tmp1]
+    _tmp4[_tmp1] = _tmp4[_tmp1] + x[_tmp2]
+    for idx1 = 1:_tmp3
+        _tmp6 = fill(0.0,size(_tmp4))
+        _tmp7 = fill(0.0,size(_tmp4))
+        _tmp8 = fill(0.0,size(x))
+        _tmp7[idx1] = _tmp7[idx1] + 1.0
+        _tmp6[_tmp1] = _tmp6[_tmp1] + _tmp7[_tmp1]
+        _tmp8[_tmp2] = _tmp8[_tmp2] + _tmp7[_tmp1]
+        _tmp8[_tmp1] = _tmp8[_tmp1] + _tmp6[_tmp2]
+        _tmp5[(idx1 - 1) * _tmp3 + 1:idx1 * _tmp3] = _tmp8
+    end
+    out = (x[_tmp1] * x[_tmp2],_tmp4,_tmp5)
+end
+myf2([2.,3])
 
 
 
