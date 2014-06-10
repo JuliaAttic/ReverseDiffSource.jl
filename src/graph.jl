@@ -251,9 +251,16 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   function evaluate(n::NCall)
     local ret
     try
-      ret = invoke(emod.eval(n.main), 
-        tuple([ typeof(x.val) for x in n.parents]...),
-        [ x.val for x in n.parents]...)
+      if isgeneric(n.main)
+        ret = invoke(emod.eval(n.main), 
+          tuple([ typeof(x.val) for x in n.parents]...),
+          [ x.val for x in n.parents]...)
+
+      else
+        ret = emod.eval( Expr(:call, n.main, { x.val for x in n.parents}...) )
+
+      end
+
     catch
       error("[calc!] can't evaluate $(n.main)")
     end

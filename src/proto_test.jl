@@ -4,6 +4,7 @@
 
     m.tograph(:(  a[5] ))
     m.tograph(:(  a[5] = 3 ))
+    m.tograph(:( z = zeros(2) ; z[1] = x ; sum(z) ) )
 
     g = m.tograph(:(  α = x ; β = α ; γ = α)) 
     m.plot(g)
@@ -401,10 +402,13 @@
     reload("ReverseDiffSource") ; m = ReverseDiffSource
     include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
 
-    function diff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+    function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
-        # ex = :(sin(x)) ; order=2 ; evalmod=Main ; params = [(:x, 1.)]; outsym=nothing
-        ex = :( x[1]*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])]; outsym=nothing
+        # ex = :(sin(x))      ; order=2 ; evalmod=Main ; params = [(:x, 1.)]      ; outsym=nothing
+        # ex = :( x[1]^3*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( x[1]+x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( z = zeros(2) ; z[1] = x ; z[2] = 2x ; sum(z)) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
+        # ex = :( z = zeros(2) ; z[1] = x ; sum(z) ) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
 
         begin 
             length(params) >= 1 || error("There should be at least one parameter specified, none found")
@@ -482,14 +486,226 @@
             m.prune!(g)
             m.simplify!(g)
 
-            # for i in 2:order  
-            i=2
+            for i in 2:order  
+            # i=2, i=3
                 println("=== reversegraph  $i")
 
                 # launch derivation on a single value of the preceding
                 #   derivation vector
                 no = g.set_inodes.vk[voi[i]]
                 si = m.newvar(:idx)
+                ni = m.addnode!(g, m.NExt(si))
+                ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
+                # ns.precedence = filter(n -> no.parents[1] in n.parents && n != ns, g.nodes)
+                # g.set_inodes[ ns ] = :test
+
+                m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
+                dg = m.reversegraph(g, ns, paramsym)
+
+            # m.tocode(g)
+            # m.tocode(dg)
+                #### We will now wrap dg in a loop scanning all the elements of 'no'
+                # first create nodes to make dg a complete subgraph
+                dg2 = m.ExNode[]
+                nmap = Dict()
+                for n in dg.nodes  # n = dg.nodes[2]
+                    for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
+                        if haskey(nmap, np) # already remapped
+                            n.parents[j] = nmap[np]
+
+                        elseif np == ni # it's the loop index
+                            nn = m.NExt(si)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = si
+                            n.parents[j] = nn
+                            nmap[np] = nn
+
+                        elseif np == ns # it's the selected element of the deriv vector
+                            # create 'no' ref if needed
+                            if !haskey(nmap, no)
+                                sn = m.newvar()
+                                nn = m.NExt(sn)
+                                push!(dg2, nn)
+                                dg.ext_inodes[nn] = sn
+                                dg.ext_onodes[no] = sn
+                                nmap[no] = nn
+                            end
+
+                            nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
+                            push!(dg2, nn)
+                            nmap[ns] = nn                            
+
+                        elseif np in g.nodes # it's not in dg (but in g)
+                            sn = m.newvar()
+                            nn = m.NExt(sn)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = sn
+                            dg.ext_onodes[np] = sn
+                            n.parents[j] = nn
+                            nmap[np] = nn
+
+                        end    
+                    end
+                end
+                collect(nmap)
+                append!(dg.nodes, dg2)    
+                # dg
+                m.prune!(dg)
+                m.simplify!(dg)
+                # collect(nmap)
+                # collect(dg.ext_inodes)
+                # collect(dg.ext_onodes)
+                # collect(dg.set_inodes)
+                # collect(dg.set_onodes)
+
+                nmap2 = Dict()
+                for (onode, inode) in nmap
+                    inode == ni && continue
+                    nmap2[ inode.main ] = onode
+                end
+                # collect(nmap2)
+
+                m.tocode(g)
+                dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
+                fex = m.tocode(dg)
+
+                sres = collect(dg.set_inodes)[1][1].val
+                sa = m.newvar(:lv)
+                fex = quote
+                    sz = length( x )
+                    st = sz ^ $(i-1)
+                    $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
+                    for $si in 1:sz
+                        $fex
+                        ($sa)[ (($si-1)*st+1):($si*st) ] = $sres
+                    end
+                    $sa
+                end
+
+                nmap2[:x] = g.ext_inodes.vk[paramsym[1]]
+                # collect(nmap2)
+                # setdiff( collect(keys(nmap2)), collect(keys(test.ext_inodes.vk)) )
+                # setdiff( collect(keys(test.ext_inodes.vk)), collect(keys(nmap2)) )
+                nr = m.addgraph!( m.tograph(fex), g, nmap2)
+                test = m.tograph(fex)
+                collect(test.ext_inodes.kv)
+
+                # nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
+                ns = m.newvar(:dv)
+                g.set_inodes[nr] = ns
+                push!(voi, ns)
+
+                m.splitnary!(g)
+                m.prune!(g)
+                m.simplify!(g)
+                
+                # m.tocode(g)
+
+                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+            end
+
+        end
+
+        voin = map( s -> g.set_inodes.vk[s], voi)
+        ex = m.addnode!(g, m.NCall(:tuple, voin))
+        g.set_inodes = m.BiDict(Dict{m.ExNode,Any}( [ex], [:out]) )
+
+        m.resetvar()
+        println("=== tocode")
+        m.tocode(g)
+    end
+
+    function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+
+        # ex = :(sin(x))      ; order=2 ; evalmod=Main ; params = [(:x, 1.)]      ; outsym=nothing
+        # ex = :( x[1]*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( x[1]^3+x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( z = zeros(2) ; z[1] = x ; z[2] = 2x ; sum(z)) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
+        # ex = :( z = zeros(2) ; z[1] = x ; sum(z) ) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
+
+
+        length(params) >= 1 || error("There should be at least one parameter specified, none found")
+        
+        order <= 1 || 
+        length(params) == 1 || error("Only one param allowed for order >= 2")
+        
+        order <= 1 || 
+        isa(params[1][2], Vector) || 
+        isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
+
+        paramsym    = Symbol[ e[1] for e in params]
+        paramvalues = [ e[2] for e in params]
+        parval      = Dict(paramsym, paramvalues)
+
+        println("=== tograph")
+        g = m.tograph(ex)
+
+        haskey(g.set_inodes.vk, outsym) || 
+            error("can't find output var $( outsym==nothing ? "" : outsym)")
+        exitnode = g.set_inodes.vk[outsym]
+
+        m.splitnary!(g)
+        m.prune!(g, [ g.set_inodes.vk[outsym] ])
+        m.simplify!(g)
+        m.calc!(g, params=parval, emod=evalmod)
+
+        ov = g.set_inodes.vk[outsym].val 
+        isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+        voi = { outsym }
+
+        if order == 1
+            dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
+            m.append!(g.nodes, dg.nodes)
+            nn = m.addnode!( g, m.NCall(:tuple, collect(keys(dg.set_inodes))) )
+            ns = m.newvar("_dv")
+            g.set_inodes[nn] = ns
+            push!(voi, ns)
+
+            m.splitnary!(g)
+            m.prune!(g)
+            m.simplify!(g)
+
+        elseif order > 1 && isa(paramvalues[1], Real)
+            for i in 1:order  # i=1
+                println("=== reversegraph  $i")
+
+                dg = m.reversegraph(g, g.set_inodes.vk[voi[i]], paramsym)
+                append!(g.nodes, dg.nodes)
+                nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
+                ns = m.newvar("_dv")
+                g.set_inodes[nn] = ns
+                push!(voi, ns)
+
+                m.splitnary!(g)
+                m.prune!(g)
+                m.simplify!(g)
+                
+                m.calc!(g, params=parval, emod=evalmod)
+            end
+
+        elseif order > 1 && isa(paramvalues[1], Vector)
+            # do first order as usual
+            dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
+            m.append!(g.nodes, dg.nodes)
+            ns = m.newvar(:_dv)
+            g.set_inodes[ collect(keys(dg.set_inodes))[1] ] = ns
+            push!(voi, ns)
+
+            m.splitnary!(g)
+            m.prune!(g)
+            m.simplify!(g)
+
+            # now order 2 to n
+            for i in 2:order  
+            # i=2
+            # i=3
+                println("=== reversegraph  $i")
+
+                # launch derivation on a single value of the preceding
+                #   derivation vector
+                no = g.set_inodes.vk[voi[i]]
+                si = m.newvar(:_idx)
                 ni = m.addnode!(g, m.NExt(si))
                 ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
 
@@ -540,28 +756,16 @@
                     end
                 end
                 append!(dg.nodes, dg2)    
-                dg
                 m.prune!(dg)
                 m.simplify!(dg)
-                collect(nmap)
-                collect(dg.ext_inodes)
-                collect(dg.ext_onodes)
-                collect(dg.set_inodes)
-                collect(dg.set_onodes)
-
-                nmap2 = Dict()
-                for (onode, inode) in nmap
-                    inode == ni && continue
-                    nmap2[ inode.main ] = onode
-                end
-                collect(nmap2)
-
-                m.tocode(g)
                 dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
-                fex = m.tocode(dg)
+                # collect(nmap)
 
+                # create scanning loop
+                m.tocode(g)
+                fex = m.tocode(dg)
                 sres = collect(dg.set_inodes)[1][1].val
-                sa = m.newvar(:lv)
+                sa = m.newvar(:_lv)
                 fex = quote
                     sz = length( x )
                     st = sz ^ $(i-1)
@@ -571,14 +775,26 @@
                         ($sa)[ (($si-1)*st+1):($si*st) ] = $sres
                     end
                     $sa
+                end  # FIXME : when fex has a loop, symbol names are lost and can be mapped in g
+
+                ### create mapping for vars in fex that refer to nodes in g
+                nmap2 = Dict()
+                for (onode, inode) in nmap
+                    inode == ni && continue
+                    nmap2[ inode.main ] = onode
                 end
 
                 nmap2[:x] = g.ext_inodes.vk[paramsym[1]]
-
+                # collect(nmap2)
+                nmap2[:_tmp93]
+                # test = m.tograph(fex)
+                # setdiff( collect(keys(nmap2)), collect(keys(test.ext_inodes.vk)) )
+                # setdiff( collect(keys(test.ext_inodes.vk)), collect(keys(nmap2)) )
                 nr = m.addgraph!( m.tograph(fex), g, nmap2)
+                # collect(test.ext_inodes.kv)
 
                 # nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
-                ns = m.newvar(:dv)
+                ns = m.newvar(:_dv)
                 g.set_inodes[nr] = ns
                 push!(voi, ns)
 
@@ -586,8 +802,6 @@
                 m.prune!(g)
                 m.simplify!(g)
                 
-                # m.tocode(g)
-
                 m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
             end
 
@@ -603,59 +817,113 @@
     end
 
 
+rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1.)
+rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
+rdiff( :(sin(x))          ,   order=10,  x=2.)
+rdiff( :(x^3)             ,    order=6,  x=2.)
+rdiff( :(exp(x))          ,    order=6,  x=2.)
+rdiff( :(exp(-2x))        ,    order=6,  x=2.)
 
-function myf(x) 
-    _tmp1 = 1
-    _tmp2 = 2
-    _tmp3 = length(x)
-    _tmp4 = fill(0.0,size(x))
-    _tmp5 = _tmp3^1
-    _tmp6 = zeros((_tmp3,_tmp3))
-    _tmp4[_tmp2] = _tmp4[_tmp2] + x[_tmp1]
-    _tmp4[_tmp1] = _tmp4[_tmp1] + x[_tmp2]
-    for _tmp65 = 1:_tmp3
-        _tmp7 = fill(0.0,size(x))
-        _tmp8 = fill(0.0,size(_tmp4))
-        _tmp9 = fill(0.0,size(_tmp4))
-        _tmp9[_tmp65] = _tmp9[_tmp65] + 1.0
-        _tmp8[_tmp1] = _tmp8[_tmp1] + _tmp9[_tmp1]
-        _tmp7[_tmp2] = _tmp7[_tmp2] + _tmp9[_tmp1]
-        _tmp7[_tmp1] = _tmp7[_tmp1] + _tmp8[_tmp2]
-        _tmp6[(_tmp65 - 1) * _tmp5 + 1:_tmp65 * _tmp5] = _tmp7
-    end
-    (x[_tmp1] * x[_tmp2],_tmp4,_tmp6)
+
+res = rdiff( :(x[1] * x[2])        ,    order=1,  x=ones(3))
+res = rdiff( :(x[1] * x[2])        ,    order=2,  x=ones(3))
+@eval myf(x) = ($res ; out)
+myf(ones(5))
+
+
+res = rdiff( :( sin(x[1]*x[2]) )        ,    order=2,  x=ones(2))
+@eval myf(x) = ($res ; out)
+v, g, h    = myf(ones(2))
+v2, g2, h2 = myf(ones(2)+[1e-8,0])
+(v2 - v)*1e8
+(g2 - g)*1e8
+
+res = rdiff( :( sin(x[1]*x[2]) )        ,    order=3,  x=ones(2))
+
+
+res2 = diff( :( sin(x[1]*x[2]) )        ,    order=1,  x=ones(2))
+@eval myf0(x) = ($res2 ; out)
+myf0(ones(2))
+
+res2 = diff( :( x[1]*x[2] )        ,    order=1,  x=ones(2))
+diff( :( x[1]*x[2] )        ,    order=2,  x=ones(3))
+
+for idx1 = 1:3
+    println( (idx1 - 1) * 3 + 1:idx1 * 3)
 end
-myf( [2.,3] )
-
-function myf2(x)
-    _tmp1 = 1
-    _tmp2 = 2
-    _tmp3 = length(x)
-    _tmp4 = fill(0.0,size(x))
-    _tmp5 = zeros((_tmp3,_tmp3))
-    _tmp4[_tmp2] = _tmp4[_tmp2] + x[_tmp1]
-    _tmp4[_tmp1] = _tmp4[_tmp1] + x[_tmp2]
-    for idx1 = 1:_tmp3
-        _tmp6 = fill(0.0,size(_tmp4))
-        _tmp7 = fill(0.0,size(_tmp4))
-        _tmp8 = fill(0.0,size(x))
-        _tmp7[idx1] = _tmp7[idx1] + 1.0
-        _tmp6[_tmp1] = _tmp6[_tmp1] + _tmp7[_tmp1]
-        _tmp8[_tmp2] = _tmp8[_tmp2] + _tmp7[_tmp1]
-        _tmp8[_tmp1] = _tmp8[_tmp1] + _tmp6[_tmp2]
-        _tmp5[(idx1 - 1) * _tmp3 + 1:idx1 * _tmp3] = _tmp8
-    end
-    out = (x[_tmp1] * x[_tmp2],_tmp4,_tmp5)
-end
-myf2([2.,3])
 
 
+# ok ça marche
+res = rdiff( :( 3x[1]^2+x[2]^2 ),    order=2,  x=ones(2))
+@eval myf(x) = ($res ; out)
+myf(ones(2))
+myf(2ones(2))
 
-diff( :(sin(x^2-log(y))) ,       x=2.,  y=1.)
-diff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
-diff( :(sin(x))          ,   order=10,  x=2.)
-diff( :(x^3)             ,    order=6,  x=2.)
-diff( :(exp(x))          ,    order=6,  x=2.)
-diff( :(exp(-2x))        ,    order=6,  x=2.)
+# ok ça marche
+res = rdiff( :( x[1]^2 * x[2]^2 ),    order=2,  x=ones(2))
+@eval myf(x) = ($res ; out)
+myf(ones(2))
+myf(2ones(2))
+
+# ok ça marche
+res = rdiff( :( x[1]^2 * x[2] ),    order=2,  x=ones(2))
+@eval myf(x) = ($res ; out)
+myf(ones(2))
+myf(2ones(2))
+myf([3,-1])
+
+
+res = rdiff( :( x[1]^2 * x[2] ),    order=3,  x=ones(2))
+@eval myf(x) = ($res ; out)
+myf(ones(2))
+myf(2ones(2))
+myf([3,-1])
+
+
+reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+
+### ok maintenant
+res = rdiff(:( z[1] + z[2] ), z = ones(3) )
+@eval myf(z) = $res
+myf(ones(2))
+myf(ones(10))
+
+### ok maintenant
+res = rdiff(:( z = zeros(2) ; z[1] = x ; sum(z) ), x=1 )
+res = rdiff(:( z = zeros(2) ; z[1] = 2x ; z[2] = x ; sum(z) ), x=1 )
+@eval myf(x) = $res
+myf(3.)  # ok
+myf(3.001)
+
+
+
+res = rdiff( :( dot(x,x) ),    order=2,  x=ones(2)) # OK
+@eval myf(x) = $res
+myf(5ones(2))
+
+res2 = rdiff( :( x[1]*x[1] + x[2]*x[2] ),    order=2,  x=ones(2)) # OK
+@eval myf2(x) = $res2
+myf2(5ones(2))
+
+res2 = rdiff( :( a=x[1]*x[1] ; b=x[2] ; a*b+0 ),    order=2,  x=ones(2)) # OK
+@eval myf2(x) = $res2
+myf2(ones(2))
+
+
+res = rdiff( :( sum(x * x') ),    order=2,  x=ones(2))  # OK
+@eval myf(x) = $res
+v, g, h = myf(5ones(2))
+stp = 1e-8
+v2, g2, h2 = myf(5ones(2)+[stp,0])
+
+(v2-v)/stp
+(g2-g)[1]/stp
+
+
+res = rdiff( :( sum(x * x') ),    order=2,  x=ones(2))
+@eval myf(x) = $res
+v, g, h = myf(5ones(2))
+
 
 

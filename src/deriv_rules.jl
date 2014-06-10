@@ -91,6 +91,7 @@ end
 @deriv_rule fill(x,y)    x     0.
 @deriv_rule fill(x,y)    y     0.
 @deriv_rule zeros(x)     x     0.
+@deriv_rule ones(x)      x     0.
 @deriv_rule size(x)      x     0.
 
 
@@ -99,6 +100,10 @@ end
 @deriv_rule tuple(x,y)      x     ds[1]
 @deriv_rule tuple(x,y)      y     ds[2]
 
+
+#  vcat
+# @deriv_rule vcat(x,y)       x     ds[1]
+# @deriv_rule vcat(x,y)       x     ds[1]
 
 # square root
 @deriv_rule sqrt(x)    x     0.5 * x ^ (-0.5) * ds

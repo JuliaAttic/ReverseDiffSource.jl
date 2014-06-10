@@ -13,6 +13,9 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	for n in filter(n-> !isa(n,NFor), g.nodes)
 		if n == exitnode
 			dnodes[n] = addnode!(g2, NConst(1.0))
+		# elseif isa(n, NSRef) || isa(n, NSDot)  # unique alloc for all NSRef and NSDot on same instance
+		# 	@assert haskey(dnodes, n.parents[1]) "[reversegraph] nodes not ordered ?"
+		# 	dnodes[n] = dnodes[n.parents[1]]
 		else
 			dnodes[n] = createzeronode!(g2, n)
 		end
@@ -60,7 +63,6 @@ end
 #  climbs the reversed evaluation tree
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	# TODO : update precedence field when creating NSRef / NSDot / NFor
-
 	rev(n::ExNode) = nothing  # do nothing
 
 	function rev(n::NCall)
@@ -88,7 +90,20 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NSRef)
-		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+		ns = filter( x -> n in x.parents && isa(x, NSRef), g.nodes )
+		@assert length(ns) <= 1 "[reversegraph] inconsistent NSRef links"
+
+		if length(ns) == 1
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ ns[1] ] , n.parents[3:end] ]) )
+		else
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+		end
+		#  find original definition in case there are setindex in succession
+		# n2 = n
+		# while isa(n2.parents[1], NSRef)
+		# 	n2 = n2.parents[1]
+		# end
+		# v2 = addnode!(g2, NRef(:getidx, [ dnodes[n2] , n.parents[3:end] ]) )
 		
 		# treat case where a single value is allocated to several array elements
 		if length(dnodes[n.parents[2]].val) == 1 
@@ -98,6 +113,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			end
 		end
 
+		# v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		dnodes[n.parents[2]] = v3
 	end

@@ -65,7 +65,6 @@ function tograph(s, svars::Vector{Any})
 		elseif isRef(lhs)
 			lhss = lhs.args[1]
 			vn = explore(lhss) # node whose subpart is assigned
-			# rhn  = addnode!(g, NSRef(lhs.args[2:end], [ vn, explore(ex.args[2])] )) 
 			rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
 				                                explore(ex.args[2]), # value affected in pos #2
 				                                map(explore, lhs.args[2:end])] ))  # indexing starting at #3
