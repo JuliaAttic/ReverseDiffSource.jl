@@ -36,7 +36,8 @@ function simplify!(g::ExGraph, emod = Main)
 	# separate pass on subgraphs
 	map( n -> simplify!(n.main[2], emod), 
 		filter(n->isa(n, NFor), g.nodes))
-	nothing
+	
+	g
 end
 
 ## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop

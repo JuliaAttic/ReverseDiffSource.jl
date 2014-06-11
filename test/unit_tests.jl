@@ -63,7 +63,6 @@ g = m.tograph(ex);
 @test length(g.set_onodes.kv) == 0
 @test length(g.ext_onodes.kv) == 0
 
-m.resetvar()
 exout = striplinenumbers(quote 
     _tmp1 = zeros(10)
     for i = 1:10
@@ -72,6 +71,7 @@ exout = striplinenumbers(quote
     end
     a = _tmp1
 end)
+m.resetvar()
 @test m.tocode(g) == exout   
 
 
@@ -126,24 +126,31 @@ exout = striplinenumbers(quote
 #################################################################
 ## full cycle  : tograph -> splitnary -> simplify -> prune -> tocode 
 #################################################################
-function fullcycle(ex)
+function fullcycle(ex) # ex = :( y = a[2] ; x = 2 ; y )
     g = m.tograph(ex)
 
     length(g.set_inodes.kv) == 0 && error("nothing defined here")
 
-    # keep last evaluated only for testing
-    m.evalsort!(g)
-    lastnode = (g.nodes[1], :out)
-    for n in reverse(g.nodes)
-        haskey(g.set_inodes, n) || continue 
-        lastnode = n
-        break
+    # isolate a single variable of interest
+    if haskey( g.set_inodes.vk, nothing) # last statement has priority
+        lastnode = g.set_inodes.vk[nothing]
+    else # find last evaluated otherwise
+        m.evalsort!(g)
+        nvars = collect(keys(g.set_inodes))
+        lastnode = g.nodes[ maximum(indexin(nvars, g.nodes)) ]
     end
+    # lastnode = (g.nodes[1], :out)
+    # for n in reverse(g.nodes)
+    #     haskey(g.set_inodes, n) || continue 
+    #     lastnode = n
+    #     break
+    # end
 
     sym = g.set_inodes[lastnode]
-    g.set_inodes = m.BiDict{m.ExNode,Any}([lastnode], [ sym==nothing ? :out : sym ])
+    # g.set_inodes = m.BiDict{m.ExNode,Any}([lastnode], [ sym==nothing ? :out : sym ])
+    g.set_inodes = m.BiDict{m.ExNode,Any}([lastnode], [ sym ])
 
-    m.splitnary!(g)
+    g |> m.splitnary! |> m.simplify! |> m.prune!
     m.simplify!(g)
     m.prune!(g)
 
@@ -169,26 +176,28 @@ end
 @test fullcycle(:(a = b*(0.5+0.5))) == Expr(:block, :(a = b) )   
 @test fullcycle(:(a = b/1))         == Expr(:block, :(a = b) )   
 
+@test fullcycle(:(5))                          == Expr(:block, :(5) )
+@test fullcycle(:(a = 2 ; b = 2 ; a:b))        == Expr(:block, :(2:2) )
+@test fullcycle(:(a = 2 ; a))                  == Expr(:block, :(2) )
+@test fullcycle(:( a = x ; b = a ))            == Expr(:block, :( b = x ) )
+@test fullcycle(:( a = x ; b = a ; a + b))     == Expr(:block, :( x+x ) )
+@test fullcycle(:( a = x ; b = a ; c = b ; b)) == Expr(:block, :( x ) )
 
-@test fullcycle(:( a[2] ))                       == Expr(:block, :(out = a[2]) )
-@test fullcycle(:( y = a[2] ; y ))               == Expr(:block, :(out = a[2]) )
-@test fullcycle(:( y = a[2] ; y[1] ))            == Expr(:block, :(out = a[2][1]) )
-@test fullcycle(:( y[1] = a[2] ; y[1] ))         == :(y[1] = a[2]; out = y[1])
-@test fullcycle(:( y = a+1 ; y[2]+y[1] ))        == :(_tmp1 = a+1 ; out = _tmp1[2]+_tmp1[1])
-@test fullcycle(:( a[2] = x ; a[3] ))            == :(a[2] = x ; out = a[3])
-@test fullcycle(:( a[2] = x ; y=a[3] ; y ))      == :(a[2] = x ; out = a[3])
-@test fullcycle(:( b = a ; b[2] = x; 1 + b[2] )) == :(a[2] = x ; out = 1+a[2]) 
-@test fullcycle(:( b = a ; b[2] = x; 1 + b[1] )) == :(a[2] = x ; out = 1+a[1]) 
-@test fullcycle(:( a[1] + a[2] ))                == Expr(:block, :( out = a[1] + a[2]) )
-@test fullcycle(:( a[1:2] ))                     == Expr(:block, :( out = a[1:2]) )
-@test fullcycle(:( a = x ; a[1:2] = a[1:2] ))    == Expr(:block, :( a = x ) )
-@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,3] ))== Expr(:block, :( a = x ) )
-@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,4] ))== :( _tmp1 = 1:2 ; x[_tmp1,3] = x[_tmp1,4])
 
-@test fullcycle(:( a = x ; b = a ))              == Expr(:block, :( b = x ) )
-@test fullcycle(:( a = x ; b = a ; a + b))       == Expr(:block, :( out = x+x ) )
-# @test fullcycle(:( a = x ; b = a ; c = b ; b))   == Expr(:block, :( out = x ) )  # problem here !
-
+@test fullcycle(:( a[2] ))                        == Expr(:block, :( a[2]) )
+@test fullcycle(:( y = a[2] ; y ))                == Expr(:block, :( a[2]) )
+@test fullcycle(:( y = a[2] ; y[1] ))             == Expr(:block, :( a[2][1]) )
+@test fullcycle(:( y[1] = a[2] ; y[1] ))          == :(y[1] = a[2]; y[1])
+@test fullcycle(:( y = a+1 ; y[2]+y[1] ))         == :(_tmp1 = a+1 ; _tmp1[2]+_tmp1[1])
+@test fullcycle(:( a[2] = x ; a[3] ))             == :(a[2] = x ; a[3])
+@test fullcycle(:( a[2] = x ; y=a[3] ; y ))       == :(a[2] = x ; a[3])
+@test fullcycle(:( b = a ; b[2] = x; 1 + b[2] ))  == :(a[2] = x ; 1+a[2])
+@test fullcycle(:( b = a ; b[2] = x; 1 + b[1] ))  == :(a[2] = x ; 1+a[1])
+@test fullcycle(:( a[1] + a[2] ))                 == Expr(:block, :( a[1] + a[2]) )
+@test fullcycle(:( a[1:2] ))                      == Expr(:block, :( a[1:2]) )
+@test fullcycle(:( a = x ; a[1:2] = a[1:2] ))     == Expr(:block, :( a = x ) )
+@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,3] )) == Expr(:block, :( a = x ) )
+@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,4] )) == :( _tmp1 = 1:2 ; x[_tmp1,3] = x[_tmp1,4])
 
 #  'end' and ':' not fully supported
 # @test fullcycle(:( a[1:end] ))                   == Expr(:block, :( out = a[1:end]) )            
@@ -196,14 +205,13 @@ end
 # @test fullcycle(:( a[1:end, 3, 10:15] ))         == Expr(:block, :( out = a[1:end, 3, 10:15]) )
 # @test fullcycle(:( a[1:end, :, 10:15] ))         == Expr(:block, :( out = a[1:end, :, 10:15]) )
 
-
-@test fullcycle(:( a.x ))                     == Expr(:block, :(out = a.x) )
+@test fullcycle(:( a.x ))                     == Expr(:block, :( a.x) )
 @test fullcycle(:( y = a.x ))                 == Expr(:block, :(y = a.x) )
-@test fullcycle(:( y = a.x + 1 ; y.b + y.c )) == :(_tmp1 = +(a.x,1) ; out = _tmp1.b+_tmp1.c)
-@test fullcycle(:( a.x = x ; a[3] ))          == :(a.x = x; out = a[3])
-@test fullcycle(:( a.x = x ; y = a.y ; y ))   == :(a.x = x ; out = a.y )
-@test fullcycle(:( b = a; b.x = x; 1 + b.y )) == :(a.x = x ; out = 1+a.y )
-@test fullcycle(:( a.x + a.y ))               == Expr(:block, :( out = a.x+a.y ) )
+@test fullcycle(:( y = a.x + 1 ; y.b + y.c )) == :(_tmp1 = +(a.x,1) ; _tmp1.b+_tmp1.c)
+@test fullcycle(:( a.x = x ; a[3] ))          == :(a.x = x; a[3])
+@test fullcycle(:( a.x = x ; y = a.y ; y ))   == :(a.x = x ; a.y )
+@test fullcycle(:( b = a; b.x = x; 1 + b.y )) == :(a.x = x ; 1+a.y )
+@test fullcycle(:( a.x + a.y ))               == Expr(:block, :( a.x+a.y ) )
 
 @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
 @test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
@@ -314,7 +322,7 @@ ex = quote
     y3 = x * a
     y + y2 + y3 + 12
 end
-exout = :( _tmp1 = *(x,a) ; out = +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
+exout = :( _tmp1 = *(x,a) ; +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
 @test fullcycle(ex) == exout 
 
 ###  test respect of allocations
@@ -326,7 +334,7 @@ end
 exout = quote 
     _tmp1 = zeros(2)
     _tmp1[2] = x
-    out = sum(_tmp1)
+    sum(_tmp1)
 end
 @test fullcycle(ex) == striplinenumbers(exout)
 
@@ -342,7 +350,7 @@ exout = quote
     _tmp1 = zeros(5)
     _tmp2 = sum(_tmp1)
     _tmp1[2] = 1
-    out = +(_tmp2,sum(_tmp1))
+    _tmp2 + sum(_tmp1)
 end
 
 @test fullcycle(ex) == striplinenumbers(exout)

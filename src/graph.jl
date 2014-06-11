@@ -55,6 +55,13 @@ end
 
 #####  ExGraph functions  #####
 
+### looks for ancestors, optionnally excluding some nodes
+function ancestors(ns::Vector, except=[])
+    ss = setdiff(ns, except)
+    isempty(ss) ? [] : mapreduce(n -> ancestors(n,except), union, ss)
+end
+ancestors(ns, except=[]) = union([ns], ancestors(ns.parents, except))
+
 # copies a graph and its nodes, leaves onodes references intact
 function copy(g::ExGraph)
   g2 = ExGraph()
@@ -114,6 +121,7 @@ function splitnary!(g::ExGraph)
 
       end
   end
+  g
 end
 
 ####### fuses nodes nr and nk, keeps nk ########
@@ -208,7 +216,7 @@ function prune!(g::ExGraph, exitnodes)
   end
 
   g.nodes = intersect(g.nodes, ns2)
-  nothing
+  g
 end
 
 ####### sort graph to an evaluable order ###########
@@ -228,6 +236,8 @@ function evalsort!(g::ExGraph)
 
   # separate pass on subgraphs
   map( n -> evalsort!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
+
+  g
 end
 
 ####### calculate the value of each node  ###########
@@ -309,6 +319,8 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   for n in g.nodes
     n.val = evaluate(n)
   end
+
+  g
 end
 
 ###### inserts graph src into dest  ######
