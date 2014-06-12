@@ -30,8 +30,6 @@
     g = m.tograph(:(  α = fill(x,5) ; β = α[2] ))
     [collect(values(g.set_inodes))]
 
-
-
     ex = quote
         a=zeros(5)
         a[3:5] = x 
@@ -431,12 +429,6 @@
 
         # reduce to variable of interest
         g.set_inodes = m.BiDict{m.ExNode,Any}([g.set_inodes.vk[outsym]], [ outsym ])    
-        # exitnode = g.set_inodes.vk[outsym]
-
-        # m.splitnary!(g)
-        # m.prune!(g, [ g.set_inodes.vk[outsym] ])
-        # m.simplify!(g)
-        # m.calc!(g, params=parval, emod=evalmod)
 
         g |> m.splitnary! |> m.prune! |> m.simplify!
         m.calc!(g, params=parval, emod=evalmod)
@@ -454,9 +446,7 @@
             g.set_inodes[nn] = ns
             push!(voi, ns)
 
-            m.splitnary!(g)
-            m.prune!(g)
-            m.simplify!(g)
+            g |> m.splitnary! |> m.prune! |> m.simplify!
 
         elseif order > 1 && isa(paramvalues[1], Real)
             for i in 1:order  # i=1
@@ -469,9 +459,7 @@
                 g.set_inodes[nn] = ns
                 push!(voi, ns)
 
-                m.splitnary!(g)
-                m.prune!(g)
-                m.simplify!(g)
+                g |> m.splitnary! |> m.prune! |> m.simplify!
                 
                 m.calc!(g, params=parval, emod=evalmod)
             end
@@ -533,7 +521,7 @@
                             push!(dg2, nn)
                             nmap[ns] = nn                            
 
-                        elseif np in g.nodes # it's not in dg (but in g)
+                        elseif !(np in dg.nodes) # it's not in dg (but in g)
                             sn = m.newvar()
                             nn = m.NExt(sn)
                             push!(dg2, nn)
@@ -546,47 +534,91 @@
                     end
                 end
                 append!(dg.nodes, dg2)    
-
                 dg |> m.prune! |> m.simplify!
 
-                dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
+                # dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
+                # collect(dg.ext_inodes)
+                # collect(dg.set_inodes)
                 # collect(nmap)
 
-                # create scanning loop
-                m.tocode(g)
-                fex = m.tocode(dg)
-                sres = collect(dg.set_inodes)[1][1].val
-                sa = m.newvar(:_lv)
-                fex = quote
-                    sz = length( x )
-                    st = sz ^ $(i-1)
-                    $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
-                    for $si in 1:sz
-                        $fex
-                        ($sa)[ (($si-1)*st+1):($si*st) ] = $sres
-                    end
-                    $sa
-                end  # FIXME : when fex has a loop, symbol names are lost and can be mapped in g
+                # create for loop node
+                nf = m.addnode!(g, m.NFor({si, dg}) )
 
-                ### create mapping for vars in fex that refer to nodes in g
-                nmap2 = Dict()
-                for (onode, inode) in nmap
-                    inode == ni && continue
-                    nmap2[ inode.main ] = onode
-                end
+                # create size node
+                nsz = m.addgraph!( m.tograph(:( length( x ) )), g, { :x => g.ext_inodes.vk[paramsym[1]] } )
 
-                nmap2[:x] = g.ext_inodes.vk[paramsym[1]]
-                # collect(nmap2)
-                # nmap2[:_tmp93]
-                # test = m.tograph(fex)
-                # setdiff( collect(keys(nmap2)), collect(keys(test.ext_inodes.vk)) )
-                # setdiff( collect(keys(test.ext_inodes.vk)), collect(keys(nmap2)) )
-                nr = m.addgraph!( m.tograph(fex), g, nmap2)
-                # collect(test.ext_inodes.kv)
+                # create index range node
+                nid = m.addgraph!( m.tograph(:( 1:sz )),  g, { :sz => nsz } )
+                push!(nf.parents, nid)
+
+                # create stride size node
+                nst = m.addgraph!( m.tograph(:( sz ^ $(i-1) )),  g, { :sz => nsz } )
+                sst = m.newvar()
+                inst = m.addnode!(dg, m.NExt(sst))
+                dg.ext_inodes[inst] = sst
+                dg.ext_onodes[nst]  = sst
+                push!(nf.parents, nst)
+
+                # create result node (in parent graph)
+                nsa = m.addgraph!( m.tograph(:( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) )), g, { :sz => nsz } )
+                ssa = m.newvar()
+                insa = m.addnode!(dg, m.NExt(ssa))
+                dg.ext_inodes[insa] = ssa
+                dg.ext_onodes[nsa]  = ssa
+                push!(nf.parents, nsa)
+
+                # create result node (in subgraph)
+                nres = m.addgraph!( m.tograph(:( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res )), dg, 
+                                    { :res  => insa,
+                                      :sidx => nmap[ni],
+                                      :st   => inst,
+                                      :dx   => collect(dg.set_inodes)[1][1] } )
+                dg.set_inodes = m.BiDict{m.ExNode, Any}(Dict([nres], [ssa]))
+
+                # create exit node for result
+                nex = m.addnode!(g, m.NIn(ssa, [nf]))
+                dg.set_onodes = m.BiDict{m.ExNode, Any}(Dict([nex], [ssa]))
+
+                # update parents of for loop
+                # collect( dg.ext_inodes )
+                append!( nf.parents, setdiff(collect( keys(dg.ext_onodes)), nf.parents) )
+
+                # nf = m.addnode!(g, NFor({si, dg)) )
+                # # create scanning loop
+                # m.tocode(g)
+                # fex = m.tocode(dg)
+                # sres = collect(dg.set_inodes)[1][1].val
+                # sa = m.newvar(:_lv)
+                # fex = quote
+                #     sz = length( x )
+                #     st = sz ^ $(i-1)
+                #     $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
+                #     for $si in 1:sz
+                #         $fex
+                #         ($sa)[ (($si-1)*st+1):($si*st) ] = $sres
+                #     end
+                #     $sa
+                # end  # FIXME : when fex has a loop, symbol names are lost and can't be mapped in g
+
+                # ### create mapping for vars in fex that refer to nodes in g
+                # nmap2 = Dict()
+                # for (onode, inode) in nmap
+                #     inode == ni && continue
+                #     nmap2[ inode.main ] = onode
+                # end
+
+                # nmap2[:x] = g.ext_inodes.vk[paramsym[1]]
+                # # collect(nmap2)
+                # # nmap2[:_tmp93]
+                # # test = m.tograph(fex)
+                # # setdiff( collect(keys(nmap2)), collect(keys(test.ext_inodes.vk)) )
+                # # setdiff( collect(keys(test.ext_inodes.vk)), collect(keys(nmap2)) )
+                # nr = m.addgraph!( m.tograph(fex), g, nmap2)
+                # # collect(test.ext_inodes.kv)
 
                 # nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
                 ns = m.newvar(:_dv)
-                g.set_inodes[nr] = ns
+                g.set_inodes[nex] = ns
                 push!(voi, ns)
 
                 g |> m.splitnary! |> m.prune! |> m.simplify!
@@ -616,12 +648,13 @@ rdiff( :(exp(-2x))        ,    order=6,  x=2.)
 
 res          = rdiff( :(x[1] * x[2])      , order = 1 , x = ones(3))
 res          = rdiff( :(x[1] * x[2])      , order = 2 , x = ones(3))
+res          = rdiff( :(x[1] * x[2])      , order = 3 , x = ones(3))
 @eval myf(x) = $res
 myf(ones(3))
 
 
 res          = rdiff( :( sin(x[1]*x[2]) ) , order = 2 , x = ones(2))
-@eval myf(x) = ($res ; out)
+@eval myf(x) = $res
 v  , g  , h  = myf(ones(2))
 v2 , g2 , h2 = myf(ones(2)+[1e-8 , 0])
 (v2 - v)*1e8

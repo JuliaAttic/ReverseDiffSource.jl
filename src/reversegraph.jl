@@ -62,7 +62,8 @@ end
 
 #  climbs the reversed evaluation tree
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
-	# TODO : update precedence field when creating NSRef / NSDot / NFor
+	# TODO : have a generic treatment of mutating nodes (NSRef / NSDot / NFor ...)
+
 	rev(n::ExNode) = nothing  # do nothing
 
 	function rev(n::NCall)
@@ -86,10 +87,12 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
         v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
+		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NSRef)
+		#  find potential NSRef having n as a parent, so has to base derivative on it
 		ns = filter( x -> n in x.parents && isa(x, NSRef), g.nodes )
 		@assert length(ns) <= 1 "[reversegraph] inconsistent NSRef links"
 
@@ -98,12 +101,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		else
 			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
 		end
-		#  find original definition in case there are setindex in succession
-		# n2 = n
-		# while isa(n2.parents[1], NSRef)
-		# 	n2 = n2.parents[1]
-		# end
-		# v2 = addnode!(g2, NRef(:getidx, [ dnodes[n2] , n.parents[3:end] ]) )
 		
 		# treat case where a single value is allocated to several array elements
 		if length(dnodes[n.parents[2]].val) == 1 
@@ -122,6 +119,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
         v3 = addnode!(g2, NCall(:+, [v2, dnodes[n]]) )
 		v4 = addnode!(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
+		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
 	end
 
@@ -189,25 +187,15 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			fg.set_inodes[ fdnodes[ni] ] = sym
 		end
 
-	# println("=== fg  1 ===")
-	# println(fg.nodes)
-	# println("ndmap = $(collect(ndmap))")
-	# println("fdnodes = $(collect(fdnodes))")
-	# println("ext = $(collect(fg.ext_inodes.kv))")
-	# println("set = $(collect(fg.set_inodes.kv))")
-	# println("oext = $(collect(fg.ext_onodes.kv))")
-	# println("oset = $(collect(fg.set_onodes.kv))")
+		# println(fg.nodes)
+		# println("ndmap = $(collect(ndmap))")
+		# println("fdnodes = $(collect(fdnodes))")
+		# println("ext = $(collect(fg.ext_inodes.kv))")
+		# println("set = $(collect(fg.set_inodes.kv))")
+		# println("oext = $(collect(fg.ext_onodes.kv))")
+		# println("oset = $(collect(fg.set_onodes.kv))")
 
 		prune!(fg) # reduce to derivatives evaluation only
-
-	# println("=== fg  2 ===")
-	# println(fg.nodes)
-	# println("ndmap = $(collect(ndmap))")
-	# println("fdnodes = $(collect(fdnodes))")
-	# println("ext = $(collect(fg.ext_inodes.kv))")
-	# println("set = $(collect(fg.set_inodes.kv))")
-	# println("oext = $(collect(fg.ext_onodes.kv))")
-	# println("oset = $(collect(fg.set_onodes.kv))")
 
 		# create for loop
 		v2 = addnode!(g2, NFor({ n.main[1], fg}) )
@@ -221,22 +209,11 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			fg.set_onodes[rn] = sym
 			dnodes[on] = rn 
 		end
-
-	# println("=== fg  3 ===")
-	# println(fg.nodes)
-	# println("ndmap = $(collect(ndmap))")
-	# println("fdnodes = $(collect(fdnodes))")
-	# println("ext = $(collect(fg.ext_inodes.kv))")
-	# println("set = $(collect(fg.set_inodes.kv))")
-	# println("oext = $(collect(fg.ext_onodes.kv))")
-	# println("oset = $(collect(fg.set_onodes.kv))")
-
+		# TODO : update precedence of v2 here ? 
 	end
 
 	evalsort!(g)
-	# println(g2)
 	for n2 in reverse(g.nodes)
-		# println("======  $n2  ======")
 		rev(n2)
 		# for n3 in g2.nodes
 		# 	dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))

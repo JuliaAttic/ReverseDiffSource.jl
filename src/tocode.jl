@@ -4,7 +4,6 @@
 #
 #########################################################################
 
-# g   : ExGraph to translate to code
 function tocode(g::ExGraph)
 
 	valueof(n::ExNode, child::ExNode) = n.val
@@ -102,7 +101,9 @@ function tocode(g::ExGraph)
 	return Expr(:block, out...)
 end 
 
-###  variable names assigned to this node
+#####################################################################
+#  variable names assigned to this node
+#####################################################################
 const nosym = 0x7c883061f2344364  # code for no symbol associated
 
 function getnames(n::ExNode, g::ExGraph)
@@ -116,7 +117,9 @@ function getnames(n::ExNode, g::ExGraph)
 	return g.ext_onodes.vk[sym].val
 end
 
-#### tells if an assignment should be created for this node
+#####################################################################
+#  tells if an assignment should be created for this node
+#####################################################################
 
 # always evaluate nodes that change a variable's state
 ispivot(n::Union(NSRef, NSDot, NFor), g::ExGraph) = (true, nothing)
@@ -124,7 +127,6 @@ ispivot(n::Union(NSRef, NSDot, NFor), g::ExGraph) = (true, nothing)
 # evaluate only if names are linked
 function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	sym = getnames(n, g)
-	# sym == nosym || return (true, sym)
 	(sym != nosym, sym)
 end
 
