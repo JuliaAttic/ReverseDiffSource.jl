@@ -404,6 +404,7 @@
 
         # ex = :(sin(x))      ; order=2 ; evalmod=Main ; params = [(:x, 1.)]      ; outsym=nothing
         # ex = :( x[1]*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( x[1]^3 ) ; order=3 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
         # ex = :( x[1]^3+x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
         # ex = :( z = zeros(2) ; z[1] = x ; z[2] = 2x ; sum(z)) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
         # ex = :( z = zeros(2) ; z[1] = x ; sum(z) ) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
@@ -491,7 +492,7 @@
                 dg = m.reversegraph(g, ns, paramsym)
 
                 #### We will now wrap dg in a loop scanning all the elements of 'no'
-                # first create nodes to make dg a complete subgraph
+                # first create ext nodes to make dg a complete subgraph
                 dg2 = m.ExNode[]
                 nmap = Dict()
                 for n in dg.nodes  # n = dg.nodes[2]
@@ -532,14 +533,29 @@
 
                         end    
                     end
+
+                    # update onodes in for loops
+                    if isa(n, m.NFor)
+                        g2 = n.main[2]
+                        for (o,s) in g2.ext_onodes
+                            if haskey(nmap, o)
+                                g2.ext_onodes[ nmap[o] ] = s  # replace
+                            end
+                        end
+                    end
                 end
-                append!(dg.nodes, dg2)    
+                # append!(dg.nodes, dg2)    
                 dg |> m.prune! |> m.simplify!
 
                 # dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
                 # collect(dg.ext_inodes)
                 # collect(dg.set_inodes)
                 # collect(nmap)
+                m.tocode(dg)
+
+                # collect(dg.nodes[13].parents)
+                # dg.nodes[45].main[2]
+                # ln
 
                 # create for loop node
                 nf = m.addnode!(g, m.NFor({si, dg}) )
@@ -559,7 +575,7 @@
                 dg.ext_onodes[nst]  = sst
                 push!(nf.parents, nst)
 
-                # create result node (in parent graph)
+                # create result node (alloc in parent graph)
                 nsa = m.addgraph!( m.tograph(:( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) )), g, { :sz => nsz } )
                 ssa = m.newvar()
                 insa = m.addnode!(dg, m.NExt(ssa))
@@ -567,7 +583,7 @@
                 dg.ext_onodes[nsa]  = ssa
                 push!(nf.parents, nsa)
 
-                # create result node (in subgraph)
+                # create result node update (in subgraph)
                 nres = m.addgraph!( m.tograph(:( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res )), dg, 
                                     { :res  => insa,
                                       :sidx => nmap[ni],
@@ -581,7 +597,7 @@
 
                 # update parents of for loop
                 # collect( dg.ext_inodes )
-                append!( nf.parents, setdiff(collect( keys(dg.ext_onodes)), nf.parents) )
+                append!( nf.parents, setdiff(collect( keys(dg.ext_onodes)), nf.parents[2:end]) )
 
                 # nf = m.addnode!(g, NFor({si, dg)) )
                 # # create scanning loop
@@ -621,6 +637,9 @@
                 g.set_inodes[nex] = ns
                 push!(voi, ns)
 
+g
+g.nodes[21].main[2]
+
                 g |> m.splitnary! |> m.prune! |> m.simplify!
                 
                 m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
@@ -632,7 +651,7 @@
         ex = m.addnode!(g, m.NCall(:tuple, voin))
         g.set_inodes = m.BiDict(Dict{m.ExNode,Any}( [ex], [nothing]) )
 
-        m.resetvar()
+        # m.resetvar()
         println("=== tocode")
         m.tocode(g)
     end
@@ -646,9 +665,9 @@ rdiff( :(exp(x))          ,    order=6,  x=2.)
 rdiff( :(exp(-2x))        ,    order=6,  x=2.)
 
 
-res          = rdiff( :(x[1] * x[2])      , order = 1 , x = ones(3))
-res          = rdiff( :(x[1] * x[2])      , order = 2 , x = ones(3))
-res          = rdiff( :(x[1] * x[2])      , order = 3 , x = ones(3))
+res          = rdiff( :(x[1] * x[2])      , order = 1 , x = ones(2))
+res          = rdiff( :(x[1] * x[2])      , order = 2 , x = ones(2))
+res          = rdiff( :(x[1] * x[2])      , order = 3 , x = ones(2))
 @eval myf(x) = $res
 myf(ones(3))
 
