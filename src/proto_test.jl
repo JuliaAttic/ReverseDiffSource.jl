@@ -765,3 +765,217 @@ v, g, h = myf(5ones(2))
 
 
 
+###################### zoom order 3
+
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+
+        # ex = :(sin(x))      ; order=2 ; evalmod=Main ; params = [(:x, 1.)]      ; outsym=nothing
+        # ex = :( x[1]^3 ) ; order=3 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( x[1]^3+x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+        # ex = :( z = zeros(2) ; z[1] = x ; z[2] = 2x ; sum(z)) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
+        # ex = :( z = zeros(2) ; z[1] = x ; sum(z) ) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
+
+        ex = :( x[1]*x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
+
+        length(params) >= 1 || error("There should be at least one parameter specified, none found")
+        
+        order <= 1 || 
+        length(params) == 1 || error("Only one param allowed for order >= 2")
+        
+        order <= 1 || 
+        isa(params[1][2], Vector) || 
+        isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
+
+        paramsym    = Symbol[ e[1] for e in params]
+        paramvalues = [ e[2] for e in params]
+        parval      = Dict(paramsym, paramvalues)
+
+        println("=== tograph")
+        g = m.tograph(ex)
+
+        haskey(g.set_inodes.vk, outsym) || 
+            error("can't find output var $( outsym==nothing ? "" : outsym)")
+
+        # reduce to variable of interest
+        g.set_inodes = m.BiDict{m.ExNode,Any}([g.set_inodes.vk[outsym]], [ outsym ])    
+
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+        m.calc!(g, params=parval, emod=evalmod)
+
+        ov = g.set_inodes.vk[outsym].val 
+        isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+        voi = { outsym }
+
+        #####
+
+            # do first order as usual
+            dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
+            m.append!(g.nodes, dg.nodes)
+            ns = m.newvar(:_dv)
+            g.set_inodes[ collect(keys(dg.set_inodes))[1] ] = ns
+            push!(voi, ns)
+
+            g |> m.splitnary! |> m.prune! |> m.simplify!
+
+    # m.tocode(g)
+
+            # now order 2 to n
+            # for i in 2:order  
+             i=2
+             i=3
+                println("=== reversegraph  $i")
+
+                # launch derivation on a single value of the preceding
+                #   derivation vector
+                no = g.set_inodes.vk[voi[i]]
+                si = m.newvar(:_idx)
+                ni = m.addnode!(g, m.NExt(si))
+                ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
+
+                m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
+                dg = m.reversegraph(g, ns, paramsym)
+
+                #### We will now wrap dg in a loop scanning all the elements of 'no'
+                # first create ext nodes to make dg a complete subgraph
+                dg2 = m.ExNode[]
+                nmap = Dict()
+                for n in dg.nodes  # n = dg.nodes[2]
+                    for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
+                        if haskey(nmap, np) # already remapped
+                            n.parents[j] = nmap[np]
+
+                        elseif np == ni # it's the loop index
+                            nn = m.NExt(si)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = si
+                            n.parents[j] = nn
+                            nmap[np] = nn
+
+                        elseif np == ns # it's the selected element of the deriv vector
+                            # create 'no' ref if needed
+                            if !haskey(nmap, no)
+                                sn = m.newvar()
+                                nn = m.NExt(sn)
+                                push!(dg2, nn)
+                                dg.ext_inodes[nn] = sn
+                                dg.ext_onodes[no] = sn
+                                nmap[no] = nn
+                            end
+
+                            nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
+                            push!(dg2, nn)
+                            nmap[ns] = nn                            
+
+                        elseif !(np in dg.nodes) # it's not in dg (but in g)
+                            sn = m.newvar()
+                            nn = m.NExt(sn)
+                            push!(dg2, nn)
+                            dg.ext_inodes[nn] = sn
+                            dg.ext_onodes[np] = sn
+                            n.parents[j] = nn
+                            nmap[np] = nn
+
+                        end    
+                    end
+
+                    # update onodes in for loops
+                    if isa(n, m.NFor)
+                        g2 = n.main[2]
+                        for (o,s) in g2.ext_onodes
+                            if haskey(nmap, o)
+                                g2.ext_onodes[ nmap[o] ] = s  # replace
+                            end
+                        end
+                    end
+                end
+
+
+                # [ (sum(x -> !(x in dg), n.parents) , sum(x -> !(x in dg2), n.parents) ) for n in dg.nodes]
+                # test = [ collect(n.parents) for n in dg.nodes]
+                # test = test[ map(x->length(x)>0, test) ]
+                # [ (sum(x -> !(x in dg) & , ns) , sum(x -> !(x in dg2), ns) ) for n in dg.nodes]
+
+
+                append!(dg.nodes, dg2)    
+                dg |> m.prune! |> m.simplify!
+
+                # dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
+                # collect(dg.ext_inodes)
+                # collect(dg.set_inodes)
+                # collect(nmap)
+                m.tocode(dg)
+
+                # collect(dg.nodes[13].parents)
+                # dg.nodes[45].main[2]
+                # ln
+
+                # create for loop node
+                nf = m.addnode!(g, m.NFor({si, dg}) )
+
+                # create size node
+                nsz = m.addgraph!( m.tograph(:( length( x ) )), g, { :x => g.ext_inodes.vk[paramsym[1]] } )
+
+                # create index range node
+                nid = m.addgraph!( m.tograph(:( 1:sz )),  g, { :sz => nsz } )
+                push!(nf.parents, nid)
+
+                # create stride size node
+                nst = m.addgraph!( m.tograph(:( sz ^ $(i-1) )),  g, { :sz => nsz } )
+                sst = m.newvar()
+                inst = m.addnode!(dg, m.NExt(sst))
+                dg.ext_inodes[inst] = sst
+                dg.ext_onodes[nst]  = sst
+                push!(nf.parents, nst)
+
+                # create result node (alloc in parent graph)
+                nsa = m.addgraph!( m.tograph(:( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) )), g, { :sz => nsz } )
+                ssa = m.newvar()
+                insa = m.addnode!(dg, m.NExt(ssa))
+                dg.ext_inodes[insa] = ssa
+                dg.ext_onodes[nsa]  = ssa
+                push!(nf.parents, nsa)
+
+                # create result node update (in subgraph)
+                nres = m.addgraph!( m.tograph(:( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res )), dg, 
+                                    { :res  => insa,
+                                      :sidx => nmap[ni],
+                                      :st   => inst,
+                                      :dx   => collect(dg.set_inodes)[1][1] } )
+                dg.set_inodes = m.BiDict{m.ExNode, Any}(Dict([nres], [ssa]))
+
+                # create exit node for result
+                nex = m.addnode!(g, m.NIn(ssa, [nf]))
+                dg.set_onodes = m.BiDict{m.ExNode, Any}(Dict([nex], [ssa]))
+
+                # update parents of for loop
+                # collect( dg.ext_inodes )
+                append!( nf.parents, setdiff(collect( keys(dg.ext_onodes)), nf.parents[2:end]) )
+
+                ns = m.newvar(:_dv)
+                g.set_inodes[nex] = ns
+                push!(voi, ns)
+
+    g
+    g2 = g.nodes[21].main[2]
+    collect(g2.ext_inodes)
+    collect(g2.ext_onodes)
+    [ n in g.nodes for n in collect(keys(g2.ext_onodes))]
+
+                g |> m.splitnary! |> m.prune! |> m.simplify!
+                
+                m.calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+            end
+
+        end
+
+        voin = map( s -> g.set_inodes.vk[s], voi)
+        ex = m.addnode!(g, m.NCall(:tuple, voin))
+        g.set_inodes = m.BiDict(Dict{m.ExNode,Any}( [ex], [nothing]) )
+
+        # m.resetvar()
+        println("=== tocode")
+        m.tocode(g)
+
+        
