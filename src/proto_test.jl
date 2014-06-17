@@ -408,6 +408,7 @@
         # ex = :( x[1]^3+x[2] ) ; order=2 ; evalmod=Main ; params = [(:x, [1.,2.])] ; outsym=nothing
         # ex = :( z = zeros(2) ; z[1] = x ; z[2] = 2x ; sum(z)) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
         # ex = :( z = zeros(2) ; z[1] = x ; sum(z) ) ; order=1 ; evalmod=Main ; params = [(:x, 1.)] ; outsym=nothing
+        m.resetvar()
 
         length(params) >= 1 || error("There should be at least one parameter specified, none found")
         
@@ -544,7 +545,7 @@
                         end
                     end
                 end
-                # append!(dg.nodes, dg2)    
+                append!(dg.nodes, dg2)    
                 dg |> m.prune! |> m.simplify!
 
                 # dg.ext_onodes =  m.BiDict{m.ExNode, Any}()
@@ -599,46 +600,12 @@
                 # collect( dg.ext_inodes )
                 append!( nf.parents, setdiff(collect( keys(dg.ext_onodes)), nf.parents[2:end]) )
 
-                # nf = m.addnode!(g, NFor({si, dg)) )
-                # # create scanning loop
-                # m.tocode(g)
-                # fex = m.tocode(dg)
-                # sres = collect(dg.set_inodes)[1][1].val
-                # sa = m.newvar(:_lv)
-                # fex = quote
-                #     sz = length( x )
-                #     st = sz ^ $(i-1)
-                #     $sa = zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) )
-                #     for $si in 1:sz
-                #         $fex
-                #         ($sa)[ (($si-1)*st+1):($si*st) ] = $sres
-                #     end
-                #     $sa
-                # end  # FIXME : when fex has a loop, symbol names are lost and can't be mapped in g
-
-                # ### create mapping for vars in fex that refer to nodes in g
-                # nmap2 = Dict()
-                # for (onode, inode) in nmap
-                #     inode == ni && continue
-                #     nmap2[ inode.main ] = onode
-                # end
-
-                # nmap2[:x] = g.ext_inodes.vk[paramsym[1]]
-                # # collect(nmap2)
-                # # nmap2[:_tmp93]
-                # # test = m.tograph(fex)
-                # # setdiff( collect(keys(nmap2)), collect(keys(test.ext_inodes.vk)) )
-                # # setdiff( collect(keys(test.ext_inodes.vk)), collect(keys(nmap2)) )
-                # nr = m.addgraph!( m.tograph(fex), g, nmap2)
-                # # collect(test.ext_inodes.kv)
-
-                # nn = collect(keys(dg.set_inodes))[1]  # only a single node produced
                 ns = m.newvar(:_dv)
                 g.set_inodes[nex] = ns
                 push!(voi, ns)
 
-g
-g.nodes[21].main[2]
+        # g
+        # g.nodes[21].main[2]
 
                 g |> m.splitnary! |> m.prune! |> m.simplify!
                 
@@ -657,13 +624,18 @@ g.nodes[21].main[2]
     end
 
 
-rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1.)
+rdiff( :(sin(x^2-log(y))) , x=2.,  y=1.)
 rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
 rdiff( :(sin(x))          ,   order=10,  x=2.)
 rdiff( :(x^3)             ,    order=6,  x=2.)
 rdiff( :(exp(x))          ,    order=6,  x=2.)
 rdiff( :(exp(-2x))        ,    order=6,  x=2.)
 
+
+rdiff( :(x^3) , x=2.)
+rdiff( :(x^3) , order = 3, x=2.)
+ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
+rdiff(ex, x=zeros(2), order=2)
 
 res          = rdiff( :(x[1] * x[2])      , order = 1 , x = ones(2))
 res          = rdiff( :(x[1] * x[2])      , order = 2 , x = ones(2))
@@ -694,11 +666,15 @@ for idx1 = 1:3
 end
 
 
+rdiff( :( 3x[1]^2+x[2]^2 ),    order=0,  x=ones(2))
+
+
 # ok ça marche
 res = rdiff( :( 3x[1]^2+x[2]^2 ),    order=2,  x=ones(2))
 @eval myf(x) = $res
 myf(ones(2))
 myf(2ones(2))
+
 
 # ok ça marche
 res = rdiff( :( x[1]^2 * x[2]^2 ),    order=2,  x=ones(2))
@@ -978,4 +954,3 @@ v, g, h = myf(5ones(2))
         println("=== tocode")
         m.tocode(g)
 
-        
