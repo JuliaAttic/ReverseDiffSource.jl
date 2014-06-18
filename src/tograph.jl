@@ -17,6 +17,8 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::ExLine)         = nothing     # remove line info
 	explore(ex::LineNumberNode) = nothing     # remove line info
 
+	explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
+
 	explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
 	explore(ex::ExCell1d)  = explore(Expr(:call, :(Base.cell_1d), ex.args...) )  # translate to cell_1d() call, and explore
 	explore(ex::ExTrans)   = explore(Expr(:call, :transpose, ex.args[1]) )  # translate to transpose() and explore
@@ -30,6 +32,7 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::Real)      = addnode!(g, NConst(ex))
 
 	explore(ex::ExBlock)   = map( explore, ex.args )[end]
+	explore(ex::ExBody)    = map( explore, ex.args )[end]
 
 	explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
 
@@ -48,7 +51,31 @@ function tograph(s, svars::Vector{Any})
 		return nn
 	end
 
-	explore(ex::ExCall) = addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
+	function explore(ex::ExCall)
+		sf = ex.args[1]
+		if sf == :getindex  # needs a special treatment
+			return addnode!(g, NRef(:getidx, map(explore, ex.args[2:end])))
+
+		elseif sf == :getfield  # needs a special treatment
+			return addnode!(g, NDot(ex.args[3], [ explore(ex.args[2]) ]))
+
+		elseif sf == :setindex! # needs a special treatment
+			isa(ex.args[2], Symbol) && error("[tograph] setindex! only allowed on variables")
+
+			vn  = explore(ex.args[2]) # node whose subpart is assigned
+			rhn = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
+				                               explore(ex.args[3]), # value affected in pos #2
+				                               map(explore, ex.args[4:end])] ))  # indexing starting at #3
+			rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+			g.set_inodes[rhn] = ex.args[2]
+
+			return nothing
+
+		else #TODO : add setfield!
+
+			return  addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
+		end
+	end
 
 	function explore(ex::ExEqual) 
 		lhs = ex.args[1]

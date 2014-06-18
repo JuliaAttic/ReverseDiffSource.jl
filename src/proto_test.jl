@@ -443,7 +443,7 @@
         if order == 1
             dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
             m.append!(g.nodes, dg.nodes)
-            nn = m.addnode!( g, m.NCall(:tuple, collect(keys(dg.set_inodes))) )
+            nn = m.addnode!( g, m.NCall(:tuple, [ dg.set_inodes.vk[m.dprefix(p)] for p in paramsym] ) )
             ns = m.newvar("_dv")
             g.set_inodes[nn] = ns
             push!(voi, ns)
@@ -624,20 +624,49 @@
     end
 
 
-rdiff( :(sin(x^2-log(y))) , x=2.,  y=1.)
-rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
-rdiff( :(sin(x))          ,   order=10,  x=2.)
-rdiff( :(x^3)             ,    order=6,  x=2.)
-rdiff( :(exp(x))          ,    order=6,  x=2.)
-rdiff( :(exp(-2x))        ,    order=6,  x=2.)
+m.rdiff( :(sin(x^2-log(y))) , x=2.,  y=1.)
+m.rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
+m.rdiff( :(sin(x))          ,   order=10,  x=2.)
+m.rdiff( :(x^3)             ,    order=6,  x=2.)
+m.rdiff( :(exp(x))            ,    order=6,  x=2.)
+m.rdiff( :(exp(-2x))          ,    order=6,  x=2.)
 
 
-rdiff( :(x^3) , x=2.)
-rdiff( :(x^3) , order = 3, x=2.)
+m.rdiff( :(x^3) , x=2.)
+m.rdiff( :(x^3) , order = 3, x=2.)
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-rdiff(ex, x=zeros(2), order=2)
+res = m.rdiff(ex, x=zeros(2), order=2)
+@eval foo(x) = $res
+foo([0.5, 2.])
+foo([1., 1.])
 
-res          = rdiff( :(x[1] * x[2])      , order = 1 , x = ones(2))
+rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2
+
+rosen2 = m.rdiff(rosenbrock, (ones(2),), order=2)
+rosenbrock([1,2])
+v  , g  , h  = rosen2([1,2])
+v2 , g2 , h2 = rosen2([1+1e-8 , 2])
+v3 , g3 , h3 = rosen2([1, 2+1e-8])
+(v2 - v)*1e8
+(g2 - g)*1e8
+(g3 - g)*1e8
+
+
+function abcd(x,y,z)
+    a = x + y
+    for i in 1:5
+        a += sin(i)
+    end
+    a
+end
+
+abcd(1,2, [1:5])
+abcd2 = m.rdiff(abcd, (0.,0.,ones(5)))
+
+
+
+
+res          = m.rdiff( :(x[1] * x[2])      , order = 1 , x = ones(2))
 res          = rdiff( :(x[1] * x[2])      , order = 2 , x = ones(2))
 res          = rdiff( :(x[1] * x[2])      , order = 3 , x = ones(2))
 @eval myf(x) = $res
@@ -739,6 +768,23 @@ res = rdiff( :( sum(x * x') ),    order=2,  x=ones(2))
 @eval myf(x) = $res
 v, g, h = myf(5ones(2))
 
+ex = quote
+    b = 0
+    for i in 1:10
+        b += x^2
+    end
+    b
+end
+
+res = rdiff( ex, order=2,  x=1.)
+@eval myf(x) = $res
+
+stp = 1e-8
+v, g, h = myf(1.)
+v2, g2, h2 = myf(1.+stp)
+
+(v2-v)/stp
+(g2-g)[1]/stp
 
 
 ###################### zoom order 3

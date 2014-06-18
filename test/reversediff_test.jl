@@ -1,12 +1,15 @@
 #########################################################################
 #
-#    testing script for gradients calculated by reversediff()
+#    testing script for gradients calculated by rdiff()
 #
 #########################################################################
 
-include("../src/ReverseDiffSource.jl")
+using Base.Test
 
-include("../test/helper_functions.jl")
+reload("ReverseDiffSource")
+m = ReverseDiffSource
+
+include(joinpath(Pkg.dir("ReverseDiffSource"), "test", "helper_functions.jl"))
 
 ## variables of different dimension for testing
 v0ref = 2.

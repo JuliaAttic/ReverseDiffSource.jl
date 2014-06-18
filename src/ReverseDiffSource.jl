@@ -64,6 +64,8 @@ module ReverseDiffSource
   typealias ExComp     ExH{:comparison}
   typealias ExDot      ExH{:.}
   typealias ExTuple    ExH{:tuple}
+  typealias ExReturn   ExH{:return}
+  typealias ExBody     ExH{:body}
 
   # variable symbol sampling functions
   getSymbols(ex::Any)    = Set{Symbol}()
@@ -98,12 +100,13 @@ module ReverseDiffSource
   include("tograph.jl")
   include("tocode.jl")
   include("reversegraph.jl")
-  include("deriv_rules.jl")
-  include("reversediff.jl")
+  include("deriv_rule.jl")
+  include("base_rules.jl")
+  include("rdiff.jl")
 
   ######  Exports  ######
   export 
-    reversediff, ndiff,
+    rdiff,
     @deriv_rule, deriv_rule, 
     @type_decl, type_decl
 

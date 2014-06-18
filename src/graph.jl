@@ -325,6 +325,9 @@ end
 
 ###### inserts graph src into dest  ######
 # TODO : inserted graph may update variables and necessitate a precedence update
+
+addgraph!(src::Expr, dest::ExGraph, smap::Dict) = addgraph!(tograph(src), dest, smap)
+
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   length(src.ext_onodes.kv)>0 && warn("[addgraph] adding graph with external onodes")
   length(src.set_onodes.kv)>0 && warn("[addgraph] adding graph with set onodes")

@@ -14,6 +14,7 @@ Contents:
 
    installation
    maincall
+   maincall2
    deriv_rule
    typeequiv
 

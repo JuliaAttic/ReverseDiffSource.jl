@@ -63,7 +63,7 @@ m.@deriv_rule  Bar(x,y)      x  ds[1]
 m.@deriv_rule  Bar(x,y)      y  ds[2]
 m.@deriv_rule  norm(z::Bar)  z  [ 2*z.x , 2*z.y ] .* ds
 
-res = rdiff(ex, a=0.)
+res = m.rdiff(ex, a=0.)
 @eval tt(a) = $res
 
 tt(1)
