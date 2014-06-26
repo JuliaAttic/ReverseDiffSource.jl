@@ -17,6 +17,7 @@ Contents:
    maincall2
    deriv_rule
    typeequiv
+   internals
 
 
 Indices and tables

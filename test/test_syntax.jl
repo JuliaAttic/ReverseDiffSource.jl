@@ -2,7 +2,6 @@
 #  Syntax testing  (uses examples in the doc)
 ##################################################
 
-
 using Base.Test
 
 reload("ReverseDiffSource")
@@ -23,6 +22,31 @@ ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
 res = m.rdiff(ex, x=zeros(2), order=2)
 m.@eval foo(x) = $res
 foo([0.5, 2.])
+
+#########  rdiff (function) ###########
+
+rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
+rosen2 = m.rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+rosen2([1,2])
+
+test(x) = exp(x)
+m.rdiff(test, (1.,), order=5)
+isgeneric(exp)
+
+m.rdiff( :(x^3) , x=2.)             # first order
+m.rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
+
+m.rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
+
+res = m.rdiff( :(sin(x)) , order=10, x=2.)
+@eval foo(x) = $res
+foo(2.)
+
+ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
+res = m.rdiff(ex, x=zeros(2), order=2)
+m.@eval foo(x) = $res
+foo([0.5, 2.])
+
 
 #########  @deriv_rule  ###########
 
@@ -67,5 +91,11 @@ res = m.rdiff(ex, a=0.)
 @eval tt(a) = $res
 
 tt(1)
+
+
+###### internals - tograph example  ######
+
+
+
 
 

@@ -2,7 +2,7 @@ Calling ``rdiff()`` with a function
 ***********************************
 
 .. warning:: 
-	Besides being less tested, this version of ``rdiff()`` will not work if there are ``for`` loops in the function definition.
+	Besides being less tested, this version of ``rdiff()`` will not work if there are ``for`` loops in the function definition. This is due to julia giving only access to an interpreted version of the original function definition (through the ``uncompressed_ast`` call) that translates loops and make it more challenging to parse.
 
 Calling syntax::
 
