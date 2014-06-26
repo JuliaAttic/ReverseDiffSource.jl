@@ -1,7 +1,10 @@
 Calling ``rdiff()`` with a function
 ***********************************
 
-The differentiation function ``rdiff()`` can also be called with a generic function instead of an Expression::
+.. warning:: 
+	Besides being less tested, this version of ``rdiff()`` will not work if there are ``for`` loops in the function definition.
+
+Calling syntax::
 
 	rdiff( func::Function, init::Tuple; order::Int)
  
@@ -23,47 +26,23 @@ A function, evaluated in the same module that ``func`` is from and returning a t
 Usage
 ^^^^^
 
-``rdiff`` takes a function defined with the same subset of Julia statements ( assigments, getindex, setindex!, for loops, function calls ) as the Expression variant of ``rdiff()`` and transforms it into another function whose call will return the derivatives at all orders between 0 and the order specified. 
+``rdiff`` takes a function defined with the same subset of Julia statements ( assigments, getindex, setindex!, for loops, function calls ) as the Expression variant of ``rdiff()`` and transforms it into another function whose call will return the derivatives at all orders between 0 and the order specified:: 
+
+	julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
+	julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+		(anonymous function)
+	julia> rosen2([1,2])
+		(100,[-400.0,200.0],
+		2x2 Array{Float64,2}:
+		  402.0  -400.0
+		 -400.0   200.0)
 
 The generated function will attempt to remove all uneeded calculations (e.g.  x + 0) and factorize repeated function calls as much as possible.
 
 All the variables appearing in the init argument are considered as the expression's arguments and a derivative is calculated for it (and cross derivatives if order is >= 2). 
 
-For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. For orders 0 and 1 variables can be of type Real, Vector or Matrix and can be in an unlimited number::
+For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. For orders 0 and 1 variables can be of type Real, Vector or Matrix and can be in an unlimited number. If you are dealing with a function of several (scalar) variables you will have you aggregate them into a vector (as in the example above).
 
-	julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
-	julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
-		(anonymous function)
-	julia> rosen2([1,2])
-		(100,[-400.0,200.0],
-		2x2 Array{Float64,2}:
-		  402.0  -400.0
-		 -400.0   200.0)
-
-``rdiff`` runs several simplification heuristics on the generated code to remove neutral statements and factorize repeated calculations. For instance calculating the derivatives of ``sin(x)`` for large orders will reduce to the calculations of ``sin(x)`` and ``cos(x)``::
-
-	julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
-	:(begin 
-	        _tmp1 = sin(x)
-	        _tmp2 = cos(x)
-	        _tmp3 = -_tmp1
-	        _tmp4 = -_tmp2
-	        _tmp5 = -_tmp3
-	        (_tmp1,_tmp2,_tmp3,_tmp4,_tmp5,_tmp2,_tmp3,_tmp4,_tmp5,_tmp2,_tmp3)
-	    end)
-
-When a second derivative expression is needed, only a single derivation variable is allowed. If you are dealing with a function of several (scalar) variables you will have you aggregate them into a vector::
-
-	julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
-	julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
-		(anonymous function)
-	julia> rosen2([1,2])
-		(100,[-400.0,200.0],
-		2x2 Array{Float64,2}:
-		  402.0  -400.0
-		 -400.0   200.0)
-
-``rosen2(x)`` returns a tuple containing respectively the value of the expression at ``x``, the gradient (a 2-vector) and the hessian (a 2x2 matrix)
 
 Limitations
 ^^^^^^^^^^^
@@ -79,12 +58,12 @@ Limitations
 		c[i] = b
 	end
 
-	# will not work
+	# will (probably) not work
 	for i in 1:n
 		c[i] = f( c[i-1] )
 	end
-
-The single exception (that I can think of) of recursive iterations that should work are simple accumulations::
+	
+* However simple accumulations are an instance of recursive calculations that should work::
 
 		# will work
 		for i in 1:n
@@ -93,11 +72,11 @@ The single exception (that I can think of) of recursive iterations that should w
 
 * ``for`` loops are limited to a single index. If you have a ``for i,j in 1:10, 1:10`` in your expression you will have to translate it to nested loops as a workaround
 
-* Each variable in the expression should be type-stable (not change from a scalar to a vector for example) from one evaluation to the next.
+* All variables should be type-stable (not change from a scalar to a vector for example).
 
 * Only a limited set of Julia semantics are supported at this stage. Some frequently used statements such as comprehensions, ``if else``, ``while`` loops cannot be used in the expression.
 
-* Mutating functions cannot be used (with the exception of ``setindex!``) at this stage.
+* Mutating functions cannot be used (with the exception of ``setindex!``).
 
 * ....
 

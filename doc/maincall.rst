@@ -29,7 +29,7 @@ Usage
 
 The generated expression will attempt to remove all uneeded calculations (e.g.  x + 0) and factorize repeated function calls as much as possible.
 
-All the variables appearing in the init argument are considered as the expression's arguments and a derivative is calculated for it (and cross derivatives if order is >= 2). 
+All the variables appearing in the init argument are considered as the expression's arguments and a derivative is calculated for it (and cross derivatives if order is >= 2). The other variables, if not defined by the expression, are expected to be top level variables in Main. If they are not defined there an error will be thrown.
 
 For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. For orders 0 and 1 variables can be of type Real, Vector or Matrix and can be in an unlimited number::
 
@@ -115,12 +115,12 @@ Limitations
 		c[i] = b
 	end
 
-	# will not work
+	# will (probably) not work
 	for i in 1:n
 		c[i] = f( c[i-1] )
 	end
 
-The single exception (that I can think of) of recursive iterations that should work are simple accumulations::
+However simple accumulations are an instance of recursive calculations that should work::
 
 		# will work
 		for i in 1:n
@@ -129,11 +129,11 @@ The single exception (that I can think of) of recursive iterations that should w
 
 * ``for`` loops are limited to a single index. If you have a ``for i,j in 1:10, 1:10`` in your expression you will have to translate it to nested loops as a workaround
 
-* Each variable in the expression should be type-stable (not change from a scalar to a vector for example) from one evaluation to the next.
+* All variables should be type-stable (not change from a scalar to a vector for example).
 
-* Only a limited set of Julia semantics are supported at this stage. Some frequently used tools such as comprehensions, ``if else``, ``while`` loops cannot be used in the expression.
+* Only a limited set of Julia semantics are supported at this stage. Some frequently used statements such as comprehensions, ``if else``, ``while`` loops cannot be used in the expression.
 
-* Mutating functions cannot be used (with the exception of ``setindex!``) at this stage.
+* Mutating functions cannot be used (with the exception of ``setindex!``).
 
 * ....
 
