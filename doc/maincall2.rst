@@ -2,7 +2,7 @@ Calling ``rdiff()`` with a function
 ***********************************
 
 .. warning:: 
-	Besides being less tested, this version of ``rdiff()`` will not work if there are ``for`` loops in the function definition. This is due to julia giving only access to an interpreted version of the original function definition (through the ``uncompressed_ast`` call) that translates loops and make it more challenging to parse.
+	This version of ``rdiff()`` will not work if there are ``for`` loops in the function definition. This is due to julia giving only access to an interpreted version of the original function definition (through the ``uncompressed_ast`` call) that translates loops to a form that make them more challenging to parse.
 
 Calling syntax::
 
@@ -49,28 +49,7 @@ Limitations
 
 * When determining the influence of a variable on a several ``setindex!`` on the same variable, for example ``a[2:3] = x ; a[3:4] = 2x``, the algorithm will overstate the influence of ``x`` if there is an overlap on the indices, ``a[3]`` in this case. The current algorithm is left with this limitation due to the complexity of tracking each different element of arrays and also because this should hardly occur in normal code.
 
-* The canonical implementation of ``for`` loops derivation in reverse accumulation requires the caching of the complete state of each iteration which makes the generated code complex and memory intensive. The current algorithm uses a simpler approach that limits the kind of loops that can be correctly derived : in short, loops should not have any kind of recursivity in them (the calculations of each iteration should not depend on the calculations of previous iterations)::
-
-	# will work
-	for i in 1:n
-		a = f(x[i])
-		b = a + g(y[i])
-		c[i] = b
-	end
-
-	# will (probably) not work
-	for i in 1:n
-		c[i] = f( c[i-1] )
-	end
-	
-* However simple accumulations are an instance of recursive calculations that should work::
-
-		# will work
-		for i in 1:n
-			a += b[i]    # new a value depends on previous a
-		end	
-
-* ``for`` loops are limited to a single index. If you have a ``for i,j in 1:10, 1:10`` in your expression you will have to translate it to nested loops as a workaround
+* No ``for`` loops allowed for this ``rdiff`` version.
 
 * All variables should be type-stable (not change from a scalar to a vector for example).
 
