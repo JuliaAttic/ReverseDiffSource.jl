@@ -117,7 +117,6 @@
         end
     end
 
-
     ex = quote
         a=zeros(1+4)
         for i in 1:4
@@ -127,18 +126,26 @@
         z=sum(a)
     end
 
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    sigma = 2.
+    ex = quote
+        a = 0.
+        for i = 1:3
+            a += x[i]
+        end
+        a / (sigma^2)
+    end
+    m.rdiff(ex, x=ones(3))
 
     g = m.tograph(ex)
     m.splitnary!(g)
     m.simplify!(g)
-    m.prune!(g, {g.set_inodes.vk[:a]})
+    m.prune!(g, {g.set_inodes.vk[nothing]})
     m.tocode(g)
 
-    m.calc!(g, params={:b => ones(5), :x => 2.})
+    m.calc!(g, params={:x => ones(3)})
     g
 
-    g2 = m.reversegraph(g, g.set_inodes.vk[:a], [:x])
+    g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:x])
     g.nodes = [ g.nodes, g2.nodes]
     g.set_inodes = m.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
     g.nodes
@@ -146,6 +153,42 @@
     collect(g.nodes[6].main[2].set_inodes)  # Nin pour dx pas recrée
     m.tocode(g)
     m.prune!(g); m.tocode(g)
+
+    g
+    n = g.nodes[17]
+    if n.parents[1].main == 0 && in(n.main, [:+, :.+])
+       # fusenodes(g, n.parents[2], n)
+       nk, nr = n.parents[2], n
+
+  # same for references to nr in subgraphs
+        n = g.nodes[19] 
+          for n in filter(n -> isa(n, m.NFor) && n != nr && n != nk, g.nodes)
+            g2 = n.main[2]
+
+            # this should not happen...
+            @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+
+            if haskey(g2.ext_onodes, nr)
+              nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk])) # create a ref node to replace
+              g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
+            end  
+          end
+
+          # replace references to nr by nk in parents of other nodes
+          for n in filter(n -> n != nr && n != nk, g.nodes)
+            for (i, n2) in enumerate(n.parents)
+              n2 == nr && (n.parents[i] = nk)
+            end
+            for (i, n2) in enumerate(n.precedence)
+              n2 == nr && (n.precedence[i] = nk)
+            end
+          end
+
+          # remove node nr in g
+          filter!(n -> n != nr, g.nodes)
+
+
+
     m.simplify!(g); m.tocode(g)
     m.markalloc!(g)
     [ (n, n.alloc) for n in g.nodes]

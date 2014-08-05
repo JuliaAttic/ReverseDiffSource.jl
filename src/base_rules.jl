@@ -26,7 +26,6 @@
 
 #  vcat
 # @deriv_rule vcat(x,y)       x     ds[1]
-# @deriv_rule vcat(x,y)       x     ds[1]
 
 # square root
 @deriv_rule sqrt(x)    x     0.5 * x ^ (-0.5) * ds

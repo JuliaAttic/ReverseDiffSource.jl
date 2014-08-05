@@ -142,27 +142,53 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     end  
   end
 
-  # same for references to nr in subgraphs
-  for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
-    g2 = n.main[2]
+  # # same for references to nr in subgraphs
+  # for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
+  #   g2 = n.main[2]
 
-    # this should not happen...
-    @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+  #   # this should not happen...
+  #   @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
-    if haskey(g2.ext_onodes, nr)
-      nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
-      g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
-    end  
-  end
+  #   if haskey(g2.ext_onodes, nr)
+  #     nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
+  #     g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
+  #   end  
+  # end
+
+  # # replace references to nr by nk in parents of other nodes
+  # for n in filter(n -> n != nr && n != nk, g.nodes)
+  #   for (i, n2) in enumerate(n.parents)
+  #     n2 == nr && (n.parents[i] = nk)
+  #   end
+  #   for (i, n2) in enumerate(n.precedence)
+  #     n2 == nr && (n.precedence[i] = nk)
+  #   end
+  # end
 
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
+    if isa(n, NFor)
+      g2 = n.main[2]
+
+      # this should not happen...
+      @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+
+      if haskey(g2.ext_onodes, nr)
+        nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
+        g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
+        for (i, n2) in enumerate(n.parents)
+          n2 == nr && (n.parents[i] = nn)
+        end
+      end  
+    end
+
     for (i, n2) in enumerate(n.parents)
       n2 == nr && (n.parents[i] = nk)
     end
     for (i, n2) in enumerate(n.precedence)
       n2 == nr && (n.precedence[i] = nk)
     end
+
   end
 
   # remove node nr in g
