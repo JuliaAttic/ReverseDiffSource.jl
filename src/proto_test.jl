@@ -1,3 +1,43 @@
+#################### function diff ###################
+
+    function test1(x)
+        a = 0
+        for i in 1:10
+            for j in 1:20
+                a += x
+            end
+        end
+        a
+    end
+
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    f = test1 ; sig0=(ones(10),) ; order=1 ; evalmod=Main
+
+    sig = map( typeof, sig0 )
+    fs = methods(f, sig)
+    length(fs) == 0 && error("no function '$f' found for signature $sig")
+    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
+
+    fdef  = fs[1].func.code
+    fcode = Base.uncompressed_ast(fdef)
+    fargs = fcode.args[1]  # function parameters
+
+    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, cargs...)
+
+    removetop(e::Expr)    = Expr(e.head, map(removetop, e.args)...)
+    removetop(e::TopNode) = e.name
+    removetop(e::Any)     = e
+
+    replacetupleref(e::Expr)    = Expr(e.head, map(replacetupleref, e.args)...)
+    replacetupleref(e::Symbol)  = e == :tupleref ? :getindex : e
+    replacetupleref(e::Any)     = e
+
+    nc2 = removetop(fcode.args[3])
+    nc3 = replacetupleref(nc2)
+
+    dump(nc3)
+
 ################## setindex  #######################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
     include(joinpath(Pkg.dir("ReverseDiffSource"), "test/unit_tests.jl"))
