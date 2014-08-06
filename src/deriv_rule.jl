@@ -29,7 +29,11 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
         elseif isa(e, Expr) && e.head== :(::)  # FIXME : will fail for complex definitions
             push!(argsn, e.args[1])
             e2 = e.args[2]
-            if isa(e2, Symbol) || (isa(e2, Expr) && e2.head == :.)
+            # if isa(e2, Symbol)  # type without qualifying module
+            #     ne = Expr(:., :Main, Expr(:quote, e2))
+            # elseif isa(e2, Expr) && e2.head == :.  # type with module
+            #     ne = e2
+            if isa(e2, Symbol) || isa(e2, Expr) && e2.head == :.
                 ne = Expr(:., :Main, Expr(:quote, e2))
             elseif isa(e2, Expr) && e2.head == :curly
                 ne = Expr(:curly, [ Expr(:., :Main, Expr(:quote, ei)) for ei in e2.args]...)
@@ -77,3 +81,22 @@ macro typeequiv(typ::Union(Symbol, Expr), n::Int)
     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
 end
 
+# macro typeequiv2(typ::Union(Symbol, Expr), n::Int)
+#     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
+#     cm = current_module()
+#     et = cm.eval(typ)
+#     te = Expr(:(.), module_name(cm) , QuoteNode(methods(et).name) )
+
+#     se = Expr(:call, :equivnode, Expr(:(::), :x, te))
+#     # println(" module $v2 ($(typeof(v2)))")
+#     # local typ2 = v2.eval(typ)
+#     # v1 = methods(typ2).name
+#     # println(" name $v1 ($(typeof(v1))), module $v2 ($(typeof(v2)))")
+#     dump(:( equivnode(x::$(te))),7)
+#     deriv_rule(se , :x, ie)
+# end
+
+# function typeequiv(typ::DataType, n::Int)
+#     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
+#     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
+# end    

@@ -107,9 +107,8 @@ module ReverseDiffSource
   ######  Exports  ######
   export 
     rdiff,
-    @deriv_rule, deriv_rule, 
-    @type_decl, type_decl
-
+    @deriv_rule, deriv_rule 
+    # @typeequiv, typeequiv
 
 end # module ReverseDiffSource
 
