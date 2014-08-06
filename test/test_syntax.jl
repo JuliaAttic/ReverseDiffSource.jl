@@ -28,6 +28,7 @@ foo([0.5, 2.])
 rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
 rosen2 = m.rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
 rosen2([1,2])
+rosen2([0.5,2])
 
 test(x) = exp(x)
 m.rdiff(test, (1.,), order=5)
@@ -63,7 +64,6 @@ m.@deriv_rule foo(x)   x   cos(x) / ( 1 + sin(x)) * ds
 res = m.rdiff( :( 2 ^ foo(x) ) , x=1)
 @eval myf(x) = $res
 
-myf(1.0) - myf(0.999)
 (myf(1.0)[1] - myf(0.999)[1]) * 1000
 
 
@@ -94,8 +94,5 @@ tt(1)
 
 
 ###### internals - tograph example  ######
-
-
-
 
 
