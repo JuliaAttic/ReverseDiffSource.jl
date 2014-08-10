@@ -10,8 +10,26 @@
         a
     end
 
+
+    macro ~(a,b)
+        Main.acc += logpdf(b,a)
+    end
+
+    macro ~+(a,b)
+        println(a,b)
+    end
+
+    acc = 0.
+
+    function test2(x)
+        a > 2 ? 0 : 1
+            # x ~ Normal(4,5)
+    end
+
+
+
     reload("ReverseDiffSource") ; m = ReverseDiffSource
-    f = test1 ; sig0=(ones(10),) ; order=1 ; evalmod=Main
+    f = test2 ; sig0=(ones(10),) ; order=1 ; evalmod=Main
 
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
@@ -33,10 +51,85 @@
     replacetupleref(e::Symbol)  = e == :tupleref ? :getindex : e
     replacetupleref(e::Any)     = e
 
+    function removeline(e::Expr)
+        if e.head == :line
+           return nothing
+        else
+           return Expr(e.head, filter(e -> e != nothing, map(removeline, e.args))...)
+        end
+    end
+    removeline(e::LineNumberNode) = nothing
+    removeline(e::Any)     = e
+
+
     nc2 = removetop(fcode.args[3])
     nc3 = replacetupleref(nc2)
+    nc4 = removeline(nc3)
 
-    dump(nc3)
+    dump(nc4)
+
+    recreateforloops(e::Expr)
+
+
+
+  head: Symbol body
+  args: Array(Any,(18,))
+    1: Expr 
+      head: Symbol line
+      args: Array(Any,(2,))
+        1: Int64 2
+        2: Symbol none
+      typ: Any
+    2: Expr 
+      head: Symbol =
+      args: Array(Any,(2,))
+        1: Symbol a
+        2: Int64 0
+      typ: Any
+    3: LineNumberNode 
+      line: Int64 3
+    4: Expr 
+      head: Symbol =
+      args: Array(Any,(2,))
+        1: Symbol #s757
+        2: Expr 
+          head: Symbol call
+          args: Array(Any,(3,))
+          typ: Any
+      typ: Any
+    5: Expr 
+      head: Symbol =
+      args: Array(Any,(2,))
+        1: Symbol #s758
+        2: Expr 
+          head: Symbol call
+          args: Array(Any,(2,))
+          typ: Any
+      typ: Any
+    ...
+    14: Expr 
+      head: Symbol gotoifnot
+      args: Array(Any,(2,))
+        1: Expr 
+          head: Symbol call
+          args: Array(Any,(2,))
+          typ: Any
+        2: Int64 2
+      typ: Any
+    15: LabelNode 
+      label: Int64 1
+    16: LabelNode 
+      label: Int64 0
+    17: LineNumberNode 
+      line: Int64 6
+    18: Expr 
+      head: Symbol return
+      args: Array(Any,(1,))
+        1: Symbol a
+      typ: Any
+  typ: Any
+
+
 
 ################## setindex  #######################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -148,6 +241,7 @@
         for i in 1:2
             a += 2x    
         end
+        a
     end
 
     ex = quote
@@ -174,7 +268,12 @@
         end
         a / (sigma^2)
     end
-    m.rdiff(ex, x=ones(3))
+    m.rdiff(ex, x=1.0)
+
+    ex = quote
+        x * v0ref
+    end
+
 
     g = m.tograph(ex)
     m.splitnary!(g)
@@ -182,7 +281,7 @@
     m.prune!(g, {g.set_inodes.vk[nothing]})
     m.tocode(g)
 
-    m.calc!(g, params={:x => ones(3)})
+    m.calc!(g, params={:x => 1.0})
     g
 
     g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:x])
