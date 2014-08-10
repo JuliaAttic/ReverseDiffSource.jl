@@ -10,13 +10,14 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
 	# ex = :(x+v0ref) ; x0= 1.0
 	# ex = :(x*tz) ; x0 = [-3., 2, 0]
+	# ex = :(sum( sin(x) )) ; x0 = v1ref
 
 	println("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
 	# ex1, ex2, outsym = ReverseDiffSource.reversediff( :(res = sum($ex)), :res, x=x0	)
 	# ex2 = ReverseDiffSource.reversediff( :(res=sum($ex)), :res, x=x0 )
-	ex2 = m.rdiff( :(sum($ex)), x=x0 )
+	ex2 = m.rdiff( ex, x=x0 )
 	# m.rdiff( :(x+1.0), x=x0 )
 
 	@eval dfunc(x) = $ex2
@@ -29,8 +30,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 	# end
 	# myf = eval(fsym)
 
-	l0, grad0 = dfunc(x0)  
-	grad0 = grad0[1]
+	l0, (grad0,) = dfunc(x0)  
 	if ndims(x0) == 0  # scalar
 		grad1 = ( dfunc( x0 + DIFF_DELTA)[1] - l0 ) / DIFF_DELTA
 	else # vector and matrices
@@ -38,7 +38,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 		for i in 1:nx  # i=1
 			x1 = copy(x0)
 			x1[i] += DIFF_DELTA
-			grad1[i] = ( dfunc(x1)[1] - l0 ) / DIFF_DELTA
+			grad1[i] = ( dfunc(x1)[1][1] - l0 ) / DIFF_DELTA
 		end
 	end
 
@@ -49,6 +49,14 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 		println("Gradient false for $ex at x=$x0, expected $rg0, got $rg1")
 		# println( ex2 )
 		error()
+	end
+end
+
+macro compare(ex::Expr, x0)
+	if isa(x0, Union(Float64, Vector{Float64}, Matrix{Float64}))
+		compare(ex, x0)
+	elseif isa(x0, Union(Symbol, Expr))
+		compare(ex, eval(x0))
 	end
 end
 
@@ -67,6 +75,19 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 
 ## regular functions
 compare(:(x+v0ref), 1.0)
+
+@compare sin(x) 1.0
+@compare sum( sin(x) ) v1ref
+
+@compare sum(x + v1ref)    v1ref
+@compare sum(x .* v0ref)   v1ref
+
+@compare sum(abs(x))   v1ref
+@compare sum(abs(x))   v2ref
+
+@compare sin(x) 1.0
+@compare sin(x) 1.0
+@compare sin(x) 1.0
 
 compare(:(sin(x)), v0ref)
 
