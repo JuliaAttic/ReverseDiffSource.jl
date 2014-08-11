@@ -706,170 +706,6 @@
         m.tocode(g)
     end
 
-
-m.rdiff( :(sin(x^2-log(y))) , x=2.,  y=1.)
-m.rdiff( :(sin(x^2-log(y))) ,       x=2.,  y=1., order=0)
-m.rdiff( :(sin(x))          ,   order=10,  x=2.)
-m.rdiff( :(x^3)             ,    order=6,  x=2.)
-m.rdiff( :(exp(x))            ,    order=6,  x=2.)
-m.rdiff( :(exp(-2x))          ,    order=6,  x=2.)
-
-
-m.rdiff( :(x^3) , x=2.)
-m.rdiff( :(x^3) , order = 3, x=2.)
-ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-res = m.rdiff(ex, x=zeros(2), order=2)
-@eval foo(x) = $res
-foo([0.5, 2.])
-foo([1., 1.])
-
-rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2
-
-rosen2 = m.rdiff(rosenbrock, (ones(2),), order=2)
-rosenbrock([1,2])
-v  , g  , h  = rosen2([1,2])
-v2 , g2 , h2 = rosen2([1+1e-8 , 2])
-v3 , g3 , h3 = rosen2([1, 2+1e-8])
-(v2 - v)*1e8
-(g2 - g)*1e8
-(g3 - g)*1e8
-
-
-function abcd(x,y,z)
-    a = x + y
-    for i in 1:5
-        a += sin(i)
-    end
-    a
-end
-
-abcd(1,2, [1:5])
-abcd2 = m.rdiff(abcd, (0.,0.,ones(5)))
-
-
-
-
-res          = m.rdiff( :(x[1] * x[2])      , order = 1 , x = ones(2))
-res          = rdiff( :(x[1] * x[2])      , order = 2 , x = ones(2))
-res          = rdiff( :(x[1] * x[2])      , order = 3 , x = ones(2))
-@eval myf(x) = $res
-myf(ones(3))
-
-
-res          = rdiff( :( sin(x[1]*x[2]) ) , order = 2 , x = ones(2))
-@eval myf(x) = $res
-v  , g  , h  = myf(ones(2))
-v2 , g2 , h2 = myf(ones(2)+[1e-8 , 0])
-(v2 - v)*1e8
-(g2 - g)*1e8
-
-res = rdiff( :( sin(x[1]*x[2]) )        ,    order=3,  x=ones(2))
-
-
-res2 = diff( :( sin(x[1]*x[2]) )        ,    order=1,  x=ones(2))
-@eval myf0(x) = ($res2 ; out)
-myf0(ones(2))
-
-res2 = diff( :( x[1]*x[2] ) ,    order=1,  x=ones(2))
-diff( :( x[1]*x[2] )        ,    order=2,  x=ones(3))
-
-for idx1 = 1:3
-    println( (idx1 - 1) * 3 + 1:idx1 * 3)
-end
-
-
-rdiff( :( 3x[1]^2+x[2]^2 ),    order=0,  x=ones(2))
-
-
-# ok ça marche
-res = rdiff( :( 3x[1]^2+x[2]^2 ),    order=2,  x=ones(2))
-@eval myf(x) = $res
-myf(ones(2))
-myf(2ones(2))
-
-
-# ok ça marche
-res = rdiff( :( x[1]^2 * x[2]^2 ),    order=2,  x=ones(2))
-@eval myf(x) = $res 
-myf(ones(2))
-myf(2ones(2))
-
-# ok ça marche
-res = rdiff( :( x[1]^2 * x[2] ),    order=2,  x=ones(2))
-@eval myf(x) = $res 
-myf(ones(2))
-myf(2ones(2))
-myf([3,-1])
-
-
-res = rdiff( :( dot(x,x) * log(sum(x)) ),    order=2,  x=ones(2))
-@eval myf(x) = $res
-myf(ones(2))
-myf(2ones(2))
-myf([3,-1])
-
-
-### ok maintenant
-res = rdiff(:( z[1] + z[2] ), z = ones(3) )
-@eval myf(z) = $res
-myf(ones(2))
-myf(ones(10))
-
-### ok maintenant
-res = rdiff(:( z = zeros(2) ; z[1] = x ; sum(z) ), x=1 )
-res = rdiff(:( z = zeros(2) ; z[1] = 2x ; z[2] = x ; sum(z) ), x=1 )
-@eval myf(x) = $res
-myf(3.)  # ok
-myf(3.001)
-
-
-
-res = rdiff( :( dot(x,x) ),    order=2,  x=ones(2)) # OK
-@eval myf(x) = $res
-myf(5ones(2))
-
-res2 = rdiff( :( x[1]*x[1] + x[2]*x[2] ),    order=2,  x=ones(2)) # OK
-@eval myf2(x) = $res2
-myf2(5ones(2))
-
-res2 = rdiff( :( a=x[1]*x[1] ; b=x[2] ; a*b+0 ),    order=2,  x=ones(2)) # OK
-@eval myf2(x) = $res2
-myf2(ones(2))
-
-
-res = rdiff( :( sum(x * x') ),    order=2,  x=ones(2))  # OK
-@eval myf(x) = $res
-v, g, h = myf(5ones(2))
-stp = 1e-8
-v2, g2, h2 = myf(5ones(2)+[stp,0])
-
-(v2-v)/stp
-(g2-g)[1]/stp
-
-
-res = rdiff( :( sum(x * x') ),    order=2,  x=ones(2))
-@eval myf(x) = $res
-v, g, h = myf(5ones(2))
-
-ex = quote
-    b = 0
-    for i in 1:10
-        b += x^2
-    end
-    b
-end
-
-res = rdiff( ex, order=2,  x=1.)
-@eval myf(x) = $res
-
-stp = 1e-8
-v, g, h = myf(1.)
-v2, g2, h2 = myf(1.+stp)
-
-(v2-v)/stp
-(g2-g)[1]/stp
-
-
 ###################### zoom order 3
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -1082,3 +918,135 @@ v2, g2, h2 = myf(1.+stp)
         # m.resetvar()
         println("=== tocode")
         m.tocode(g)
+
+#################### function diff ###################
+
+    function test1(x)
+        a = 0
+        for i in 1:10
+            for j in 1:20
+                a += x
+            end
+        end
+        a
+    end
+
+
+    macro ~(a,b)
+        Main.acc += logpdf(b,a)
+    end
+
+    macro ~+(a,b)
+        println(a,b)
+    end
+
+    acc = 0.
+
+    function test2(x)
+        a > 2 ? 0 : 1
+            # x ~ Normal(4,5)
+    end
+
+
+
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    f = test2 ; sig0=(ones(10),) ; order=1 ; evalmod=Main
+
+    sig = map( typeof, sig0 )
+    fs = methods(f, sig)
+    length(fs) == 0 && error("no function '$f' found for signature $sig")
+    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
+
+    fdef  = fs[1].func.code
+    fcode = Base.uncompressed_ast(fdef)
+    fargs = fcode.args[1]  # function parameters
+
+    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, cargs...)
+
+    removetop(e::Expr)    = Expr(e.head, map(removetop, e.args)...)
+    removetop(e::TopNode) = e.name
+    removetop(e::Any)     = e
+
+    replacetupleref(e::Expr)    = Expr(e.head, map(replacetupleref, e.args)...)
+    replacetupleref(e::Symbol)  = e == :tupleref ? :getindex : e
+    replacetupleref(e::Any)     = e
+
+    function removeline(e::Expr)
+        if e.head == :line
+           return nothing
+        else
+           return Expr(e.head, filter(e -> e != nothing, map(removeline, e.args))...)
+        end
+    end
+    removeline(e::LineNumberNode) = nothing
+    removeline(e::Any)     = e
+
+
+    nc2 = removetop(fcode.args[3])
+    nc3 = replacetupleref(nc2)
+    nc4 = removeline(nc3)
+
+    dump(nc4)
+
+    recreateforloops(e::Expr)
+
+
+
+  head: Symbol body
+  args: Array(Any,(18,))
+    1: Expr 
+      head: Symbol line
+      args: Array(Any,(2,))
+        1: Int64 2
+        2: Symbol none
+      typ: Any
+    2: Expr 
+      head: Symbol =
+      args: Array(Any,(2,))
+        1: Symbol a
+        2: Int64 0
+      typ: Any
+    3: LineNumberNode 
+      line: Int64 3
+    4: Expr 
+      head: Symbol =
+      args: Array(Any,(2,))
+        1: Symbol #s757
+        2: Expr 
+          head: Symbol call
+          args: Array(Any,(3,))
+          typ: Any
+      typ: Any
+    5: Expr 
+      head: Symbol =
+      args: Array(Any,(2,))
+        1: Symbol #s758
+        2: Expr 
+          head: Symbol call
+          args: Array(Any,(2,))
+          typ: Any
+      typ: Any
+    ...
+    14: Expr 
+      head: Symbol gotoifnot
+      args: Array(Any,(2,))
+        1: Expr 
+          head: Symbol call
+          args: Array(Any,(2,))
+          typ: Any
+        2: Int64 2
+      typ: Any
+    15: LabelNode 
+      label: Int64 1
+    16: LabelNode 
+      label: Int64 0
+    17: LineNumberNode 
+      line: Int64 6
+    18: Expr 
+      head: Symbol return
+      args: Array(Any,(1,))
+        1: Symbol a
+      typ: Any
+  typ: Any
+

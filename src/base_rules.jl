@@ -159,4 +159,3 @@
 @deriv_rule transpose(x::Real )                      x     ds
 @deriv_rule transpose(x::AbstractArray)              x     transpose(ds)
 
->>>>>>> b783b3653551a64376d4c907aec16e0127b51bc2
