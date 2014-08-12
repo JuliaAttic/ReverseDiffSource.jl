@@ -19,7 +19,7 @@
 @deriv_rule size(x)      x     0.
 
 
-#  tuple  TODO : add definitions of the type  @deriv_tuple  func(x...)
+#  tuple  TODO : allow definitions of the type  @deriv_tuple  func(x...)
 @deriv_rule tuple(x)        x     ds[1]
 @deriv_rule tuple(x,y)      x     ds[1]
 @deriv_rule tuple(x,y)      y     ds[2]
