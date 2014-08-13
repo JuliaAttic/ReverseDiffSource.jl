@@ -28,15 +28,22 @@
 # @deriv_rule vcat(x,y)       x     ds[1]
 
 # square root
-@deriv_rule sqrt(x)    x     0.5 * x ^ (-0.5) * ds
+@deriv_rule sqrt(x::Real)              x     0.5 * x ^ (-0.5) * ds
+@deriv_rule sqrt(x::AbstractVector)    x     0.5 .* x .^ (-0.5) .* ds
 
 # addition
 @deriv_rule +(x::Real         , y::Real )            x     ds
-@deriv_rule +(x::Real         , y::AbstractArray)    x     sum(ds)
-@deriv_rule +(x::AbstractArray, y       )            x     ds
+@deriv_rule +(x::AbstractArray, y::AbstractArray)    x     ds
 @deriv_rule +(x::Real         , y::Real )            y     ds
-@deriv_rule +(x::AbstractArray, y::Real )            y     sum(ds)
-@deriv_rule +(x               , y::AbstractArray)    y     ds
+@deriv_rule +(x::AbstractArray, y::AbstractArray)    y     ds
+
+# dot addition
+@deriv_rule .+(x::Real         , y::Real )            x     ds
+@deriv_rule .+(x::Real         , y::AbstractArray)    x     sum(ds)
+@deriv_rule .+(x::AbstractArray, y       )            x     ds
+@deriv_rule .+(x::Real         , y::Real )            y     ds
+@deriv_rule .+(x::AbstractArray, y::Real )            y     sum(ds)
+@deriv_rule .+(x               , y::AbstractArray)    y     ds
 
 # unary substraction
 @deriv_rule -(x::Real )                              x     -ds
@@ -44,11 +51,17 @@
 
 # binary substraction
 @deriv_rule -(x::Real         , y::Real )            x     ds
-@deriv_rule -(x::Real         , y::AbstractArray)    x     sum(ds)
-@deriv_rule -(x::AbstractArray, y       )            x     ds
+@deriv_rule -(x::AbstractArray, y::AbstractArray)    x     ds
 @deriv_rule -(x::Real         , y::Real )            y     -ds
-@deriv_rule -(x::AbstractArray, y::Real )            y     -sum(ds)
-@deriv_rule -(x               , y::AbstractArray)    y     -ds
+@deriv_rule -(x::AbstractArray, y::AbstractArray)    y     -ds
+
+# dot binary substraction
+@deriv_rule .-(x::Real         , y::Real )            x     ds
+@deriv_rule .-(x::Real         , y::AbstractArray)    x     sum(ds)
+@deriv_rule .-(x::AbstractArray, y       )            x     ds
+@deriv_rule .-(x::Real         , y::Real )            y     -ds
+@deriv_rule .-(x::AbstractArray, y::Real )            y     -sum(ds)
+@deriv_rule .-(x               , y::AbstractArray)    y     -ds
 
 # sum()
 @deriv_rule sum(x::Real )                            x     ds

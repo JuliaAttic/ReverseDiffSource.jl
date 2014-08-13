@@ -1,3 +1,12 @@
+#################################################################
+#
+#    1st order derivation testing
+#
+#################################################################
+
+reload("ReverseDiffSource")
+m = ReverseDiffSource
+
 #####  Error thresholds  #####
 DIFF_DELTA = 1e-9
 ERROR_THRESHOLD = 2e-2
@@ -8,21 +17,13 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
-	# ex = :(x+v0ref) ; x0= 1.0
-	# ex = :(x*tz) ; x0 = [-3., 2, 0]
-	# ex = :(sum( sin(x) )) ; x0 = v1ref
 
-	println("testing $ex with size(x) = $(size(x0))")
+	print("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
-	# ex1, ex2, outsym = ReverseDiffSource.reversediff( :(res = sum($ex)), :res, x=x0	)
-	# ex2 = ReverseDiffSource.reversediff( :(res=sum($ex)), :res, x=x0 )
 	ex2 = m.rdiff( ex, x=x0 )
-	# m.rdiff( :(x+1.0), x=x0 )
-
-	@eval dfunc(x) = $ex2
-	# dfunc(x0)
-
+	dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
+	# @eval dfunc(x) = $ex2
 	# fsym = gensym()
 	# @eval let 
 	# 	global $fsym
@@ -46,9 +47,11 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 	if !all(good_enough, zip([grad0], [grad1]))
 		rg0 = map(x -> round(x,5), grad0)
 		rg1 = map(x -> round(x,5), grad1)
-		println("Gradient false for $ex at x=$x0, expected $rg0, got $rg1")
+		println("\nGradient false for $ex at x=$x0, expected $rg0, got $rg1")
 		# println( ex2 )
 		error()
+	else
+		println(" ok")
 	end
 end
 
@@ -61,33 +64,21 @@ macro compare(ex::Expr, x0)
 end
 
 
-using Base.Test
-
-reload("ReverseDiffSource")
-m = ReverseDiffSource
-
-
-
 ## variables of different dimension for testing
 v0ref = 2.
 v1ref = [2., 3, 0.1, 0, -5]
 v2ref = [-1. 3 0 ; 0 5 -2]
 
-## regular functions
-compare(:(x+v0ref), 1.0)
-
-@compare sin(x) 1.0
-@compare sum( sin(x) ) v1ref
 
 ###### sum()
-@compare sum(x)  v0ref
+@compare sum(x)  v0ref   # fait une erreur  m.rdiff( :(a = sum(x);a), x= 1.0 )
 @compare sum(x)  v1ref
 @compare sum(x)  v2ref
 
 ###### abs()
 @compare abs(x)        v0ref
-@compare sum(abs(x))   v1ref
-@compare sum(abs(x))   v2ref
+@compare sum(abs(x))   v1ref .+ 0.1(sign(v1ref).==0.)
+@compare sum(abs(x))   v2ref .+ 0.1(sign(v2ref).==0.)
 
 ###### sin()
 @compare sin(x)      v0ref
@@ -106,13 +97,12 @@ compare(:(x+v0ref), 1.0)
 
 ###### log()
 @compare log(x)      v0ref
-@compare sum(log(x)) v1ref
-@compare sum(log(x)) v2ref
+@compare sum(log(x)) abs( v1ref .+ 0.1(sign(v1ref).==0.) )
+@compare sum(log(x)) abs( v2ref .+ 0.1(sign(v2ref).==0.) )
 
 ###### sqrt()
 @compare sqrt(x)      v0ref
-@compare sum(sqrt(x)) v1ref
-@compare sum(sqrt(x)) v2ref
+@compare sum(sqrt(x)) abs( v1ref )
 
 ###### - (unary)
 @compare -x      v0ref
@@ -142,7 +132,6 @@ compare(:(x+v0ref), 1.0)
 
 @compare sum(x - v1ref) v1ref
 @compare sum(v1ref - x) v1ref
-
 @compare sum(x - 0.5v2ref) v2ref
 @compare sum(3v2ref - x) v2ref
 
@@ -192,15 +181,15 @@ compare(:(x+v0ref), 1.0)
 @compare x  ./ 1.   v0ref
 @compare 1. ./ x    v0ref
 
-@compare sum(x      ./ 2.)                                v1ref
-@compare sum(3.     ./ (x     .+ 0.1(sgn(x) .== 0.))      v1ref
-@compare sum(x      ./ (v1ref .+ 0.1(sgn(v1ref) .== 0.))  v1ref
-@compare sum(2v1ref ./ (x     .+ 0.1(sgn(x) .== 0.))      v1ref
+@compare sum(x      ./ 2.)                                  v1ref
+@compare sum(3.     ./  x)                                  v1ref .+ 0.1(sign(v1ref) .== 0.)
+@compare sum(x      ./ (v1ref .+ 0.1(sign(v1ref) .== 0.)))  v1ref
+@compare sum(2v1ref ./  x)                                  v1ref .+ 0.1(sign(v1ref) .== 0.)
 
 @compare sum(x      ./ 2.)                                v2ref
-@compare sum(3.     ./ (x     .+ 0.1(sgn(x) .== 0.))      v2ref
+@compare sum(3.     ./  x)                                v2ref .+ 0.1(sign(v2ref) .== 0.)
 @compare sum(x      ./ (v2ref .+ 0.1(sgn(v2ref) .== 0.))  v2ref
-@compare sum(2v2ref ./ (x     .+ 0.1(sgn(x) .== 0.))      v2ref
+@compare sum(2v2ref ./  x)                                v2ref .+ 0.1(sign(v2ref) .== 0.)
 
 
 ###### max
