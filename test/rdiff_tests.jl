@@ -196,10 +196,10 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare max( x, 1.)   v0ref
 @compare max(1.,  x)   v0ref
 
-@compare sum(max(            x,              2.))  v1ref
-@compare sum(max(          -3.,               x))  v1ref
-@compare sum(max(            x, -abs(v1ref)./2.))  v1ref
-@compare sum(max(0.5abs(v1ref),               x))  v1ref
+@compare sum(max(            x,                   2.1))  v1ref
+@compare sum(max(          -3.,                     x))  v1ref
+@compare sum(max(            x, 1. .- abs(v1ref)./2.1))  v1ref
+@compare sum(max(0.5abs(v1ref),                x.+0.1))  v1ref
 
 @compare sum(max(            x,             -1.))  v2ref
 @compare sum(max(           0.,               x))  v2ref
