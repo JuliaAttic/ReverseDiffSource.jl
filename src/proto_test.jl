@@ -1050,3 +1050,81 @@
       typ: Any
   typ: Any
 
+##############  check  ####################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    ex = :(sum(x))
+    y = 3
+    ex = :(sum(x+y))
+
+    m.rdiff(ex, x=2.)
+    m.rdiff(ex, x=2., y=1.)
+
+tuple({1.,30})
+
+    g = m.tograph(ex)
+    m.splitnary!(g)
+    m.simplify!(g)
+    m.prune!(g, {g.set_inodes.vk[nothing]})
+    m.tocode(g)
+
+    m.calc!(g, params={:x => 2.})
+    g
+
+    g2 = m.reversegraph(g, g.set_inodes.vk[nothing], [:x])
+    g.nodes = [ g.nodes, g2.nodes]
+    g.set_inodes = m.BiDict(merge(g.set_inodes.kv, g2.set_inodes.kv))
+    g.nodes
+
+    m.tocode(g)
+    m.prune!(g); m.tocode(g)
+    m.simplify!(g)
+
+    ##
+    outsym=nothing; order=1; evalmod=Main; params = [(:x, 2.)]
+
+    length(params) >= 1 || error("There should be at least one parameter specified, none found")
+    
+    order <= 1 || 
+    length(params) == 1 || error("Only one param allowed for order >= 2")
+    
+    order <= 1 || 
+    isa(params[1][2], Vector) || 
+    isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
+
+    paramsym    = Symbol[ e[1] for e in params]
+    paramvalues = [ e[2] for e in params]
+    parval      = Dict(paramsym, paramvalues)
+
+    g = m.tograph(ex)
+
+    haskey(g.set_inodes.vk, outsym) || 
+        error("can't find output var $( outsym==nothing ? "" : outsym)")
+
+    # reduce to variable of interest
+    g.set_inodes = m.BiDict{m.ExNode,Any}([g.set_inodes.vk[outsym]], [ outsym ])    
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+    m.calc!(g, params=parval, emod=evalmod)
+
+    ov = g.set_inodes.vk[outsym].val 
+    isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+    voi = { outsym }
+
+        dg = m.reversegraph(g, g.set_inodes.vk[outsym], paramsym)
+        append!(g.nodes, dg.nodes)
+        nn = m.addnode!( g, m.NCall(:tuple, [ dg.set_inodes.vk[m.dprefix(p)] for p in paramsym] ) )
+        ns = m.newvar("_dv")
+        g.set_inodes[nn] = ns
+        push!(voi, ns)
+
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+
+
+    voin = map( s -> g.set_inodes.vk[s], voi)
+    ex = addnode!(g, NCall(:tuple, voin))
+    g.set_inodes = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
+
+    resetvar()
+    tocode(g)
