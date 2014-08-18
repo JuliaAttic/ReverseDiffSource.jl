@@ -113,7 +113,7 @@
 @deriv_rule min(x::AbstractArray, y::Real )          y     sum((x .> y) .* ds)
 @deriv_rule min(x::AbstractArray, y::AbstractArray)  y     (x .> y) .* ds
 
-# maximum(), minimum()
+# maximum, minimum
 @deriv_rule maximum(x::Real         )     x     ds
 @deriv_rule maximum(x::AbstractArray)     x     (x .== maximum(x)) .* ds
 

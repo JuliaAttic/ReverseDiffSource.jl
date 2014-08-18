@@ -2,8 +2,8 @@
 #
 #   Bi-directional Dict()
 #
-#     - enforces unity of values
-#     - provides easy lookup by values
+#     - enforces unicity of keys and values
+#     - provides lookup by values
 #
 #########################################################################
   

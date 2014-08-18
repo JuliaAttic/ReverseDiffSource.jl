@@ -17,19 +17,11 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
-
 	print("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
 	ex2 = m.rdiff( ex, x=x0 )
 	dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
-	# @eval dfunc(x) = $ex2
-	# fsym = gensym()
-	# @eval let 
-	# 	global $fsym
-	# 	($fsym)(x) = ($ex2 ; (res, dx))
-	# end
-	# myf = eval(fsym)
 
 	l0, (grad0,) = dfunc(x0)  
 	if ndims(x0) == 0  # scalar
@@ -43,7 +35,6 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 		end
 	end
 
-	# println(grad1)
 	if !all(good_enough, zip([grad0], [grad1]))
 		rg0 = map(x -> round(x,5), grad0)
 		rg1 = map(x -> round(x,5), grad1)

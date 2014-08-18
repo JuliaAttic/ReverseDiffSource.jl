@@ -4,6 +4,38 @@
 #
 #########################################################################
 
+##########  Parameterized type to ease AST exploration  ############
+  type ExH{H}
+    head::Symbol
+    args::Vector
+    typ::Any
+  end
+  toExH(ex::Expr) = ExH{ex.head}(ex.head, ex.args, ex.typ)
+  toExpr(ex::ExH) = Expr(ex.head, ex.args...)
+
+  typealias ExEqual    ExH{:(=)}
+  typealias ExDColon   ExH{:(::)}
+  typealias ExColon    ExH{:(:)}
+  typealias ExPEqual   ExH{:(+=)}
+  typealias ExMEqual   ExH{:(-=)}
+  typealias ExTEqual   ExH{:(*=)}
+  typealias ExTrans    ExH{symbol("'")} 
+  typealias ExCall     ExH{:call}
+  typealias ExBlock    ExH{:block}
+  typealias ExLine     ExH{:line}
+  typealias ExVcat     ExH{:vcat}
+  typealias ExCell1d   ExH{:cell1d}
+  typealias ExFor      ExH{:for}
+  typealias ExRef      ExH{:ref}
+  typealias ExIf       ExH{:if}
+  typealias ExComp     ExH{:comparison}
+  typealias ExDot      ExH{:.}
+  typealias ExTuple    ExH{:tuple}
+  typealias ExReturn   ExH{:return}
+  typealias ExBody     ExH{:body}
+
+
+
 tograph(s) = tograph(s, {})
 
 #  s     : expression to convert
