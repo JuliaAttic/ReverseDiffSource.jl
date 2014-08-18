@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-module ReverseDiffSource
-
-	include("reversediff.jl")
-
-	export 
-		reversediff, 
-		@deriv_rule, deriv_rule, declareType
-
-end # module ReverseDiffSource
-=======
 #########################################################################
 #
 #   Julia Package for reverse mode automated differentiation (from source)
@@ -68,4 +57,3 @@ module ReverseDiffSource
 
 end # module ReverseDiffSource
 
->>>>>>> devl
