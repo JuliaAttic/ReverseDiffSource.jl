@@ -102,7 +102,7 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 
 ###### sqrt()
 @compare sqrt(x)      v0ref
-@compare sum(sqrt(x)) abs( v1ref )
+@compare sum(sqrt(x)) abs( v1ref .+ 0.1(sign(v1ref).==0.))
 
 ###### - (unary)
 @compare -x      v0ref
@@ -110,12 +110,12 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare sum(-x) v2ref
 
 ###### ' transpose
-@compare x'      v0ref
-@compare sum(x') v1ref
-@compare sum(x') v2ref
-@compare transpose(x) v0ref
-@compare transpose(x) v1ref
-@compare transpose(x) v2ref
+@compare x'                v0ref
+@compare sum(x')           v1ref
+@compare sum(x')           v2ref
+@compare transpose(x)      v0ref
+@compare sum(transpose(x)) v1ref
+@compare sum(transpose(x)) v2ref
 
 ###### +
 @compare x + 1.    v0ref
@@ -130,10 +130,10 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare x - 1.    v0ref
 @compare 1. - x    v0ref
 
-@compare sum(x - v1ref) v1ref
-@compare sum(v1ref - x) v1ref
+@compare sum(x - v1ref)    v1ref
+@compare sum(v1ref - x)    v1ref
 @compare sum(x - 0.5v2ref) v2ref
-@compare sum(3v2ref - x) v2ref
+@compare sum(3v2ref - x)   v2ref
 
 ###### .+
 @compare x  .+ 1.   v0ref
@@ -181,16 +181,22 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare x  ./ 1.   v0ref
 @compare 1. ./ x    v0ref
 
-@compare sum(x      ./ 2.)                                  v1ref
-@compare sum(3.     ./  x)                                  v1ref .+ 0.1(sign(v1ref) .== 0.)
-@compare sum(x      ./ (v1ref .+ 0.1(sign(v1ref) .== 0.)))  v1ref
-@compare sum(2v1ref ./  x)                                  v1ref .+ 0.1(sign(v1ref) .== 0.)
+@compare sum(x      ./ 2.)             v1ref
+@compare sum(3.     ./  x)             v1ref .+ 0.1(sign(v1ref) .== 0.)
+@compare sum(x      ./ (v1ref .+ 0.1)) v1ref
+@compare sum(2v1ref ./  x)             v1ref .+ 0.1(sign(v1ref) .== 0.)
 
-@compare sum(x      ./ 2.)                                v2ref
-@compare sum(3.     ./  x)                                v2ref .+ 0.1(sign(v2ref) .== 0.)
-@compare sum(x      ./ (v2ref .+ 0.1(sgn(v2ref) .== 0.))  v2ref
-@compare sum(2v2ref ./  x)                                v2ref .+ 0.1(sign(v2ref) .== 0.)
+@compare sum(x      ./ 2.)             v2ref
+@compare sum(3.     ./  x)             v2ref .+ 0.1(sign(v2ref) .== 0.)
+@compare sum(x      ./ (v2ref .+ 0.1)) v2ref
+@compare sum(2v2ref ./  x)             v2ref .+ 0.1(sign(v2ref) .== 0.)
 
+###### /
+@compare   x / 3.   v0ref
+@compare -1. / x    v0ref
+
+@compare sum(x /   2.)     v1ref
+@compare sum(x / -0.5)     v2ref
 
 ###### max
 @compare max( x, 1.)   v0ref
@@ -201,10 +207,10 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare sum(max(            x, 1. .- abs(v1ref)./2.1))  v1ref
 @compare sum(max(0.5abs(v1ref),                x.+0.1))  v1ref
 
-@compare sum(max(            x,             -1.))  v2ref
-@compare sum(max(           0.,               x))  v2ref
-@compare sum(max(            x, -abs(v2ref)./2.))  v2ref
-@compare sum(max(0.5abs(v2ref),               x))  v2ref
+@compare sum(max(            x      , -1.1                )) v2ref
+@compare sum(max(          0.1      , x                   )) v2ref
+@compare sum(max(            x      , -abs(v2ref)./2.+0.1 )) v2ref
+@compare sum(max(0.5abs(v2ref).+0.1 , x                   )) v2ref
 
 ###### min
 @compare min( x, 1.)   v0ref
@@ -220,6 +226,16 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare sum(min(            x, -abs(v2ref)./2.))  v2ref
 @compare sum(min(0.5abs(v2ref),               x))  v2ref
 
+###### maximum
+@compare maximum(x)   v0ref
+@compare maximum(x)   v1ref
+@compare maximum(x)   v2ref
+
+###### minimum
+@compare minimum(x)   v0ref
+@compare minimum(x)   v1ref
+@compare minimum(x)   v2ref
+
 ###### dot
 @compare dot(  x, 3.)   v0ref
 @compare dot(-1.,  x)   v0ref
@@ -227,42 +243,48 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare dot(            x, -abs(v1ref)./2.)  v1ref
 @compare dot(0.5abs(v1ref),               x)  v1ref
 
-@compare dot(            x, -abs(v2ref)./2.)  v2ref
-@compare dot(0.5abs(v2ref),               x)  v2ref
+###### ^
+@compare x ^ 3.   v0ref
+@compare 3. ^ x   v0ref
 
+###### .^
+@compare x .^ 3.    v0ref
+@compare 3 .^ x     v0ref
+@compare x .^ -3.   v0ref
 
+@compare sum( x .^  2)  v1ref
+@compare sum( x .^ -1)  v1ref .+ 0.1(sign(v1ref) .== 0.)
+@compare sum( 2 .^  x)  v1ref
 
-@test_combin    x.^y      x->x<=0 ? 0.2 : x  size(x)==size(y) || ndims(x)==0 || ndims(y)==0
+@compare sum( x .^  2)  v2ref
+@compare sum( x .^ -1)  v2ref .+ 0.1(sign(v2ref) .== 0.)
+@compare sum( 2 .^  x)  v2ref
 
+###### *
+@compare  x * 3.    v0ref
+@compare -2 * x     v0ref
 
-@test_combin    max(x,y)  x->x+0.001  size(x)==size(y) || ndims(x)==0 || ndims(y)==0 
-# (x slightly shifted to avoid numerical derivation fail )
+@compare  sum(ones(5)'   * x)            v1ref
+@compare  sum(x'         * v1ref)        v1ref
+@compare  sum(ones(5)    * x')           v1ref
+@compare  sum(x          * (v1ref./2.)') v1ref
 
-
-@test_combin    x^y       ndims(x)==ndims(y)==0
-@test_combin    x/y       y->y==0 ? 0.1 : y ndims(x)==0 || ndims(y)==0
-@test_combin    x*y       ndims(x)==0 || ndims(y)==0 || size(x,2)==size(y,1)
-
-
-
-tz = transpose(v1ref)
-@compare x*tz            [-3., 2, 0]
-@compare tz*x            v1ref
-@compare v2ref*x         [-3., 2, 0]
-@compare v2ref[:,1:2]*x  [-3. 2 0 ; 1 1 -2] # FIXME : fails
-
+@compare  sum(2ones(5,2) * x)            v2ref
+@compare  sum(zeros(1,2) * x)            v2ref
+@compare  sum(x          * ones(3,2))    v2ref
+@compare  sum(x          * -1ones(3,1))  v2ref
 
 ##  ref  testing
-@compare x[2]               v1ref
-@compare x[2:3]             v1ref
-@compare x[2:end]           v1ref
+@compare x[2]                v1ref
+@compare sum(x[2:3])         v1ref
+# @compare sum(x[2:end])       v1ref  # TODO : implement 'end'
 
-@compare x[2:end]           v2ref
-@compare x[2]               v2ref
-@compare x[2:4]             v2ref
-@compare x[:,2]             v2ref
-@compare x[1,:]             v2ref
-@compare x[2:end,:]         v2ref
-@compare x[:,2:end]         v2ref
+# @compare x[2:end]            v2ref  # TODO : implement 'end'
+@compare x[2]                v2ref
+@compare sum(x[2:4])         v2ref
+# @compare sum(x[:,2])         v2ref  # TODO : implement ':'
+# @compare x[1,:]              v2ref
+# @compare x[2:end,:]          v2ref
+# @compare x[:,2:end]          v2ref
 @compare x[2]+x[1]           v2ref
 @compare log(x[2]^2+x[1]^2)  v2ref

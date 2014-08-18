@@ -85,9 +85,10 @@ function evalconstants(n, g, emod)
 	# TODO : add error catching here
 	res = 0.
 	try
-		res = invoke(emod.eval(n.main), 
-	        tuple([ typeof(x.main) for x in n.parents]...),
-	        [ x.main for x in n.parents]...)
+		# res = invoke(emod.eval(n.main), 
+	 #        tuple([ typeof(x.main) for x in n.parents]...),
+	 #        [ x.main for x in n.parents]...)
+		res = apply(emod.eval(n.main), [ x.main for x in n.parents]...)
 	catch e
 		println("error $e \n while evaluating $(n.main) on $([ x.main for x in n.parents]')")
 		rethrow(e)

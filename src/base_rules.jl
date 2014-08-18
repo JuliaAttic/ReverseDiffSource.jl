@@ -68,6 +68,9 @@
 @deriv_rule sum(x::AbstractArray)                    x     ones(size(x)).*ds
 
 # dot()
+@deriv_rule dot(x::Real         , y::Real )          x     y * ds
+@deriv_rule dot(x::Real         , y::Real )          y     x * ds
+
 @deriv_rule dot(x::AbstractArray, y::AbstractArray)  x     y.*ds
 @deriv_rule dot(x::AbstractArray, y::AbstractArray)  y     x.*ds
 
@@ -108,6 +111,14 @@
 @deriv_rule min(x::Real         , y::AbstractArray)  y     (x .> y) .* ds
 @deriv_rule min(x::AbstractArray, y::Real )          y     sum((x .> y) .* ds)
 @deriv_rule min(x::AbstractArray, y::AbstractArray)  y     (x .> y) .* ds
+
+# maximum(), minimum()
+@deriv_rule maximum(x::Real         )     x     ds
+@deriv_rule maximum(x::AbstractArray)     x     (x .== maximum(x)) .* ds
+
+@deriv_rule minimum(x::Real         )     x     ds
+@deriv_rule minimum(x::AbstractArray)     x     (x .== minimum(x)) .* ds
+
 
 # multiplication
 @deriv_rule *(x::Real         , y::Real )            x     y * ds
@@ -150,11 +161,9 @@
 
 # division
 @deriv_rule /(x::Real          , y::Real )           x     ds / y
-@deriv_rule /(x::Real          , y::AbstractArray)   x     sum(ds ./ y)
 @deriv_rule /(x::AbstractArray , y::Real )           x     ds ./ y
 
 @deriv_rule /(x::Real          , y::Real )           y     -x * ds / (y * y)
-@deriv_rule /(x::Real          , y::AbstractArray)   y     -x * ds ./ (y .* y) 
 @deriv_rule /(x::AbstractArray , y::Real )           y     sum(-x .* ds) / (y * y)
 
 # dot division
