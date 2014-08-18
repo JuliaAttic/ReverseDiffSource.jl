@@ -16,19 +16,30 @@ All the core of the functions in the package ( differentiation, removal of neutr
 		- and optionnaly information on how to map nodes to 'outer' nodes. This last mapping is necessary when the ExGraph is embedded in another parent graph ( for example the inner scope of ``for`` loops is represented as a subgraph). 
 
 
-Plotting the code graph
-^^^^^^^^^^^^^^^^^^^^^^^
+Showing the code graph
+^^^^^^^^^^^^^^^^^^^^^^
 
-An unexported function of ``ReverseDiffSource`` allows you to plot the code graph through GraphViz.
+Starting from an expression, it is possible to have a dump of the nodes composing its equivalent graph with the (unexported) ``tograph()`` call :
+
+	ex = quote
+	  a = 1 + x
+	  2 * exp(-a)
+	end
+
+	g = ReverseDiffSource.tograph(ex)
+	#1        [constant]  1         (NaN)     
+	#2  < x   [external]  :x        (NaN)     
+	#3  > a   [call]      :+        (NaN)     , parents : #1, #2
+	#4        [constant]  2         (NaN)     
+	#5        [call]      :-        (NaN)     , parents : #3
+	#6        [call]      :exp      (NaN)     , parents : #5
+	#7  > nothing[call]      :*        (NaN)     , parents : #4, #6
+
+Additionnaly, the ``plot()`` function (also unexported) will generate a GrapViz compatible graph description :
 
 	using GraphViz
 
-	ex = quote
-		a = 1 + x
-		2 * exp(-a)
-	end
-
-	Graph( ReverseDiffSource.plot( ReverseDiffSource.tograph(ex)))
+	Graph( ReverseDiffSource.plot( g ))
 	
 Should produce : 
 

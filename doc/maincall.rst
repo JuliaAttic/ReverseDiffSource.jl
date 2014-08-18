@@ -135,6 +135,4 @@ However simple accumulations are an instance of recursive calculations that shou
 
 * Mutating functions cannot be used (with the exception of ``setindex!``).
 
-* ....
-
 

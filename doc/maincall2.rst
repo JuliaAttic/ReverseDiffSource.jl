@@ -2,7 +2,7 @@ Calling ``rdiff()`` with a function
 ***********************************
 
 .. warning:: 
-	This version of ``rdiff()`` will not work if there are ``for`` loops in the function definition. This is due to julia giving only access to an interpreted version of the original function definition (through the ``uncompressed_ast`` call) that translates loops to a form that make them more challenging to parse.
+	Currently ``rdiff()`` will not work with ``for`` loops in the function definition. This is caused by ``uncompressed_ast`` call not giving access to the original function definition but to an interpreted version that is more challenging to parse.
 
 Calling syntax::
 
@@ -56,7 +56,5 @@ Limitations
 * Only a limited set of Julia semantics are supported at this stage. Some frequently used statements such as comprehensions, ``if else``, ``while`` loops cannot be used in the expression.
 
 * Mutating functions cannot be used (with the exception of ``setindex!``).
-
-* ....
 
 
