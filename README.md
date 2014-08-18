@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ReverseDiffSource.jl
 ====================
 
@@ -146,3 +147,16 @@ bar(1.0)
 - I am trying a different underlying representation of the model, going from the current AST manipulation to a custom graph type. This should make the code easier to debug and improve. This is where most of my efforts are directed rigth now.
 - I want to add for loops, comprehension would be next. This has become necessary as the differentiation rules definitions are now parsed to graphs too and they make use of loops.
 - Higher order derivatives are also a goal, at least up to 2. 
+=======
+ReverseDiffSource.jl
+====================
+
+[![Build Status](https://travis-ci.org/fredo-dedup/ReverseDiffSource.jl.png)](https://travis-ci.org/fredo-dedup/ReverseDiffSource.jl)
+
+Reverse automated differentiation from source
+
+
+This package provides a function `rdiff()` that generates valid Julia code for the calculation of derivatives up to any order for a user supplied expression or generic function.
+
+Package documentation and examples can be found [here](http://reversediffsourcejl.readthedocs.org/en/master/index.html).
+>>>>>>> devl
