@@ -13,13 +13,25 @@ All the core of the functions in the package ( differentiation, removal of neutr
 	2. The ExGraph composite type that stores
 		- ExNodes in a vector (in the order of execution), 
 		- information on how to map ExNodes to variable names (used and set), 
-		- and optionnaly information on how to map nodes to 'outer' nodes. This last mapping is necessary when the ExGraph is embedded in another parent graph ( the inner scope of for loops is represented as a subgraph). 
+		- and optionnaly information on how to map nodes to 'outer' nodes. This last mapping is necessary when the ExGraph is embedded in another parent graph ( for example the inner scope of ``for`` loops is represented as a subgraph). 
 
 
-Arguments
-^^^^^^^^^
+Plotting the code graph
+^^^^^^^^^^^^^^^^^^^^^^^
 
-:func: is a Julia generic function.
+An unexported function of ``ReverseDiffSource`` allows you to plot the code graph through GraphViz.
 
+	using GraphViz
+
+	ex = quote
+		a = 1 + x
+		2 * exp(-a)
+	end
+
+	Graph( ReverseDiffSource.plot( ReverseDiffSource.tograph(ex)))
+	
+Should produce : 
+
+.. image:: test.png	
 
 
