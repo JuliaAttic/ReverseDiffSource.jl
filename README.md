@@ -1,6 +1,8 @@
 ReverseDiffSource.jl
 ====================
 
+[![Build Status](https://travis-ci.org/fredo-dedup/ReverseDiffSource.jl.png)](https://travis-ci.org/fredo-dedup/ReverseDiffSource.jl)
+
 Reverse automated differentiation from source
 
 

@@ -83,9 +83,16 @@ function evalconstants(n, g, emod)
 
 	# calculate value
 	# TODO : add error catching here
-	res = invoke(emod.eval(n.main), 
-        tuple([ typeof(x.main) for x in n.parents]...),
-        [ x.main for x in n.parents]...)
+	res = 0.
+	try
+		# res = invoke(emod.eval(n.main), 
+	 #        tuple([ typeof(x.main) for x in n.parents]...),
+	 #        [ x.main for x in n.parents]...)
+		res = apply(emod.eval(n.main), [ x.main for x in n.parents]...)
+	catch e
+		println("error $e \n while evaluating $(n.main) on $([ x.main for x in n.parents]')")
+		rethrow(e)
+	end
 
 	# create a new constant node and replace n with it
 	nn = addnode!(g, NConst(res) )
