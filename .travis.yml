@@ -14,6 +14,6 @@ before_install:
 script:
   - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir("ReverseDiffSource"))`); Pkg.pin("ReverseDiffSource"); Pkg.resolve()'
   - julia -e 'using ReverseDiffSource; @assert isdefined(:ReverseDiffSource); @assert typeof(ReverseDiffSource) === Module'
-  - julia --code-coverage -e 'Pkg.test("ReverseDiffSource")'
+  - julia --code-coverage ./test/runtests.jl
 after_success:
   - julia -e 'cd(Pkg.dir("ReverseDiffSource")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
