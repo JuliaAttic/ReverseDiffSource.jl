@@ -4,7 +4,7 @@ Installation
 
 Install the ReverseDiffSource package at the Julia command line by running::
 
-	Pkg.Install("ReverseDiffSource")
+	Pkg.add("ReverseDiffSource")
 
 This only needs to be done once. 
 
