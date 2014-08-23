@@ -10,7 +10,7 @@ Arguments
 
 :ex: is a Julia Expression containing the code to derive
 
-:outsym: (keyword arg, default = nothing) is the symbol of the variable within ex where the expression output is to be derived against. This variable must evaluate to a Real. If not specified, ``outsym`` defaults to ``nothing`` which signals to rdiff that the last statement is the result of interest for derivation.
+:outsym: (keyword arg, default = nothing) is the symbol of the variable within ``ex`` containing the expression output (the result whose derivatives are needed). This variable must evaluate to a ``Real``. If not specified, ``outsym`` defaults to ``nothing`` which signals to ``rdiff`` that the last statement is the result of interest for derivation.
 
 :order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce an expression that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 
@@ -19,7 +19,7 @@ Arguments
 Output
 ^^^^^^
 
-An expression returning a tuple containing the expression value and the derivative at first, second , etc.. order.
+An expression which, when evaluated, will return a tuple containing the expression value and the derivative at first, second , etc.. order.
 
 
 Usage

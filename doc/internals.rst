@@ -22,8 +22,8 @@ Showing the code graph
 Starting from an expression, it is possible to have a dump of the nodes composing its equivalent graph with the (unexported) ``tograph()`` call :
 
 	ex = quote
-	  a = 1 + x
-	  2 * exp(-a)
+		a = 1 + x
+		2 * exp(-a)
 	end
 
 	g = ReverseDiffSource.tograph(ex)
