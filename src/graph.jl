@@ -8,10 +8,10 @@
 #####  ExGraph type definition ######
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
-  ext_inodes::BiDict{ExNode, Any}
-  set_inodes::BiDict{ExNode, Any}
-  ext_onodes::BiDict{ExNode, Any}
-  set_onodes::BiDict{ExNode, Any}
+  exti::BiDict{ExNode, Any}
+  seti::BiDict{ExNode, Any}
+  exto::BiDict{ExNode, Any}
+  seto::BiDict{ExNode, Any}
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
@@ -26,10 +26,10 @@ function show(io::IO, g::ExGraph)
   for (i,n) in enumerate(g.nodes)
     print(io, rpad("#$i",4))
 
-    if haskey(g.ext_inodes, n)
-      print(io, rpad("< $(g.ext_inodes[n])", 6))
-    elseif haskey(g.set_inodes, n)
-      print(io, rpad("> $(g.set_inodes[n])", 6))
+    if haskey(g.exti, n)
+      print(io, rpad("< $(g.exti[n])", 6))
+    elseif haskey(g.seti, n)
+      print(io, rpad("> $(g.seti[n])", 6))
     else
       print(io, rpad("", 6))
     end
@@ -78,26 +78,26 @@ function copy(g::ExGraph)
   for n in filter(x -> isa(x, NFor), g2.nodes)
     fg = n.main[2]
     no = BiDict{ExNode, Any}()
-    for (k,v) in fg.ext_onodes.kv
+    for (k,v) in fg.exto.kv
       no[ nmap[k] ] = v
     end
-    fg.ext_onodes = no
+    fg.exto = no
 
     no = BiDict{ExNode, Any}()
-    for (k,v) in fg.set_onodes.kv
+    for (k,v) in fg.seto.kv
       no[ nmap[k] ] = v
     end
-    fg.set_onodes = no
+    fg.seto = no
   end
 
   # copy node mapping and translate inner nodes to newly created ones
-  g2.ext_onodes = BiDict{ExNode, Any}(g.ext_onodes.kv)
-  g2.set_onodes = BiDict{ExNode, Any}(g.set_onodes.kv)
-  for (k,v) in g.ext_inodes.kv
-    g2.ext_inodes[ nmap[k] ] = v
+  g2.exto = BiDict{ExNode, Any}(g.exto.kv)
+  g2.seto = BiDict{ExNode, Any}(g.seto.kv)
+  for (k,v) in g.exti.kv
+    g2.exti[ nmap[k] ] = v
   end
-  for (k,v) in g.set_inodes.kv
-    g2.set_inodes[ nmap[k] ] = v
+  for (k,v) in g.seti.kv
+    g2.seti[ nmap[k] ] = v
   end
 
   g2
@@ -129,16 +129,16 @@ end
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   # this should not happen...
-  @assert !haskey(g.ext_inodes, nr) "[fusenodes] attempt to fuse ext_inode $nr"
+  @assert !haskey(g.exti, nr) "[fusenodes] attempt to fuse ext_inode $nr"
 
   # test if nr is associated to a variable
   # if true, we create an NIn on nk, and associate var to it
-  if haskey(g.set_inodes, nr)
-    nn = addnode!(g, NIn(g.set_inodes[nr], [nk]))
-    g.set_inodes[nn] = g.set_inodes[nr]  # nn replaces nr as set_inode
+  if haskey(g.seti, nr)
+    nn = addnode!(g, NIn(g.seti[nr], [nk]))
+    g.seti[nn] = g.seti[nr]  # nn replaces nr as set_inode
 
-    if haskey(g.set_onodes, nr)   # change onodes too (if we are in a subgraph)
-      g.set_onodes[nn] = g.set_onodes[nr]  # nn replaces nr as set_onode
+    if haskey(g.seto, nr)   # change onodes too (if we are in a subgraph)
+      g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
     end  
   end
 
@@ -147,11 +147,11 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   #   g2 = n.main[2]
 
   #   # this should not happen...
-  #   @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+  #   @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
-  #   if haskey(g2.ext_onodes, nr)
-  #     nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
-  #     g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
+  #   if haskey(g2.exto, nr)
+  #     nn = addnode!(g, NIn(g2.exto[nr], [nk]))
+  #     g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
   #   end  
   # end
 
@@ -171,11 +171,11 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       g2 = n.main[2]
 
       # this should not happen...
-      @assert !haskey(g2.set_onodes, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+      @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
-      if haskey(g2.ext_onodes, nr)
-        nn = addnode!(g, NIn(g2.ext_onodes[nr], [nk]))
-        g2.ext_onodes[nn] = g2.ext_onodes[nr]  # nn replaces nr as g2.ext_onodes
+      if haskey(g2.exto, nr)
+        nn = addnode!(g, NIn(g2.exto[nr], [nk]))
+        g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
         for (i, n2) in enumerate(n.parents)
           n2 == nr && (n.parents[i] = nn)
         end
@@ -196,7 +196,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
-prune!(g::ExGraph) = prune!(g, collect(keys(g.set_inodes.kv)))
+prune!(g::ExGraph) = prune!(g, collect(keys(g.seti.kv)))
 
 function prune!(g::ExGraph, exitnodes)
   ns2 = copy(exitnodes)
@@ -209,31 +209,31 @@ function prune!(g::ExGraph, exitnodes)
 
       # list of g2 nodes whose outer node is in ns2
       exitnodes2 = ExNode[]
-      for (k, sym) in g2.set_onodes.kv
+      for (k, sym) in g2.seto.kv
         k in ns2 || continue
-        push!(exitnodes2, g2.set_inodes.vk[sym])
+        push!(exitnodes2, g2.seti.vk[sym])
       end
 
       prune!(g2, exitnodes2)
 
       # update parents
-      n.parents = [n.parents[1], intersect(n.parents, collect(keys(g2.ext_onodes)) ) ]
+      n.parents = [n.parents[1], intersect(n.parents, collect(keys(g2.exto)) ) ]
     end
 
     ns2 = union(ns2, n.parents)
   end
 
   # remove unused external inodes in map and corresponding onodes (if they exist)
-  for (k,v) in g.ext_inodes.kv
+  for (k,v) in g.exti.kv
     k in ns2 && continue
-    delete!(g.ext_inodes, k)
-    haskey(g.ext_onodes.vk, v) && delete!(g.ext_onodes, g.ext_onodes.vk[v])
+    delete!(g.exti, k)
+    haskey(g.exto.vk, v) && delete!(g.exto, g.exto.vk[v])
   end
   # reduce set inodes to what was specified in initial exitnodes parameter
-  for (k,v) in g.set_inodes.kv
+  for (k,v) in g.seti.kv
     k in exitnodes && continue
-    delete!(g.set_inodes, k)
-    haskey(g.set_onodes.vk, v) && delete!(g.set_onodes, g.set_onodes.vk[v])
+    delete!(g.seti, k)
+    haskey(g.seto.vk, v) && delete!(g.seto, g.seto.vk[v])
   end
 
   # remove precedence nodes that have disappeared
@@ -304,11 +304,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end 
 
   function evaluate(n::NExt)
-    haskey(g.ext_inodes, n) || return myeval(n.main)
+    haskey(g.exti, n) || return myeval(n.main)
 
-    sym = g.ext_inodes[n]  # should be equal to n.main but just to be sure.. 
-    haskey(g.ext_onodes.vk, sym) || return myeval(n.main)
-    return g.ext_onodes.vk[sym].val  # return node val in parent graph
+    sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
+    haskey(g.exto.vk, sym) || return myeval(n.main)
+    return g.exto.vk[sym].val  # return node val in parent graph
   end
 
   evaluate(n::NConst) = n.main
@@ -334,8 +334,8 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     calc!(g2, params=params2)
     
     valdict = Dict()
-    for (k, sym) in g2.set_onodes
-      valdict[k] = g2.set_inodes.vk[sym].val
+    for (k, sym) in g2.seto
+      valdict[k] = g2.seti.vk[sym].val
     end
 
     valdict
@@ -355,12 +355,12 @@ end
 addgraph!(src::Expr, dest::ExGraph, smap::Dict) = addgraph!(tograph(src), dest, smap)
 
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
-  length(src.ext_onodes.kv)>0 && warn("[addgraph] adding graph with external onodes")
-  length(src.set_onodes.kv)>0 && warn("[addgraph] adding graph with set onodes")
+  length(src.exto.kv)>0 && warn("[addgraph] adding graph with external onodes")
+  length(src.seto.kv)>0 && warn("[addgraph] adding graph with set onodes")
   # TODO : this control should be done at the deriv_rules.jl level
 
   ig = copy(src) # make a copy, update references
-  exitnode = ig.set_inodes.vk[nothing] # result of added subgraph
+  exitnode = ig.seti.vk[nothing] # result of added subgraph
 
   evalsort!(ig)
 
@@ -384,9 +384,9 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
       n.precedence = [ haskey(nmap, n2) ? nmap[n2] : n2 for n2 in n.precedence ]
 
       g2 = n.main[2]
-      for (n2, sym) in g2.ext_onodes
+      for (n2, sym) in g2.exto
         haskey(nmap, n2) || continue
-        g2.ext_onodes[ nmap[n2]] = sym
+        g2.exto[ nmap[n2]] = sym
       end
 
       push!(dest.nodes, n)
@@ -400,6 +400,6 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   end
 
   # return exitnode of subgraph
-  # ig.set_inodes.vk[nothing]
+  # ig.seti.vk[nothing]
   exitnode
 end

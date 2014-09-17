@@ -48,8 +48,8 @@ function markalloc!(g::ExGraph)
 
 		elseif isa(n, NFor)
 			g2 = n.main[2]  # subgraph
-			syms = collect(values(g2.set_onodes))
-			sn = collect(keys(filter((k,v) -> v in syms, g2.ext_onodes.kv)))
+			syms = collect(values(g2.seto))
+			sn = collect(keys(filter((k,v) -> v in syms, g2.exto.kv)))
 			for n2 in sn
 				n2.alloc = true
 			end

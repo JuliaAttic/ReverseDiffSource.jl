@@ -58,10 +58,10 @@ ex = quote
 end
 
 g = m.tograph(ex);
-@test sort(collect(values(g.ext_inodes.kv))) == [:b, :x, :z]
-@test sort(collect(values(g.set_inodes.kv))) == [:a]
-@test length(g.set_onodes.kv) == 0
-@test length(g.ext_onodes.kv) == 0
+@test sort(collect(values(g.exti.kv))) == [:b, :x, :z]
+@test sort(collect(values(g.seti.kv))) == [:a]
+@test length(g.seto.kv) == 0
+@test length(g.exto.kv) == 0
 
 exout = striplinenumbers(quote 
     _tmp1 = zeros(10)
@@ -88,22 +88,22 @@ ex = quote
 end
 g = m.tograph(ex)
 
-@test sort(collect(values(g.ext_inodes.kv))) == [:b, :v, :x]
-@test sort(collect(values(g.set_inodes.kv))) == [:a, :z]
-@test length(g.set_onodes.kv) == 0
-@test length(g.ext_onodes.kv) == 0
+@test sort(collect(values(g.exti.kv))) == [:b, :v, :x]
+@test sort(collect(values(g.seti.kv))) == [:a, :z]
+@test length(g.seto.kv) == 0
+@test length(g.exto.kv) == 0
 
 g2 = g.nodes[7].main[2]  # first level loop
-@test sort(collect(values(g2.ext_inodes.kv))) == [:a, :b, :i, :v, :x, :z]
-@test sort(collect(values(g2.set_inodes.kv))) == [:a, :t]
-@test sort(collect(values(g2.ext_onodes.kv))) == [:a, :b, :v, :x, :z]
-@test sort(collect(values(g2.set_onodes.kv))) == [:a]
+@test sort(collect(values(g2.exti.kv))) == [:a, :b, :i, :v, :x, :z]
+@test sort(collect(values(g2.seti.kv))) == [:a, :t]
+@test sort(collect(values(g2.exto.kv))) == [:a, :b, :v, :x, :z]
+@test sort(collect(values(g2.seto.kv))) == [:a]
 
 g3 = g2.nodes[7].main[2] # second level loop
-@test sort(collect(values(g3.ext_inodes.kv))) == [:a, :b, :i, :t, :v, :z]
-@test sort(collect(values(g3.set_inodes.kv))) == [:a, :u]
-@test sort(collect(values(g3.ext_onodes.kv))) == [:a, :b, :i, :t, :v, :z]
-@test sort(collect(values(g3.set_onodes.kv))) == [:a]
+@test sort(collect(values(g3.exti.kv))) == [:a, :b, :i, :t, :v, :z]
+@test sort(collect(values(g3.seti.kv))) == [:a, :u]
+@test sort(collect(values(g3.exto.kv))) == [:a, :b, :i, :t, :v, :z]
+@test sort(collect(values(g3.seto.kv))) == [:a]
 
 m.resetvar()
 exout = striplinenumbers(quote         
@@ -129,26 +129,26 @@ exout = striplinenumbers(quote
 function fullcycle(ex) # ex = :( y = a[2] ; x = 2 ; y )
     g = m.tograph(ex)
 
-    length(g.set_inodes.kv) == 0 && error("nothing defined here")
+    length(g.seti.kv) == 0 && error("nothing defined here")
 
     # isolate a single variable of interest
-    if haskey( g.set_inodes.vk, nothing) # last statement has priority
-        lastnode = g.set_inodes.vk[nothing]
+    if haskey( g.seti.vk, nothing) # last statement has priority
+        lastnode = g.seti.vk[nothing]
     else # find last evaluated otherwise
         m.evalsort!(g)
-        nvars = collect(keys(g.set_inodes))
+        nvars = collect(keys(g.seti))
         lastnode = g.nodes[ maximum(indexin(nvars, g.nodes)) ]
     end
     # lastnode = (g.nodes[1], :out)
     # for n in reverse(g.nodes)
-    #     haskey(g.set_inodes, n) || continue 
+    #     haskey(g.seti, n) || continue 
     #     lastnode = n
     #     break
     # end
 
-    sym = g.set_inodes[lastnode]
-    # g.set_inodes = m.BiDict{m.ExNode,Any}([lastnode], [ sym==nothing ? :out : sym ])
-    g.set_inodes = m.BiDict{m.ExNode,Any}([lastnode], [ sym ])
+    sym = g.seti[lastnode]
+    # g.seti = m.BiDict{m.ExNode,Any}([lastnode], [ sym==nothing ? :out : sym ])
+    g.seti = m.BiDict{m.ExNode,Any}([lastnode], [ sym ])
 
     g |> m.splitnary! |> m.simplify! |> m.prune!
     m.simplify!(g)
