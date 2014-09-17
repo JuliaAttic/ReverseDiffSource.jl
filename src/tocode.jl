@@ -40,10 +40,10 @@ function tocode(g::ExGraph)
 	end
 
 	function translate(n::NExt)
-	    haskey(g.ext_inodes, n) || return n.main
-	    sym = g.ext_inodes[n]  # should be equal to n.main but just to be sure.. 
-	    haskey(g.ext_onodes.vk, sym) || return n.main
-	    return g.ext_onodes.vk[sym].val  # return node val in parent graph
+	    haskey(g.exti, n) || return n.main
+	    sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
+	    haskey(g.exto.vk, sym) || return n.main
+	    return g.exto.vk[sym].val  # return node val in parent graph
 	end
 
 	function translate(n::NSRef)
@@ -77,8 +77,8 @@ function tocode(g::ExGraph)
 
 	    	g2 = n.main[2]
 	        valdict = Dict()
-		    for (k, sym) in g2.set_onodes
-		      valdict[k] = g2.set_inodes.vk[sym].val
+		    for (k, sym) in g2.seto
+		      valdict[k] = g2.seti.vk[sym].val
 		    end
 	        n.val = valdict
 
@@ -107,14 +107,14 @@ end
 const nosym = 0x7c883061f2344364  # code for no symbol associated
 
 function getnames(n::ExNode, g::ExGraph)
-	haskey(g.set_inodes, n) || return nosym
-	sym = g.set_inodes[n]
+	haskey(g.seti, n) || return nosym
+	sym = g.seti[n]
 
 	# return parent node evaluation if it exists
-	# haskey(g.ext_onodes.vk, sym) || return sym==nothing ? newvar() : sym
-	haskey(g.ext_onodes.vk, sym) || return sym
+	# haskey(g.exto.vk, sym) || return sym==nothing ? newvar() : sym
+	haskey(g.exto.vk, sym) || return sym
 
-	return g.ext_onodes.vk[sym].val
+	return g.exto.vk[sym].val
 end
 
 #####################################################################
@@ -162,7 +162,7 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	# it is in the precedence of another node
 	ps = filter(x -> n in x.precedence, g.nodes)
 	if length(ps) > 0
-		sv = collect(keys(g.set_inodes))
+		sv = collect(keys(g.seti))
 		(n in ancestors(sv, ps)) && return (true, nosym)
 	end
 

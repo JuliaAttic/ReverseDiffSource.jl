@@ -75,11 +75,11 @@ function tograph(s, svars::Vector{Any})
 
 	function explore(ex::Symbol)
 		ex in {:(:), symbol("end")} && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
-		haskey(g.set_inodes.vk, ex) && return g.set_inodes.vk[ex]
-		haskey(g.ext_inodes.vk, ex) && return g.ext_inodes.vk[ex]
+		haskey(g.seti.vk, ex) && return g.seti.vk[ex]
+		haskey(g.exti.vk, ex) && return g.exti.vk[ex]
 
 		nn = addnode!(g, NExt(ex))    # create external node for this var
-		g.ext_inodes[nn] = ex
+		g.exti[nn] = ex
 		return nn
 	end
 
@@ -99,7 +99,7 @@ function tograph(s, svars::Vector{Any})
 				                               explore(ex.args[3]), # value affected in pos #2
 				                               map(explore, ex.args[4:end])] ))  # indexing starting at #3
 			rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
-			g.set_inodes[rhn] = ex.args[2]
+			g.seti[rhn] = ex.args[2]
 
 			return nothing
 
@@ -117,7 +117,7 @@ function tograph(s, svars::Vector{Any})
 			rhn  = explore(ex.args[2])
 			# we test if RHS has already a symbol
 			# if it does, to avoid loosing it, we create an NIn node
-			if haskey(g.set_inodes, rhn) 
+			if haskey(g.seti, rhn) 
 				rhn = addnode!(g, NIn(lhss, [rhn]))
 			end
 
@@ -140,7 +140,7 @@ function tograph(s, svars::Vector{Any})
 		end
 
 		# g.map[rhn] = (lhss, :out_inode)
-		g.set_inodes[rhn] = lhss
+		g.seti[rhn] = lhss
 
 		return nothing
 	end
@@ -154,7 +154,7 @@ function tograph(s, svars::Vector{Any})
 		nir = explore(ex.args[1].args[2])
 
 		# explore the for block as a separate graph 
-		nsvars = union(svars, collect(keys(g.set_inodes.vk)))
+		nsvars = union(svars, collect(keys(g.seti.vk)))
 		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node
@@ -162,10 +162,10 @@ function tograph(s, svars::Vector{Any})
 		nf.parents = [nir]  # first parent is indexing range fo the loop
 
 		# create onodes (node in parent graph) for each :in_inode
-		for (k, sym) in g2.ext_inodes.kv
+		for (k, sym) in g2.exti.kv
 			if sym != is  # loop index should be excluded
 				pn = explore(sym)  # look in setmap, externals or create it
-				g2.ext_onodes[pn] = sym
+				g2.exto[pn] = sym
 				push!(nf.parents, pn) # mark as parent of for loop
 			end
 		end
@@ -173,12 +173,12 @@ function tograph(s, svars::Vector{Any})
 		# create onodes and 'Nin' nodes for each :out_inode
 		#  will be restricted to variables that are defined in parent
 		#   (others are assumed to be local to the loop)
-		for (k, sym) in g2.set_inodes.kv
+		for (k, sym) in g2.seti.kv
 			if sym in nsvars && sym != is # only for variables set in parent scope
 				pn = explore(sym)                   # create node if needed
 				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
-				g.set_inodes[rn] = sym              # signal we're setting the var
-				g2.set_onodes[rn] = sym
+				g.seti[rn] = sym              # signal we're setting the var
+				g2.seto[rn] = sym
 
 				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
 			end
@@ -193,7 +193,7 @@ function tograph(s, svars::Vector{Any})
 	#          = ExNode of last calc otherwise
 
 	# id is 'nothing' for unnassigned last statement
-	exitnode!=nothing && ( g.set_inodes[exitnode] = nothing ) 
+	exitnode!=nothing && ( g.seti[exitnode] = nothing ) 
 
 	g
 end

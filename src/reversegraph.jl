@@ -26,7 +26,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 
 	# store in setmap the nodes containing the derivatives of diffsym
 	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), dnodes)
-		g2.set_inodes[v] = dprefix(k.main)
+		g2.seti[v] = dprefix(k.main)
 	end
 
     g2
@@ -140,32 +140,32 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
 			# outgoing nodes become ingoing nodes
 	 		#   both for the var and its derivative accumulator
-			if haskey(fg.set_inodes, n2)
-				sym = fg.set_inodes[n2]
-				if haskey(fg.set_onodes.vk, sym)  # this is not a local var
-					on = fg.set_onodes.vk[sym]
+			if haskey(fg.seti, n2)
+				sym = fg.seti[n2]
+				if haskey(fg.seto.vk, sym)  # this is not a local var
+					on = fg.seto.vk[sym]
 
-					# assumption : ext_inodes / onodes already exists for this sym
+					# assumption : exti / onodes already exists for this sym
 			 		dsym = dprefix(sym)  # newvar() 
 
 					#  derivative of var
 					nn = addnode!(fg2, NExt(dsym))
-					fg.ext_inodes[nn] = dsym
-					fg.ext_onodes[dnodes[on]] = dsym
+					fg.exti[nn] = dsym
+					fg.exto[dnodes[on]] = dsym
 				else  # it is a local var
 					nn = createzeronode!(fg2, n2)
 				end
 
 			# ingoing nodes become potential outgoing dnodes
-			elseif haskey(fg.ext_inodes, n2)
-				sym = fg.ext_inodes[n2]
+			elseif haskey(fg.exti, n2)
+				sym = fg.exti[n2]
 				if sym != is
-					on = fg.ext_onodes.vk[sym]
+					on = fg.exto.vk[sym]
 			 		dsym = dprefix(sym)  # newvar()
 
 					nn = addnode!(fg2, NExt(dsym))
-					fg.ext_inodes[nn] = dsym
-					fg.ext_onodes[dnodes[on]] = dsym
+					fg.exti[nn] = dsym
+					fg.exto[dnodes[on]] = dsym
 
 					ndmap[n2] = (dsym, on)
 				end
@@ -182,31 +182,31 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		append!(fg.nodes, fg2.nodes)
 		
 		# variables of interest are derivatives only
-		fg.set_inodes = BiDict{ExNode, Any}()
+		fg.seti = BiDict{ExNode, Any}()
 		for (ni, (sym, on)) in ndmap
-			fg.set_inodes[ fdnodes[ni] ] = sym
+			fg.seti[ fdnodes[ni] ] = sym
 		end
 
 		# println(fg.nodes)
 		# println("ndmap = $(collect(ndmap))")
 		# println("fdnodes = $(collect(fdnodes))")
-		# println("ext = $(collect(fg.ext_inodes.kv))")
-		# println("set = $(collect(fg.set_inodes.kv))")
-		# println("oext = $(collect(fg.ext_onodes.kv))")
-		# println("oset = $(collect(fg.set_onodes.kv))")
+		# println("ext = $(collect(fg.exti.kv))")
+		# println("set = $(collect(fg.seti.kv))")
+		# println("oext = $(collect(fg.exto.kv))")
+		# println("oset = $(collect(fg.seto.kv))")
 
 		prune!(fg) # reduce to derivatives evaluation only
 
 		# create for loop
 		v2 = addnode!(g2, NFor({ n.main[1], fg}) )
-		v2.parents = [n.parents[1], collect( keys( fg.ext_onodes)) ]
+		v2.parents = [n.parents[1], collect( keys( fg.exto)) ]
 
-		# set_onodes = dnodes of fg's ingoing variables
-		fg.set_onodes = BiDict{ExNode, Any}()
+		# seto = dnodes of fg's ingoing variables
+		fg.seto = BiDict{ExNode, Any}()
 		for (ns2, (sym, on)) in ndmap
 			rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
 			fdn = fdnodes[ns2]                 # final node in loop containing derivative
-			fg.set_onodes[rn] = sym
+			fg.seto[rn] = sym
 			dnodes[on] = rn 
 		end
 		# TODO : update precedence of v2 here ? 

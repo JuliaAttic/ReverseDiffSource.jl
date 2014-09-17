@@ -1,7 +1,8 @@
 my_tests = [
 			"unit_tests.jl",
             "test_syntax.jl",
-            "firstorder_tests.jl"
+            "firstorder_tests.jl",
+            "more_tests.jl"
            ]
 
 println("Running tests:")

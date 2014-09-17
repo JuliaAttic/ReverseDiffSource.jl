@@ -56,10 +56,10 @@ function plot(g::ExGraph)
     if isa(n, NFor)  # FIXME : will fail for nested for loops
       g2 = n.main[2]
       for n2 in g2.nodes
-        if haskey(g2.ext_inodes, n2)
-          sym = g2.ext_inodes[n2]
-          if haskey(g2.ext_onodes.vk, sym)
-            p = g2.ext_onodes.vk[sym]
+        if haskey(g2.exti, n2)
+          sym = g2.exti[n2]
+          if haskey(g2.exto.vk, sym)
+            p = g2.exto.vk[sym]
             out = out * "$(nn[p]) -> $(nn[n2]) [style=dashed];"
           end
         else  
@@ -68,10 +68,10 @@ function plot(g::ExGraph)
             end
         end
 
-        if haskey(g2.set_inodes, n2)
-          sym = g2.set_inodes[n2]
-          if haskey(g2.set_onodes.vk, sym)
-            p = g2.set_onodes.vk[sym]
+        if haskey(g2.seti, n2)
+          sym = g2.seti[n2]
+          if haskey(g2.seto.vk, sym)
+            p = g2.seto.vk[sym]
             out = out * "$(nn[p]) -> $(nn[n2]) [style=dashed];"
           end          
         end
@@ -84,7 +84,7 @@ function plot(g::ExGraph)
     end 
   end
 
-  for (el, en) in g.set_inodes.vk
+  for (el, en) in g.seti.vk
       out = out * "n$el [label=\"$el\", shape=\"note\", stype=filled, fillcolor=\"lightgrey\"];"
       out = out * "$(nn[en]) -> n$el [ style=dotted];"
   end
