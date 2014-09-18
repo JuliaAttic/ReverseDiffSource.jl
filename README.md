@@ -1,8 +1,8 @@
 ReverseDiffSource.jl
 ====================
 
-[![Build Status](https://travis-ci.org/fredo-dedup/ReverseDiffSource.jl.png)](https://travis-ci.org/fredo-dedup/ReverseDiffSource.jl)
-[![Coverage Status](https://coveralls.io/repos/fredo-dedup/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/fredo-dedup/ReverseDiffSource.jl?branch=master)
+[![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.png)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl)
+[![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=master)
 [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_release.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=release)
 
 Reverse automated differentiation from source
