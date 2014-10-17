@@ -20,7 +20,7 @@ end
 function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
     #### list variable symbols and annotate type names with "Main." 
     argsn = Symbol[]
-    sig = {}
+    sig = Any[]
     for e in func.args[2:end]
         if isa(e, Symbol)
             push!(argsn, e)

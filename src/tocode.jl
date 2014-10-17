@@ -11,11 +11,11 @@ function tocode(g::ExGraph)
 
 	translate(n::NConst) = n.main
 	translate(n::NComp)  = Expr(:comparison, 
-		                       	{ valueof(n.parents[1],n), 
-		                       	  n.main, 
-		                       	  valueof(n.parents[2],n) }...)
+		                       	valueof(n.parents[1],n), 
+		                       	n.main, 
+		                       	valueof(n.parents[2],n) )
 
-	translate(n::NRef)   = Expr(:ref, { valueof(x,n) for x in n.parents}...)
+	translate(n::NRef)   = Expr(:ref, Any[ valueof(x,n) for x in n.parents ]...)
 	translate(n::NDot)   = Expr(:(.), valueof(n.parents[1],n), n.main)
 
 	function translate(n::NIn)
@@ -26,17 +26,17 @@ function tocode(g::ExGraph)
 	function translate(n::NCall)
 	  	# special translation cases
 	  	if n.main == :vcat
-	  		return Expr(:vcat, { valueof(x,n) for x in n.parents}...)
+	  		return Expr      (:vcat, Any[ valueof(x,n) for x in n.parents ]...)
 	  	elseif n.main == :colon
-	  		return Expr(:(:), { valueof(x,n) for x in n.parents}...)
+	  		return Expr(       :(:), Any[ valueof(x,n) for x in n.parents ]...)
 	  	elseif n.main == :transpose
-	  		return Expr(symbol("'"), valueof(n.parents[1], n) )
+	  		return Expr(symbol("'"),                 valueof(n.parents[1], n) )
 	  	elseif n.main == :tuple
-	  		return Expr(:tuple, { valueof(x,n) for x in n.parents}... )
+	  		return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents ]...)
 		end
 
 		# default translation
-		Expr(:call, n.main, { valueof(x,n) for x in n.parents}...)
+		Expr(:call, n.main, Any[ valueof(x,n) for x in n.parents ]...)
 	end
 
 	function translate(n::NExt)
@@ -48,7 +48,7 @@ function tocode(g::ExGraph)
 
 	function translate(n::NSRef)
 		np = n.parents
-    	:( $(Expr(:ref, valueof(np[1],n), { valueof(x,n) for x in np[3:end]}...)) = $(valueof(np[2],n)) ) 
+    	:( $(Expr(:ref, valueof(np[1],n), Any[ valueof(x,n) for x in np[3:end]]...)) = $(valueof(np[2],n)) ) 
 	end
 
 	function translate(n::NSDot)
@@ -61,7 +61,7 @@ function tocode(g::ExGraph)
 		                      tocode(n.main[2]))
 
 	evalsort!(g)
-	out = {}
+	out = Any[]
 	for n in g.nodes
 	    # translate to Expr
 		n.val = translate(n)
@@ -86,8 +86,8 @@ function tocode(g::ExGraph)
 			if lhs == nothing && n == g.nodes[end] # last statment without assign
 				push!(out, :( $(n.val) )) 
 			else
-				( lhs in {nosym, nothing} ) && ( lhs = newvar() )
-				# nlhs = ( lhs in {nosym, nothing} ) ? newvar() : lhs
+				( lhs in [ nosym, nothing] ) && ( lhs = newvar() )
+				# nlhs = ( lhs in [ nosym, nothing ] ) ? newvar() : lhs
 				# println("***", lhs, "^^", nlhs)
 				push!(out, :( $lhs = $(n.val) ))
 			end				

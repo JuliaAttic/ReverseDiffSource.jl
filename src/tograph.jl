@@ -36,11 +36,11 @@
 
 
 
-tograph(s) = tograph(s, {})
+tograph(s) = tograph(s, Any[])
 
 #  s     : expression to convert
 #  svars : vars set since the toplevel graph (helps separate globals / locals)
-function tograph(s, svars::Vector{Any})
+function tograph(s, svars::Vector)
 
 	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
 	explore(ex::Expr)      = explore(toExH(ex))
@@ -74,7 +74,7 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::ExRef)     = addnode!(g, NRef(:getidx, map(explore, ex.args)))
 
 	function explore(ex::Symbol)
-		ex in {:(:), symbol("end")} && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
+		ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
 		haskey(g.seti.vk, ex) && return g.seti.vk[ex]
 		haskey(g.exti.vk, ex) && return g.exti.vk[ex]
 
@@ -158,7 +158,7 @@ function tograph(s, svars::Vector{Any})
 		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node
-		nf = addnode!(g, NFor( { is, g2 } ))
+		nf = addnode!(g, NFor( Any[ is, g2 ] ))
 		nf.parents = [nir]  # first parent is indexing range fo the loop
 
 		# create onodes (node in parent graph) for each :in_inode

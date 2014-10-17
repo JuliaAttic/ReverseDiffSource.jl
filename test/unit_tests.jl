@@ -39,7 +39,7 @@ m = ReverseDiffSource
 #################################################################
 
 function striplinenumbers(ex::Expr)
-    args = {}
+    args = Any[]
     for a in ex.args
         isa(a, LineNumberNode) && continue
         isa(a, Expr) && a.head==:line && continue

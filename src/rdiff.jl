@@ -56,7 +56,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     ov = g.seti.vk[outsym].val 
     isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
-    voi = { outsym }
+    voi = Any[ outsym ]
 
     if order == 1
         dg = reversegraph(g, g.seti.vk[outsym], paramsym)
@@ -161,17 +161,17 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             dg |> prune! |> simplify!
 
             # create for loop node
-            nf = addnode!(g, NFor({si, dg}) )
+            nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create size node
-            nsz = addgraph!( :( length( x ) ), g, { :x => g.exti.vk[paramsym[1]] } )
+            nsz = addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
 
             # create index range node
-            nid = addgraph!( :( 1:sz ),  g, { :sz => nsz } )
+            nid = addgraph!( :( 1:sz ),  g, [ :sz => nsz ] )
             push!(nf.parents, nid)
 
             # create stride size node
-            nst = addgraph!( :( sz ^ $(i-1) ),  g, { :sz => nsz } )
+            nst = addgraph!( :( sz ^ $(i-1) ),  g, [ :sz => nsz ] )
             sst = newvar()
             inst = addnode!(dg, NExt(sst))
             dg.exti[inst] = sst
@@ -179,7 +179,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             push!(nf.parents, nst)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, { :sz => nsz } )
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
             dg.exti[insa] = ssa
@@ -188,10 +188,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
             # create result node update (in subgraph)
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                { :res  => insa,
+                                [ :res  => insa,
                                   :sidx => nmap[ni],
                                   :st   => inst,
-                                  :dx   => collect(dg.seti)[1][1] } )
+                                  :dx   => collect(dg.seti)[1][1] ] )
             dg.seti = BiDict{ExNode, Any}(Dict([nres], [ssa]))
 
             # create exit node for result

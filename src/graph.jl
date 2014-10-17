@@ -40,12 +40,12 @@ function show(io::IO, g::ExGraph)
     print(io, rpad("($(repr(n.val)))", 10))
 
     if length(n.parents) > 0
-      pnn = join( map( x -> "#$x", indexin(n.parents, {g.nodes...})), ", ")
+      pnn = join( map( x -> "#$x", indexin(n.parents, Any[g.nodes...])), ", ")
       print(io, ", parents : $pnn")
     end
 
     if length(n.precedence) > 0
-      pnn = join( map( x -> "#$x", indexin(n.precedence, {g.nodes...})), ", ")
+      pnn = join( map( x -> "#$x", indexin(n.precedence, Any[g.nodes...])), ", ")
       print(io, ", precedence : $pnn")
     end
 
@@ -293,7 +293,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
       #     [ x.val for x in n.parents]...)
 
       # else
-        ret = emod.eval( Expr(:call, n.main, { x.val for x in n.parents}...) )
+        ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
 
       # end
 
@@ -314,7 +314,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   evaluate(n::NConst) = n.main
   # evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
   #                                    map(a->myeval(a), n.main)... ) )
-  evaluate(n::NRef)   = myeval( Expr(:ref , { x.val for x in n.parents}...))
+  evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
   evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
   evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
@@ -329,7 +329,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     is = n.main[1]                          # symbol of loop index
     iter = evaluate(n.parents[1])           #  myeval(n.main[1].args[2])
     is0 = next(iter, start(iter))[2]        # first value of index
-    params2 = merge(params, { is => is0 })  # set loop index to first value
+    params2 = merge(params, [ is => is0 ])  # set loop index to first value
     # println("params2 : $(params2)")
     calc!(g2, params=params2)
     
