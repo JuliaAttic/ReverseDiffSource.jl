@@ -158,25 +158,36 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
                 end
             end
             append!(dg.nodes, dg2)    
-            dg |> prune! |> simplify!
+            # dg |> prune! |> simplify!
 
             # create for loop node
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
-            # create size node
+            # create param size node
             nsz = addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
 
+            # create (n-1)th derivative size node
+            ndsz = addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
+
             # create index range node
-            nid = addgraph!( :( 1:sz ),  g, [ :sz => nsz ] )
+    # nid = addgraph!( :( 1:sz ),  g, [ :sz => nsz ] )
+            nid = addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
             push!(nf.parents, nid)
 
-            # create stride size node
-            nst = addgraph!( :( sz ^ $(i-1) ),  g, [ :sz => nsz ] )
+    # # create stride size node
+    # nst = addgraph!( :( sz ^ $(i-1) ),  g, [ :sz => nsz ] )
+    # sst = newvar()
+    # inst = addnode!(dg, NExt(sst))
+    # dg.exti[inst] = sst
+    # dg.exto[nst]  = sst
+    # push!(nf.parents, nst)
+
+            # pass size node inside subgraph
             sst = newvar()
             inst = addnode!(dg, NExt(sst))
             dg.exti[inst] = sst
-            dg.exto[nst]  = sst
-            push!(nf.parents, nst)
+            dg.exto[nsz]  = sst
+            push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
             nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
@@ -187,16 +198,21 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             push!(nf.parents, nsa)
 
             # create result node update (in subgraph)
+    # nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
+                        # [ :res  => insa,
+                        #   :sidx => nmap[ni],
+                        #   :st   => inst,
+                        #   :dx   => collect(dg.seti)[1][1] ] )
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
                                 [ :res  => insa,
                                   :sidx => nmap[ni],
                                   :st   => inst,
                                   :dx   => collect(dg.seti)[1][1] ] )
-            dg.seti = BiDict{ExNode, Any}(Dict([nres], [ssa]))
+            dg.seti = NSMap(Dict([nres], [ssa]))
 
             # create exit node for result
             nex = addnode!(g, NIn(ssa, [nf]))
-            dg.seto = BiDict{ExNode, Any}(Dict([nex], [ssa]))
+            dg.seto = NSMap(Dict([nex], [ssa]))
 
             # update parents of for loop
             append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )

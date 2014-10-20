@@ -26,7 +26,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 
 	# store in setmap the nodes containing the derivatives of diffsym
 	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), dnodes)
-		g2.seti[v] = dprefix(k.main)
+		g2.seti[v] = newvar(dprefix(k.main))
 	end
 
     g2
@@ -146,7 +146,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 					on = fg.seto.vk[sym]
 
 					# assumption : exti / onodes already exists for this sym
-			 		dsym = dprefix(sym)  # newvar() 
+ 		# dsym = dprefix(sym)  # newvar() 
+			 		dsym = newvar(dprefix(sym))  # newvar() 
 
 					#  derivative of var
 					nn = addnode!(fg2, NExt(dsym))
@@ -161,7 +162,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 				sym = fg.exti[n2]
 				if sym != is
 					on = fg.exto.vk[sym]
-			 		dsym = dprefix(sym)  # newvar()
+ 		# dsym = dprefix(sym)  # newvar()
+			 		dsym = newvar(dprefix(sym))  # newvar()
 
 					nn = addnode!(fg2, NExt(dsym))
 					fg.exti[nn] = dsym
@@ -182,7 +184,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		append!(fg.nodes, fg2.nodes)
 		
 		# variables of interest are derivatives only
-		fg.seti = BiDict{ExNode, Any}()
+		fg.seti = NSMap()
 		for (ni, (sym, on)) in ndmap
 			fg.seti[ fdnodes[ni] ] = sym
 		end
@@ -202,7 +204,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		v2.parents = [n.parents[1], collect( keys( fg.exto)) ]
 
 		# seto = dnodes of fg's ingoing variables
-		fg.seto = BiDict{ExNode, Any}()
+		fg.seto = NSMap()
 		for (ns2, (sym, on)) in ndmap
 			rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
 			fdn = fdnodes[ns2]                 # final node in loop containing derivative

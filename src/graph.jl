@@ -4,54 +4,58 @@
 #
 #########################################################################
   
+typealias NSMap BiDict{ExNode, Any}   # ExNode - Symbol map
 
 #####  ExGraph type definition ######
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
-  exti::BiDict{ExNode, Any}
-  seti::BiDict{ExNode, Any}
-  exto::BiDict{ExNode, Any}
-  seto::BiDict{ExNode, Any}
+  exti::NSMap
+  seti::NSMap
+  exto::NSMap
+  seto::NSMap
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
-ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, Any}(), 
-                                           BiDict{ExNode, Any}(), 
-                                           BiDict{ExNode, Any}(), 
-                                           BiDict{ExNode, Any}() )
-
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(), 
+                                           NSMap(), 
+                                           NSMap(), 
+                                           NSMap() )
 
 function show(io::IO, g::ExGraph)
-  # construct node number
+  tn = fill("", length(g.nodes), 7)
+
   for (i,n) in enumerate(g.nodes)
-    print(io, rpad("#$i",4))
+    tn[i,1] = "$i"
 
     if haskey(g.exti, n)
-      print(io, rpad("< $(g.exti[n])", 6))
+      tn[i,2] = ">> $(g.exti[n])"
     elseif haskey(g.seti, n)
-      print(io, rpad("> $(g.seti[n])", 6))
-    else
-      print(io, rpad("", 6))
+      tn[i,2] = "$(g.seti[n]) <<"
     end
 
-    print(io, rpad("[$(subtype(n))]", 12))
+    tn[i,3] = "[$(subtype(n))]"
     main = isa(n, NFor) ? n.main[1] : n.main
-    print(io, rpad("$(repr(main)) ", 10))
-    print(io, rpad("($(repr(n.val)))", 10))
 
-    if length(n.parents) > 0
-      pnn = join( map( x -> "#$x", indexin(n.parents, Any[g.nodes...])), ", ")
-      print(io, ", parents : $pnn")
-    end
+    tn[i,4] = join( map( x -> "$x", indexin(n.parents,    Any[g.nodes...])), ", ")
+    tn[i,5] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
 
-    if length(n.precedence) > 0
-      pnn = join( map( x -> "#$x", indexin(n.precedence, Any[g.nodes...])), ", ")
-      print(io, ", precedence : $pnn")
-    end
-
-    println() 
+    tn[i,6] = "$(repr(main))"
+    tn[i,7] = "$(typeof(n.val)) $(repr(n.val)[1:min(40, end)])"
   end
+
+  tn = vcat(["node" "symbol" "type" "parents" "precedence" "main" "value"], 
+        tn)
+  sz = maximum(map(length, tn), 1)
+  tn = vcat(tn[1,:], map(s->"-"^s, sz), tn[2:end,:])
+  for i in 1:size(tn,1)
+    for j in 1:size(tn, 2)
+      print(io, rpad(tn[i,j], sz[j]), " | ")
+    end
+    println(io)
+  end
+
 end
+
 
 #####  ExGraph functions  #####
 
@@ -77,13 +81,13 @@ function copy(g::ExGraph)
   # update onodes of subgraphs (for loops)
   for n in filter(x -> isa(x, NFor), g2.nodes)
     fg = n.main[2]
-    no = BiDict{ExNode, Any}()
+    no = NSMap()
     for (k,v) in fg.exto.kv
       no[ nmap[k] ] = v
     end
     fg.exto = no
 
-    no = BiDict{ExNode, Any}()
+    no = NSMap()
     for (k,v) in fg.seto.kv
       no[ nmap[k] ] = v
     end
@@ -91,8 +95,8 @@ function copy(g::ExGraph)
   end
 
   # copy node mapping and translate inner nodes to newly created ones
-  g2.exto = BiDict{ExNode, Any}(g.exto.kv)
-  g2.seto = BiDict{ExNode, Any}(g.seto.kv)
+  g2.exto = NSMap(g.exto.kv)
+  g2.seto = NSMap(g.seto.kv)
   for (k,v) in g.exti.kv
     g2.exti[ nmap[k] ] = v
   end
