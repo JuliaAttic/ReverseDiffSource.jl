@@ -108,7 +108,10 @@ function varGraph(vex::Vector{Expr})
 		in(lhss, external) && error("$lhss is both an external variable and a variable set by the model")
 
 		if in(lhss, touched) # ex is setting an already set variable => new var creation
-			ss = in(lhss, values(subst)) ? (collect(keys(subst)))[(findin(collect(values(subst)), [lhss]))[1]] : lhss
+			# ss = in(lhss, values(subst)) ? (collect(keys(subst)))[(findin(collect(values(subst)), [lhss]))[1]] : lhss
+			ss = in(lhss, values(subst)) ? 
+					sort( (collect(keys(subst)))[ collect(values(subst)) .== lhss ] )[1] :
+					lhss
 			nv = newvar(ss)
 			subst[ss] = nv   # generate new name, add it to substitution list for following statements
 			subst[lhss] = nv #  for previous symbol too
