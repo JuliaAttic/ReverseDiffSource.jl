@@ -24,10 +24,16 @@ function tocode(g::ExGraph)
 	end
 
 	function translate(n::NCall)
+		println("in translate NCall")
 	  	# special translation cases
 	  	if n.main == :vcat
 	  		return Expr      (:vcat, Any[ valueof(x,n) for x in n.parents ]...)
 	  	elseif n.main == :colon
+	  		println("in if colon")
+	  		tmpvar = Any[ valueof(x,n) for x in n.parents ]
+	  		println(tmpvar)
+	  		tmpvar = Expr(       :(:), tmpvar...)
+	  		println(tmpvar)
 	  		return Expr(       :(:), Any[ valueof(x,n) for x in n.parents ]...)
 	  	elseif n.main == :transpose
 	  		return Expr(symbol("'"),                 valueof(n.parents[1], n) )
@@ -62,12 +68,15 @@ function tocode(g::ExGraph)
 
 	evalsort!(g)
 	out = Any[]
-	for n in g.nodes
+	for (i,n) in enumerate(g.nodes)
+		println("$i $n")
 	    # translate to Expr
 		n.val = translate(n)
 
+		println("point 2")
 		stat, lhs = ispivot(n, g)
 
+		println("point 3")
 	    if stat && isa(n, Union(NSRef, NSDot))
 	    	push!(out, n.val)
 	    	n.val = n.parents[1].val
@@ -95,6 +104,7 @@ function tocode(g::ExGraph)
 	        n.val = lhs
 
 	    end
+		println("point 4")
 
 	end 
 
@@ -142,6 +152,7 @@ function ispivot(n::Union(NConst, NIn), g::ExGraph)
 end
 
 function ispivot(n::Union(NCall, NComp), g::ExGraph)
+		println("point 2-1")
 	sym = getnames(n, g)
 
 	# it has a name assigned
@@ -154,10 +165,12 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	# it is used in a setfield/index or getfield/index 
 	any(x -> isa(x, Union(NSRef, NSDot, NRef, NDot)) && n == x.parents[1], g.nodes) &&
 		return (true, nosym)
+		println("point 2-2")
 
 	# it is used more than once
 	(sum(x -> sum([ p == n for p in x.parents ]), g.nodes) > 1) &&
 		return (true, nosym)
+		println("point 2-3")
 
 	# it is in the precedence of another node
 	ps = filter(x -> n in x.precedence, g.nodes)
@@ -165,6 +178,7 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 		sv = collect(keys(g.seti))
 		(n in ancestors(sv, ps)) && return (true, nosym)
 	end
+		println("point 2-4")
 
 	# otherwise do not create assignment
 	return (false, nothing)

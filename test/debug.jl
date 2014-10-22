@@ -1,7 +1,6 @@
 
 cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
 
-
 my_tests = [
 			"unit_tests.jl",
             "test_syntax.jl",
@@ -23,6 +22,43 @@ a = rand(20)
 ex = :( (a[1] - x[1])^2 + 100(x[2] - x[1]^2)^2 )
 g = ReverseDiffSource.tograph(ex)
 ReverseDiffSource.calc!(g, params=[:x => [1.,1.]])
+
+
+######################   ERROR: `zero` has no method matching zero(::Type{Union(NAtype,Bool)})  #####
+reload("ReverseDiffSource")
+m = ReverseDiffSource
+ex = quote
+    a=zeros(10)
+    for i in 1:10
+        t = x+z
+        a[i] = b[i]+t
+    end
+end
+
+g = m.tograph(ex)
+m.evalsort!(g)
+m.resetvar()
+    m.tocode(g) ## error
+g
+
+sum(x -> sum([ p == n for p in x.parents ]), g.nodes[1]) 
+
+x = g.nodes[1]
+tmp = [ p == n for p in x.parents ]
+sum(tmp)
+
+n = g.nodes[7]
+np = n.parents[1]
+typeof(np.val)
+zerosAny[ np.val ]
+Any[ valueof(x,n) for x in n.parents ]
+ev = Expr(:call, :zeros, Any[ np.val ]...)
+eval(ev)
+
+n = g.nodes[8]
+pvals = Any[ x.val for x in n.parents ]
+ev = Expr(  :(:), pvals...)
+eval(ev)
 
 ###################### issue #8   ######################################
 
