@@ -1,3 +1,4 @@
+Pkg.status()
 
 cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
 
@@ -27,42 +28,9 @@ end
 g = m.tograph(ex)
 m.evalsort!(g)
 m.resetvar()
-    m.tocode(g) ## error
+m.tocode(g) ## error
 g
 
-sum(x -> sum(Bool[ p == n for p in x.parents ]), g.nodes) 
-
-
-sum(x -> sum([ p == n for p in x.parents ]), g.nodes) 
-
-
-
-
-
-sum(x -> sum(n .== x.parents), g.nodes) 
-
-
-sum(x -> sum(x.parents .== n), g.nodes[1]) 
-
-sum(x.parents .== n)
-x = g.nodes[1]
-n = g.nodes[2]
-
-tmp = [ p == n for p in x.parents ]
-sum(tmp)
-
-n = g.nodes[7]
-np = n.parents[1]
-typeof(np.val)
-zerosAny[ np.val ]
-Any[ valueof(x,n) for x in n.parents ]
-ev = Expr(:call, :zeros, Any[ np.val ]...)
-eval(ev)
-
-n = g.nodes[8]
-pvals = Any[ x.val for x in n.parents ]
-ev = Expr(  :(:), pvals...)
-eval(ev)
 
 ###################### issue #8   ######################################
 
@@ -118,6 +86,11 @@ x0 = ones(2)
 res = m.rdiff(ex, x=x0, order=3)
 @eval foo(x) = $res
 foo(x0)
+(2.0,[3.0,3.0],
+2x2 Array{Float64,2}:
+ 6.0  0.0
+ 0.0  6.0,
+
 2x2x2 Array{Float64,3}:
 [:, :, 1] =
  6.0  0.0
@@ -126,6 +99,87 @@ foo(x0)
 [:, :, 2] =
  0.0  0.0
  6.0  6.0)
+
+δ = 1e-8
+1/δ * (foo(x0+[δ, 0])[1] - foo(x0)[1])  # - 351, ok
+1/δ * (foo(x0+[δ, 0])[2] - foo(x0)[2])  # ok
+1/δ * (foo(x0+[δ, 0])[3] - foo(x0)[3])  # ok
+# 2x2 Array{Float64,2}:
+#  6.0  0.0
+#  0.0  0.0
+
+1/δ * (foo(x0+[0, δ])[1] - foo(x0)[1])  # 350, ok
+1/δ * (foo(x0+[0, δ])[2] - foo(x0)[2])  # ok
+1/δ * (foo(x0+[0, δ])[3] - foo(x0)[3])  # pas ok
+# 2x2 Array{Float64,2}:
+#  0.0  0.0
+#  0.0  6.0
+
+
+
+res
+
+x = copy(x0)
+quote 
+    _tmp1 = 1
+    _tmp2 = 3
+    _tmp3 = 2
+    _tmp4 = length(x)
+    _tmp5 = fill(0.0,size(x))
+    _tmp6 = _tmp1:_tmp4
+    _tmp7 = _tmp4
+    _tmp8 = zeros((_tmp4,_tmp4))
+    _tmp9 = zeros((_tmp4,_tmp4,_tmp4))
+    _tmp5[_tmp3] = _tmp5[_tmp3] + _tmp2 * x[_tmp3]^_tmp3
+    _tmp5[_tmp1] = _tmp5[_tmp1] + _tmp2 * x[_tmp1]^_tmp3
+    for _idx1 = _tmp6
+        _tmp10 = _tmp3 - 1.0
+        _tmp11 = fill(0.0,size(x))
+        _tmp12 = fill(0.0,size(_tmp5))
+        _tmp12[_idx1] = _tmp12[_idx1] + 1.0
+        _tmp11[_tmp3] = _tmp11[_tmp3] + _tmp3 * (x[_tmp3]^_tmp10 * (_tmp2 * _tmp12[_tmp3]))
+        _tmp11[_tmp1] = _tmp11[_tmp1] + _tmp3 * (x[_tmp1]^_tmp10 * (_tmp2 * _tmp12[_tmp1]))
+        _tmp8[(_idx1 - 1.0) * _tmp4 + 1.0:_idx1 * _tmp4] = _tmp11
+    end
+    _tmp13 = _tmp8
+    for _idx2 = _tmp1:_tmp4^_tmp3  # _idx2 = 3
+        _tmp14 = 0.0
+        _tmp15 = 0.0
+        _tmp16 = _tmp3 - 1.0
+        _tmp17 = _tmp2 - 1.0
+        _tmp18 = fill(0.0,size(x))
+        _tmp19 = fill(0.0,size(_tmp5))
+        _tmp20 = fill(0.0,size(_tmp13))
+        _tmp20[_idx2] = _tmp20[_idx2] + 1.0
+        for _idx1 = _tmp6
+            _tmp21 = _tmp3 - 1.0
+            _tmp22 = fill(0.0,size(x))
+            _tmp23 = fill(0.0,size(_tmp5))
+            _tmp24 = (_tmp2 - 1.0) - 1.0
+            _tmp25 = _tmp21 - 1.0
+            _tmp23[_idx1] = _tmp23[_idx1] + 1.0
+            _tmp26 = _tmp2 * _tmp23[_tmp1]
+            _tmp27 = _tmp2 * _tmp23[_tmp3]
+            _tmp22[_tmp3] = _tmp22[_tmp3] + _tmp3 * (x[_tmp3]^_tmp21 * _tmp27)
+            _tmp14 = _tmp14 + _tmp21 * (x[_tmp1]^_tmp25 * (_tmp26 * (_tmp3 * _tmp20[_tmp1])))
+            _tmp22[_tmp1] = _tmp22[_tmp1] + _tmp3 * (x[_tmp1]^_tmp21 * _tmp26)
+            _tmp28 = fill(0.0,size(_tmp22)) + sum(_tmp20[(_idx1 - 1.0) * _tmp4 + 1.0:_idx1 * _tmp4])
+            _tmp15 = _tmp15 + _tmp21 * (x[_tmp3]^_tmp25 * (_tmp27 * (_tmp3 * _tmp28[_tmp3])))
+        end
+        _tmp18[_tmp3] = _tmp18[_tmp3] + (_tmp15 + _tmp3 * (x[_tmp3]^_tmp16 * (_tmp2 * _tmp19[_tmp3])))
+        _tmp18[_tmp1] = _tmp18[_tmp1] + (_tmp14 + _tmp3 * (x[_tmp1]^_tmp16 * (_tmp2 * _tmp19[_tmp1])))
+        _tmp9[(_idx2 - 1.0) * _tmp7 + 1.0:_idx2 * _tmp7] = _tmp18
+    end
+    (x[_tmp1]^_tmp2 + x[_tmp3]^_tmp2,_tmp5,_tmp13,_tmp9)
+end
+
+
+
+
+
+
+
+
 
 
 #######################
