@@ -2,10 +2,9 @@
 #  More tests to improve coverage 
 ##################################################
 
-using Base.Test
-
-reload("ReverseDiffSource")
-m = ReverseDiffSource
+# using Base.Test
+# reload("ReverseDiffSource")
+# m = ReverseDiffSource
 
 
 #########  rdiff ###########

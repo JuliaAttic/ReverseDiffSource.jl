@@ -26,7 +26,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 
 	# store in setmap the nodes containing the derivatives of diffsym
 	for (k,v) in filter((k,v) -> isa(k, NExt) & in(k.main, diffsym), dnodes)
-		g2.seti[v] = newvar(dprefix(k.main))
+		g2.seti[v] = dprefix(k.main)
 	end
 
     g2
@@ -146,8 +146,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 					on = fg.seto.vk[sym]
 
 					# assumption : exti / onodes already exists for this sym
- 		# dsym = dprefix(sym)  # newvar() 
-			 		dsym = newvar(dprefix(sym))  # newvar() 
+ 					dsym = dprefix(sym)  # newvar() 
 
 					#  derivative of var
 					nn = addnode!(fg2, NExt(dsym))
@@ -162,8 +161,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 				sym = fg.exti[n2]
 				if sym != is
 					on = fg.exto.vk[sym]
- 		# dsym = dprefix(sym)  # newvar()
-			 		dsym = newvar(dprefix(sym))  # newvar()
+ 					dsym = dprefix(sym)  # newvar()
 
 					nn = addnode!(fg2, NExt(dsym))
 					fg.exti[nn] = dsym

@@ -1,21 +1,10 @@
 
 cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
 
-my_tests = [
-			"unit_tests.jl",
-            "test_syntax.jl",
-            "firstorder_tests.jl",
-            "more_tests.jl"
-           ]
 
-println("Running tests:")
+include("runtests.jl")
 
-for my_test in my_tests
-    println("  * $(my_test) *")
-    include(my_test)
-end
-
-println("Finished")
+using DataFrames
 
 ######################  improved show    ################################
 a = rand(20)
@@ -41,9 +30,24 @@ m.resetvar()
     m.tocode(g) ## error
 g
 
-sum(x -> sum([ p == n for p in x.parents ]), g.nodes[1]) 
+sum(x -> sum(Bool[ p == n for p in x.parents ]), g.nodes) 
 
+
+sum(x -> sum([ p == n for p in x.parents ]), g.nodes) 
+
+
+
+
+
+sum(x -> sum(n .== x.parents), g.nodes) 
+
+
+sum(x -> sum(x.parents .== n), g.nodes[1]) 
+
+sum(x.parents .== n)
 x = g.nodes[1]
+n = g.nodes[2]
+
 tmp = [ p == n for p in x.parents ]
 sum(tmp)
 

@@ -2,10 +2,9 @@
 #  Syntax testing  (uses examples in the doc)
 ##################################################
 
-using Base.Test
-
-reload("ReverseDiffSource")
-m = ReverseDiffSource
+# using Base.Test
+# reload("ReverseDiffSource")
+# m = ReverseDiffSource
 
 #########  rdiff ###########
 

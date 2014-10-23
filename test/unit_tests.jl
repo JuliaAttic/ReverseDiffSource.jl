@@ -2,12 +2,12 @@
 #
 #    Internal function testing
 #
+#    m = ReverseDiffSource module
 #################################################################
 
-using Base.Test
-
-reload("ReverseDiffSource")
-m = ReverseDiffSource
+# using Base.Test
+# reload("ReverseDiffSource")
+# m = ReverseDiffSource
 
 
 @test m.isSymbol(:a)            == true
