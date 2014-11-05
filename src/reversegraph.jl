@@ -93,13 +93,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NSRef)
 		#  find potential NSRef having n as a parent, so has to base derivative on it
-		ns = filter( x -> n in x.parents && isa(x, NSRef), g.nodes )
-		@assert length(ns) <= 1 "[reversegraph] inconsistent NSRef links"
+		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
 
-		if length(ns) == 1
-			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ ns[1] ] , n.parents[3:end] ]) )
+		if ins != 0
+			ns = reverse(g.nodes)[ins]
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ns] , n.parents[3:end] ]) )
 		else
-			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+			v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )
 		end
 		
 		# treat case where a single value is allocated to several array elements
@@ -110,7 +110,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			end
 		end
 
-		# v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		dnodes[n.parents[2]] = v3
 	end
