@@ -103,7 +103,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 		
 		# treat case where a single value is allocated to several array elements
-		if length(dnodes[n.parents[2]].val) == 1 
+		# if length(dnodes[n.parents[2]].val) == 1 
+		if length(n.parents[2].val) == 1 
 			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
 			if sz > 1
 				v2 = addnode!(g2, NCall(:sum, [ v2]))

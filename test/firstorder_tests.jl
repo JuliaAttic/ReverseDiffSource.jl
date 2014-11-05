@@ -279,3 +279,9 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 # @compare x[:,2:end]          v2ref
 @compare x[2]+x[1]           v2ref
 @compare log(x[2]^2+x[1]^2)  v2ref
+
+@compare (a = zeros(5) ; a[1]   = x[3]   ; a[3]) v1ref
+@compare (a = zeros(5) ; a[1]   = x[3]   ; a[1]) v1ref
+@compare (a = zeros(5) ; a[1:2] = x[3]   ; a[1]) v1ref 
+@compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[1]) v1ref
+@compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[4]) v1ref
