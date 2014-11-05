@@ -94,9 +94,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	function rev(n::NSRef)
 		#  find potential NSRef having n as a parent, so has to base derivative on it
 		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
+		# ins = findfirst( x -> n in x.parents && isa(x, NSRef), g.nodes )
+		println("oooo ", n, "   n = ", ins)
 
 		if ins != 0
 			ns = reverse(g.nodes)[ins]
+			# ns = g.nodes[ins]
+			dnodes[n] = dnodes[ns]
 			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ns] , n.parents[3:end] ]) )
 		else
 			v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )

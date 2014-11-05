@@ -16,19 +16,19 @@
     @eval foo(x) = $res
     foo([0.5, 2.])
 
-    (306.5,[-351.0,350.0],
-    2x2 Array{Float64,2}:
-     -498.0  -200.0
-     -200.0   200.0,
+    # (306.5,[-351.0,350.0],
+    # 2x2 Array{Float64,2}:
+    #  -498.0  -200.0
+    #  -200.0   200.0,
 
-    2x2x2 Array{Float64,3}:
-    [:, :, 1] =
-      400.0  -400.0
-     -400.0     0.0
+    # 2x2x2 Array{Float64,3}:
+    # [:, :, 1] =
+    #   800.0  -400.0
+    #  -400.0     0.0
 
-    [:, :, 2] =
-     0.0  0.0
-     0.0  0.0)
+    # [:, :, 2] =
+    #  0.0  0.0
+    #  0.0  0.0)
 
     δ = 1e-8
     1/δ * (foo([0.5+δ, 2.])[1] - foo([0.5, 2.])[1])  # - 351, ok
@@ -469,14 +469,12 @@
         _tmp8[_idx2]
     end
 
-    res = m.rdiff(ex3, x=x0)
-    @eval foo(x) = $res
-
-    _idx2 = 1 ; foo(x)
-    _idx2 = 2 ; foo(x)
-    _idx2 = 3 ; foo(x)
-    _idx2 = 4 ; foo(x)
-
+    x0 = [1., 1.]
+    res = m.rdiff(ex3, x=x0);
+    @eval foo(x, _idx2) = $res
+    mapreduce(i -> foo(x0,i)[2][1], hcat, 1:4)
+    δ = 1e-8
+    [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
 
 ###################### indexing pb ?  #######################
 
@@ -484,21 +482,23 @@
         _tmp11 = fill(0.0,size(x))
         _tmp12 = fill(0.0,size(x))
         _tmp12[_idx1] = _tmp12[_idx1] + 1.0
-        _tmp11[2] = _tmp11[2] + 2 * (x[2] * (3 * _tmp12[2]))
         _tmp11[1] = _tmp11[1] + 2 * (x[1] * (3 * _tmp12[1]))
+        _tmp11[2] = _tmp11[2] + 2 * (x[2] * (3 * _tmp12[2]))
         _tmp11[_idx2]
     end
 
-    res = m.rdiff(ex4, x=x0)
-    @eval foo(x) = $res
-
-    _idx1 = 1 ; _idx2 = 1 ; foo(x)
-    _idx1 = 1 ; _idx2 = 2 ; foo(x)
-    _idx1 = 2 ; _idx2 = 1 ; foo(x)
-    _idx1 = 2 ; _idx2 = 2 ; foo(x)
+    x0 = [1., 1.]
+    res = m.rdiff(ex4, x=x0);
+    @eval foo(x, _idx2) = $res
+    mapreduce(i -> foo(x0,i)[2][1], hcat, 1:4)
+    δ = 1e-8
+    [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
 
 
 ###################### indexing pb ?  #######################
+    reload("ReverseDiffSource")
+    m = ReverseDiffSource
+
     function check(ex)
         global _idx2
 
@@ -531,13 +531,25 @@
     check()
 
 ################  inconsistent NSRef   ###############
+    reload("ReverseDiffSource")
+    m = ReverseDiffSource
+
+
+    function check(ex)
+        const δ = 1e-8
+        x0 = [1., 1.]
+        res = m.rdiff(ex, x=x0);
+        nfoo = @eval foo(x, _idx2) = $res
+        println( mapreduce(i -> nfoo(x0,i)[2][1], hcat, 1:4) )
+        println( Float64[ round((nfoo(x0+δ*eye(2)[:,v],i)[1] - nfoo(x0,i)[1]) / δ)  for v in 1:2, i in 1:4 ])
+    end
+
     ex3 = quote
         _tmp8 = zeros(2,2)
         _tmp11 = fill(0.0, size(x))
 
-
-        _tmp11[1] = _tmp11[1] + x[1]
         _tmp11[2] = _tmp11[2] + x[2]
+        _tmp11[1] = _tmp11[1] + x[1]
         _tmp8[1:2] = _tmp11
 
         _tmp11[1] = _tmp11[1] + x[1]
@@ -547,38 +559,187 @@
         _tmp8[_idx2]
     end
     check(ex3)
+    # [0.0 0.0 1.0 0.0
+    #  0.0 2.0 0.0 0.0]
+    # [1.0 0.0 2.0 0.0
+    #  0.0 1.0 0.0 2.0]
+
+    ex3 = quote
+        a = zeros(2,2)
+        b = zeros(2)
+
+        b[2] = b[2] + x[2]
+        b[1] = b[1] + x[1]
+        a[1:2] = b
+
+        b[2] = b[2] + x[2]
+        b[1] = b[1] + x[1]
+        a[3:4] = b
+
+        a[_idx2]
+    end
+    check(ex3)
+    # [2.0 0.0 0.0 0.0
+    #  0.0 1.0 0.0 2.0]
+    # [1.0 0.0 2.0 0.0
+    #  0.0 1.0 0.0 2.0], erreur !
+
+
+    ex3 = quote
+        a = zeros(2,2)
+        b = zeros(2)
+
+        b[1] = b[1] + x[1]
+        b[2] = b[2] + x[2]
+        a[1] = b[1]
+        a[2] = b[2]
+
+        b[2] = b[2] + x[2]
+        b[1] = b[1] + x[1]
+        a[3] = b[1]
+        a[4] = b[2]
+
+        a[_idx2]
+    end
+    check(ex3)
+    # [0.0 0.0 2.0 0.0
+    #  0.0 0.0 0.0 2.0]
+    # [1.0 0.0 2.0 0.0
+    #  0.0 1.0 0.0 2.0], erreur ! (mais différente)
+
+    ex3 = quote
+        a = zeros(4)
+        b = zeros(2)
+
+        b += x
+        a[1:2] = b
+        b[1] = b[1] + x[1]
+        # b[2] = b[2] + x[2]
+        a[3:4] = b
+
+        a[_idx2]
+    end
+    check(ex3)
+    # [3.0 0.0 0.0 0.0
+    #  0.0 1.0 0.0 0.0]
+    # [1.0 0.0 2.0 0.0
+    #  0.0 1.0 0.0 1.0]
+
+    function test(_idx2)
+        da = zeros(4)
+        da[_idx2] = da[_idx2] + 1
+        db1 = zeros(2)
+        db1 = db1 + da[3:4]
+        dx = zeros(2)
+        dx[1] = dx[1] + db1[1]
+        db2 = zeros(2)
+        db2[1] = db2[1] + db1[1]
+        dx  = dx + db2
+        db2 = db2 + da[1:2]
+        dx
+    end    
+    mapreduce(test, hcat, 1:4)
 
     g = m.tograph(ex3)
-    n = g.nodes[21]
-    ns = filter( x -> n in x.parents && isa(x, m.NSRef), g.nodes )
+    m.calc!(g, params=[ :x => x0])
+    m.simplify!(g)
+    # m.tocode(g)
 
-    x0 = [1., 1.]
-    res = m.rdiff(ex3, x=x0);
-    @eval foo(x) = $res
-    cres = Array(Float64, 4, 2)
-    _idx2 = 1 ; foo(x)
-    _idx2 = 2 ; foo(x)
-    _idx2 = 3 ; foo(x)
-    _idx2 = 4 ; foo(x)
-    cres
+    m.rdiff(ex3, x=x0)
+    quote # x = x0 
+        _tmp1 = zeros(2,2)
+        _tmp2 = 1:2
+
+        _tmp3 = zeros(2) + x
+
+        _tmp1[_tmp2] = _tmp3
+
+        _tmp3[1] = _tmp3[1] + x[1]
+        _tmp3[2] = _tmp3[2] + x[2]
+
+        _tmp1[3:4] = _tmp3
+
+        _tmp5 = fill(0.0,size(_tmp1))
+        _tmp5[_idx2] = _tmp5[_idx2] + 1
+        
+        _tmp4 = fill(0.0,size(_tmp3))
+        _tmp4[2] = _tmp4[2] + _tmp5[2]
+
+        _tmp6 = fill(0.0,size(x)) + (_tmp4 + _tmp5[_tmp2])
+        _tmp6[1] = _tmp6[1] + _tmp5[1]
+        _tmp6[2] = _tmp6[2] + _tmp5[2]
+
+        (_tmp1[_idx2],(_tmp6,))
+    end
 
 
-    # m.rdiff(ex3, x=x0)
-    check()
+    ex3 = quote
+        a = zeros(2,2)
 
-quote 
-    _tmp1 = zeros(2,2)
-    _tmp2 = size(x)
-    _tmp3 = 1:2
-    _tmp4 = fill(0.0,_tmp2)
-    _tmp5 = fill(0.0,_tmp2)
-    _tmp4[1] = _tmp4[1] + x[1]
-    _tmp4[2] = _tmp4[2] + x[2]
-    _tmp1[_tmp3] = _tmp4
-    _tmp6 = fill(0.0,size(_tmp1))
-    _tmp6[_idx2] = _tmp6[_idx2] + 1
-    _tmp7 = fill(0.0,size(_tmp4)) + sum(_tmp6[_tmp3])
-    _tmp5[2] = _tmp5[2] + _tmp6[2]
-    _tmp5[1] = _tmp5[1] + _tmp7[1]
-    (_tmp1[_idx2],(_tmp5,))
-end
+        a[1] = x[1]
+        a[3] = x[1]
+        a[4] = x[1]
+
+        a[_idx2]
+    end
+    check(ex3)
+    # [1.0 0.0 1.0 1.0
+    #  0.0 0.0 0.0 0.0]
+    # [1.0 0.0 1.0 1.0
+    #  0.0 0.0 0.0 0.0], ok
+
+
+
+
+
+
+    ex3 = quote
+        a = zeros(2,2)
+        b = fill(0.0, size(x))
+
+        b[2] = b[2] + x[2]
+        b[1] = b[1] + x[1]
+        a[1:2] = b
+        a[_idx2]
+    end
+    check(ex3)
+    # [1.0 0.0 0.0 0.0
+    #  0.0 1.0 0.0 0.0]
+    # Any[1.0 0.0 0.0 0.0
+    #     0.0 1.0 0.0 0.0]  , OK
+
+    ex3 = quote
+        a = zeros(2,2)
+        b = zeros(2)
+
+        b[2] = b[2] + x[2]
+        b[1] = b[1] + x[1]
+        # a[1:2] = b
+        a[1] = b[1]
+        a[2] = b[2]
+        a[_idx2]
+    end
+    check(ex3) # OK
+
+    ex3 = quote
+        a = zeros(2,2)
+        a[1:2] = x
+        a[_idx2]
+    end
+    check(ex3)  # ok
+
+    ex3 = quote
+        a = zeros(2,2)
+        a[1:2] = x[1]
+        a[_idx2]
+    end
+    check(ex3)  # OK
+
+    # x0 = [1., 1.]
+    # res = m.rdiff(ex3, x=x0);
+    # @eval foo(x, _idx2) = $res
+    # # map(i -> foo(x0,i), 1:4)
+    # δ = 1e-8
+    # [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
+
+
