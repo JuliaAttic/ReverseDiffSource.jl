@@ -289,16 +289,16 @@
     # 2x2x2 Array{Float64,3}:
     # [:, :, 1] =
     #  6.0  0.0
-    #  0.0  0.0
+    #  0.0  6.0
 
     # [:, :, 2] =
     #  0.0  0.0
-    #  6.0  6.0)
+    #  0.0  0.0)
 
     δ = 1e-8
     (foo(x0+[δ, 0.])[1] - foo(x0)[1]) / δ  # 3, ok
     (foo(x0+[δ, 0.])[2] - foo(x0)[2]) / δ  # ok
-    (foo(x0+[δ, 0.])[3] - foo(x0)[3]) / δ  # ok
+    (foo(x0+[δ, 0.])[3] - foo(x0)[3]) / δ  # not ok
     # 2.999999981767587
     # 2-element Array{Float64,1}:
     #  6.0
@@ -309,7 +309,7 @@
 
     (foo(x0+[0., δ])[1] - foo(x0)[1]) / δ  # 3, ok
     (foo(x0+[0., δ])[2] - foo(x0)[2]) / δ  # ok
-    (foo(x0+[0., δ])[3] - foo(x0)[3]) / δ  # ok
+    (foo(x0+[0., δ])[3] - foo(x0)[3]) / δ  # not ok
     # 2.999999981767587
     # 2-element Array{Float64,1}:
     #  0.0
@@ -544,26 +544,8 @@
         println( Float64[ round((nfoo(x0+δ*eye(2)[:,v],i)[1] - nfoo(x0,i)[1]) / δ)  for v in 1:2, i in 1:4 ])
     end
 
-    ex3 = quote
-        _tmp8 = zeros(2,2)
-        _tmp11 = fill(0.0, size(x))
 
-        _tmp11[2] = _tmp11[2] + x[2]
-        _tmp11[1] = _tmp11[1] + x[1]
-        _tmp8[1:2] = _tmp11
-
-        _tmp11[1] = _tmp11[1] + x[1]
-        _tmp11[2] = _tmp11[2] + x[2]
-        _tmp8[3:4] = _tmp11
-
-        _tmp8[_idx2]
-    end
-    check(ex3)
-    # [0.0 0.0 1.0 0.0
-    #  0.0 2.0 0.0 0.0]
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 2.0]
-
+    _idx2 = 1
     ex3 = quote
         a = zeros(2,2)
         b = zeros(2)
@@ -580,7 +562,7 @@
     end
     check(ex3)
     # [2.0 0.0 0.0 0.0
-    #  0.0 1.0 0.0 2.0]
+    #  0.0 2.0 0.0 0.0]
     # [1.0 0.0 2.0 0.0
     #  0.0 1.0 0.0 2.0], erreur !
 
@@ -679,10 +661,11 @@
         a[1] = x[1]
         a[3] = x[1]
         a[4] = x[1]
-
+        a[1] = x[1]    # l'ajout de ça fait planter, pb des affectation multiples sur le même indice ?
         a[_idx2]
     end
     check(ex3)
+
     # [1.0 0.0 1.0 1.0
     #  0.0 0.0 0.0 0.0]
     # [1.0 0.0 1.0 1.0
@@ -742,4 +725,91 @@
     # δ = 1e-8
     # [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
 
+################  inconsistent NSRef   ###############
+    reload("ReverseDiffSource")
+    m = ReverseDiffSource
+
+    function check(ex)
+        const δ = 1e-8
+        x0 = 1.
+        res = m.rdiff(ex, x=x0);
+        nfoo = @eval foo(x) = $res
+        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ)) ")
+    end
+
+    ex4 = quote
+        a = zeros(2)
+
+        a[1] = x
+        a[2] = x
+
+        sum(a)
+    end
+    check(ex4)
+    #  calc = 2.0 vs vrai = 2.0 # ok
+
+    ex4 = quote
+        a = zeros(2)
+
+        a[1] = x
+        a[1] = x
+
+        sum(a)
+    end
+    check(ex4)
+    #  calc = 2.0 vs vrai = 1.0 # FAUX
+
+    ex4 = quote
+        a = zeros(2)
+
+        a[1] = 3x
+        a[1] = x
+
+        sum(a)
+    end
+    check(ex4)
+    #  calc = 2.0 vs vrai = 1.0 # FAUX
+
+    m.@deriv_rule %(x,y)      x     0
+    m.@deriv_rule %(x,y)      y     0
+
+    ex4 = quote
+        a = zeros(2)
+
+        for i in 1:4
+            a[1 + i % 2] = x
+        end
+
+        sum(a)
+    end
+    check(ex4)  # faux
+
+    ex4 = quote
+        a = zeros(2)
+
+        for i in 1:4
+            a[1] = x
+        end
+
+        sum(a)
+    end
+    check(ex4)  # faux
+
+
+    ex4 = quote
+        a = 0.
+        a = 3x
+        a = x
+        a
+    end
+    check(ex4)  # ok
+
+
+    ex4 = quote
+        a = zeros(2)
+        a += 3x
+        a = x
+        a
+    end
+    check(ex4)  # ok
 
