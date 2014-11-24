@@ -16,30 +16,30 @@
     @eval foo(x) = $res
     foo([0.5, 2.])
 
-    # (306.5,[-351.0,350.0],
-    # 2x2 Array{Float64,2}:
-    #  -498.0  -200.0
-    #  -200.0   200.0,
+    #=(306.5,[-351.0,350.0],
+    2x2 Array{Float64,2}:
+     -498.0  0.0
+     -200.0  0.0,
 
-    # 2x2x2 Array{Float64,3}:
-    # [:, :, 1] =
-    #   800.0  -400.0
-    #  -400.0     0.0
+    2x2x2 Array{Float64,3}:
+    [:, :, 1] =
+     1200.0  0.0
+     -400.0  0.0
 
-    # [:, :, 2] =
-    #  0.0  0.0
-    #  0.0  0.0)
+    [:, :, 2] =
+     0.0  0.0
+     0.0  0.0)=#
 
     δ = 1e-8
     1/δ * (foo([0.5+δ, 2.])[1] - foo([0.5, 2.])[1])  # - 351, ok
     1/δ * (foo([0.5+δ, 2.])[2] - foo([0.5, 2.])[2])  # ok
-    1/δ * (foo([0.5+δ, 2.])[3] - foo([0.5, 2.])[3])  # pas ok
-    # 2x2 Array{Float64,2}:
-    #  1200.0  -400.0
-    #  -400.0     0.0
+    1/δ * (foo([0.5+δ, 2.])[3] - foo([0.5, 2.])[3])  # ok ?
+    #=2x2 Array{Float64,2}:
+     1200.0  0.0
+     -400.0  0.0=#
 
     1/δ * (foo([0.5, 2.+δ])[1] - foo([0.5, 2.])[1])  # 350, ok
-    1/δ * (foo([0.5, 2.+δ])[2] - foo([0.5, 2.])[2])  # ok
+    1/δ * (foo([0.5, 2.+δ])[2] - foo([0.5, 2.])[2])  # faux  !!! 
     1/δ * (foo([0.5, 2.+δ])[3] - foo([0.5, 2.])[3])  # pas ok
     # 2x2 Array{Float64,2}:
     #  -400.0  0.0
@@ -63,7 +63,7 @@
     (2.0,[3.0,3.0],
     2x2 Array{Float64,2}:
      6.0  0.0
-     0.0  6.0,
+     0.0  0.0,
 
     2x2x2 Array{Float64,3}:
     [:, :, 1] =
@@ -72,19 +72,19 @@
 
     [:, :, 2] =
      0.0  0.0
-     6.0  6.0)
+     0.0  0.0)
 
     δ = 1e-8
-    1/δ * (foo(x0+[δ, 0])[1] - foo(x0)[1])  # - 351, ok
+    1/δ * (foo(x0+[δ, 0])[1] - foo(x0)[1])  # 3, ok
     1/δ * (foo(x0+[δ, 0])[2] - foo(x0)[2])  # ok
     1/δ * (foo(x0+[δ, 0])[3] - foo(x0)[3])  # ok
     # 2x2 Array{Float64,2}:
     #  6.0  0.0
     #  0.0  0.0
 
-    1/δ * (foo(x0+[0, δ])[1] - foo(x0)[1])  # 350, ok
-    1/δ * (foo(x0+[0, δ])[2] - foo(x0)[2])  # ok
-    1/δ * (foo(x0+[0, δ])[3] - foo(x0)[3])  # pas ok
+    1/δ * (foo(x0+[0, δ])[1] - foo(x0)[1])  # 3, ok
+    1/δ * (foo(x0+[0, δ])[2] - foo(x0)[2])  # pas ok
+    1/δ * (foo(x0+[0, δ])[3] - foo(x0)[3])  # ok
     # 2x2 Array{Float64,2}:
     #  0.0  0.0
     #  0.0  6.0
@@ -502,6 +502,7 @@
     function check(ex)
         global _idx2
 
+        _idx2 = 1
         x0 = [1., 1.]
         res = m.rdiff(ex, x=x0);
         @eval foo(x) = $res
@@ -528,7 +529,7 @@
         _tmp8[_idx2]
     end
 
-    check()
+    check(ex3)
 
 ################  inconsistent NSRef   ###############
     reload("ReverseDiffSource")
@@ -757,7 +758,7 @@
         sum(a)
     end
     check(ex4)
-    #  calc = 2.0 vs vrai = 1.0 # FAUX
+    #  calc = 1.0 vs vrai = 1.0 # ok
 
     ex4 = quote
         a = zeros(2)
@@ -768,7 +769,7 @@
         sum(a)
     end
     check(ex4)
-    #  calc = 2.0 vs vrai = 1.0 # FAUX
+    #  calc = 2.0 vs vrai = 1.0 # ok
 
     m.@deriv_rule %(x,y)      x     0
     m.@deriv_rule %(x,y)      y     0
@@ -782,7 +783,7 @@
 
         sum(a)
     end
-    check(ex4)  # faux
+    check(ex4)  #  calc = 4.0 vs vrai = 2.0 , faux
 
     ex4 = quote
         a = zeros(2)
@@ -795,7 +796,6 @@
     end
     check(ex4)  # faux
 
-
     ex4 = quote
         a = 0.
         a = 3x
@@ -803,7 +803,6 @@
         a
     end
     check(ex4)  # ok
-
 
     ex4 = quote
         a = zeros(2)

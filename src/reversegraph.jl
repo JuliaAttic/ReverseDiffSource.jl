@@ -91,7 +91,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		dnodes[n.parents[1]] = v4
 	end
 
-	function rev(n::NSRef)
+#=	function rev(n::NSRef)
 		#  find potential NSRef having n as a parent, so has to base derivative on it
 		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
 		# ins = findfirst( x -> n in x.parents && isa(x, NSRef), g.nodes )
@@ -117,7 +117,43 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		dnodes[n.parents[2]] = v3
+	end=#
+
+	function rev(n::NSRef)
+		#  find potential NSRef having n as a parent, so has to base derivative on it
+#=		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
+		# ins = findfirst( x -> n in x.parents && isa(x, NSRef), g.nodes )
+		println("oooo ", n, "   n = ", ins)
+
+		if ins != 0
+			ns = reverse(g.nodes)[ins]
+			# ns = g.nodes[ins]
+			dnodes[n] = dnodes[ns]
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ns] , n.parents[3:end] ]) )
+		else
+			v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )
+		end
+=#
+		v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )
+
+		
+		# treat case where a single value is allocated to several array elements
+		# if length(dnodes[n.parents[2]].val) == 1 
+		if length(n.parents[2].val) == 1 
+			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
+			if sz > 1
+				v2 = addnode!(g2, NCall(:sum, [ v2]))
+			end
+		end
+
+		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
+		dnodes[n.parents[2]] = v3
+
+		zn = addnode!(g2, NConst(0.))
+		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], zn, n.parents[3:end] ]) )
+
 	end
+
 
 	function rev(n::NDot)
         v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
@@ -219,11 +255,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	evalsort!(g)
 	for n2 in reverse(g.nodes)
 		rev(n2)
-		# for n3 in g2.nodes
-		# 	dn = collect(keys(filter( (k,v) -> v == n3, dnodes ) ))
-		# 	println(" $n3,  dn = $(repr(dn))")
-		# end
-		# println(g2)
 	end
 end
 
