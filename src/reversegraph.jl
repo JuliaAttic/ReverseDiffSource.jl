@@ -121,24 +121,17 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NSRef)
 		#  find potential NSRef having n as a parent, so has to base derivative on it
-#=		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
-		# ins = findfirst( x -> n in x.parents && isa(x, NSRef), g.nodes )
-		println("oooo ", n, "   n = ", ins)
-
+		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
 		if ins != 0
 			ns = reverse(g.nodes)[ins]
 			# ns = g.nodes[ins]
 			dnodes[n] = dnodes[ns]
-			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ns] , n.parents[3:end] ]) )
-		else
-			v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )
 		end
-=#
-		v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )
+		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
 
-		
+#=		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+=#		
 		# treat case where a single value is allocated to several array elements
-		# if length(dnodes[n.parents[2]].val) == 1 
 		if length(n.parents[2].val) == 1 
 			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
 			if sz > 1
@@ -150,7 +143,15 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		dnodes[n.parents[2]] = v3
 
 		zn = addnode!(g2, NConst(0.))
-		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], zn, n.parents[3:end] ]) )
+#=		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], zn, n.parents[3:end] ]) )
+		v4.precedence = filter(n2 -> dnodes[n.parents[1]] in n2.parents && n2 != v4, g2.nodes)
+		dnodes[n.parents[1]] = v4
+=#
+		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
+		v4.precedence = [v3] # filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
+		dnodes[n] = v4
+
+		println(g2)
 
 	end
 

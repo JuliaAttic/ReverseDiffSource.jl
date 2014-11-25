@@ -746,8 +746,12 @@
 
         sum(a)
     end
-    check(ex4)
+    check(ex4) #    calc = 1.0 vs vrai = 2.0 
+
+    m.rdiff(ex4, x=1.)
+
     #  calc = 2.0 vs vrai = 2.0 # ok
+    # calc = 1.0 vs vrai = 2.0 
 
     ex4 = quote
         a = zeros(2)
@@ -757,8 +761,8 @@
 
         sum(a)
     end
-    check(ex4)
-    #  calc = 1.0 vs vrai = 1.0 # ok
+    check(ex4) #  calc = 1.0 vs vrai = 1.0 
+    m.rdiff(ex4, x=1.)
 
     ex4 = quote
         a = zeros(2)
@@ -768,8 +772,19 @@
 
         sum(a)
     end
-    check(ex4)
-    #  calc = 2.0 vs vrai = 1.0 # ok
+    check(ex4)     #  calc = 1.0 vs vrai = 1.0 
+
+    ex4 = quote
+        a = zeros(2)
+
+        a[1] = x
+        a[1] = 3x
+
+        sum(a)
+    end
+    check(ex4)     #   calc = 3.0 vs vrai = 3.0 
+
+
 
     m.@deriv_rule %(x,y)      x     0
     m.@deriv_rule %(x,y)      y     0
@@ -795,6 +810,7 @@
         sum(a)
     end
     check(ex4)  # faux
+    # calc = 4.0 vs vrai = 1.0 
 
     ex4 = quote
         a = 0.
@@ -802,7 +818,7 @@
         a = x
         a
     end
-    check(ex4)  # ok
+    check(ex4)  #  calc = 1.0 vs vrai = 1.0 
 
     ex4 = quote
         a = zeros(2)
@@ -810,5 +826,5 @@
         a = x
         a
     end
-    check(ex4)  # ok
+    check(ex4)  #  calc = 1.0 vs vrai = 1.0 
 

@@ -68,6 +68,9 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
         g |> splitnary! |> prune! |> simplify!
 
+        println("ttttttt")
+        println(g)
+
     elseif order > 1 && isa(paramvalues[1], Real)
         for i in 1:order
             dg = reversegraph(g, g.seti.vk[voi[i]], paramsym)
