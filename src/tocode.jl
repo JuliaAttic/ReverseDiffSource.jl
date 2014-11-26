@@ -127,7 +127,18 @@ ispivot(n::Union(NSRef, NSDot, NFor), g::ExGraph) = (true, nothing)
 # evaluate only if names are linked
 function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	sym = getnames(n, g)
-	(sym != nosym, sym)
+	# (sym != nosym, sym)
+	sym != nosym && return (true, sym)
+
+	# it is in the precedence of another node
+	ps = filter(x -> n in x.precedence, g.nodes)
+	if length(ps) > 0
+		sv = collect(keys(g.seti))
+		(n in ancestors(sv, ps)) && return (true, nosym)
+	end
+
+	# otherwise do not create assignment
+	return (false, nothing)
 end
 
 # evaluate only if used in For loop
@@ -141,6 +152,7 @@ function ispivot(n::Union(NConst, NIn), g::ExGraph)
 	(false, nothing)
 end
 
+# function ispivot(n::Union(NCall, NComp), g::ExGraph)
 function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	sym = getnames(n, g)
 

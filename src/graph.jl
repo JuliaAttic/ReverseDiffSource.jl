@@ -22,28 +22,32 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(),
                                            NSMap() )
 
 function show(io::IO, g::ExGraph)
-  tn = fill("", length(g.nodes), 7)
+  tn = fill("", length(g.nodes), 8)
 
   for (i,n) in enumerate(g.nodes)
     tn[i,1] = "$i"
 
     if haskey(g.exti, n)
-      tn[i,2] = ">> $(g.exti[n])"
+      sym = g.exti[n]
+      tn[i,2] = "$sym >>"
+      haskey(g.exto.vk, sym) && (tn[i,3] = "+")
     elseif haskey(g.seti, n)
-      tn[i,2] = "$(g.seti[n]) <<"
+      sym = g.seti[n]
+      tn[i,2] = "$sym <<"
+      haskey(g.seto.vk, sym) && (tn[i,3] = "+")
     end
 
-    tn[i,3] = "[$(subtype(n))]"
+    tn[i,4] = "[$(subtype(n))]"
     main = isa(n, NFor) ? n.main[1] : n.main
 
-    tn[i,4] = join( map( x -> "$x", indexin(n.parents,    Any[g.nodes...])), ", ")
-    tn[i,5] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
+    tn[i,5] = join( map( x -> "$x", indexin(n.parents,    Any[g.nodes...])), ", ")
+    tn[i,6] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
 
-    tn[i,6] = "$(repr(main))"
-    tn[i,7] = "$(typeof(n.val)) $(repr(n.val)[1:min(40, end)])"
+    tn[i,7] = "$(repr(main))"
+    tn[i,8] = "$(typeof(n.val)) $(repr(n.val)[1:min(40, end)])"
   end
 
-  tn = vcat(["node" "symbol" "type" "parents" "precedence" "main" "value"], 
+  tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"], 
         tn)
   sz = maximum(map(length, tn), 1)
   tn = vcat(tn[1,:], map(s->"-"^s, sz), tn[2:end,:])
@@ -215,6 +219,17 @@ function prune!(g::ExGraph, exitnodes)
       exitnodes2 = ExNode[]
       for (k, sym) in g2.seto.kv
         k in ns2 || continue
+        println("+++ $sym")
+        push!(exitnodes2, g2.seti.vk[sym])
+      end
+      # don't forget reentrant variables
+      anc = ancestors(exitnodes2)
+      for n2 in anc
+        haskey(g2.exti, n2) || continue
+        sym = g2.exti[n2]
+        println("--- $sym")
+        haskey(g2.seti.vk, sym) || continue
+        println("------ =  $(g2.seti.vk[sym])")
         push!(exitnodes2, g2.seti.vk[sym])
       end
 

@@ -68,9 +68,6 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
         g |> splitnary! |> prune! |> simplify!
 
-        println("ttttttt")
-        println(g)
-
     elseif order > 1 && isa(paramvalues[1], Real)
         for i in 1:order
             dg = reversegraph(g, g.seti.vk[voi[i]], paramsym)
@@ -234,6 +231,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     voin = map( s -> g.seti.vk[s], voi)
     ex = addnode!(g, NCall(:tuple, voin))
     g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
+
+    g |> splitnary! |> prune! |> simplify!
+
+    println("vvvvvv") ; println(g)
 
     resetvar()
     tocode(g)

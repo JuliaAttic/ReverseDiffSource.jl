@@ -16,31 +16,31 @@
     @eval foo(x) = $res
     foo([0.5, 2.])
 
-    #=(306.5,[-351.0,350.0],
+    (306.5,[-351.0,350.0],
     2x2 Array{Float64,2}:
-     -498.0  0.0
-     -200.0  0.0,
+     -498.0  -200.0
+     -200.0   200.0,
 
     2x2x2 Array{Float64,3}:
     [:, :, 1] =
-     1200.0  0.0
-     -400.0  0.0
+     1200.0  -400.0
+     -400.0     0.0
 
     [:, :, 2] =
-     0.0  0.0
-     0.0  0.0)=#
+     -400.0  0.0
+        0.0  0.0)
 
     δ = 1e-8
     1/δ * (foo([0.5+δ, 2.])[1] - foo([0.5, 2.])[1])  # - 351, ok
     1/δ * (foo([0.5+δ, 2.])[2] - foo([0.5, 2.])[2])  # ok
-    1/δ * (foo([0.5+δ, 2.])[3] - foo([0.5, 2.])[3])  # ok ?
-    #=2x2 Array{Float64,2}:
-     1200.0  0.0
-     -400.0  0.0=#
+    1/δ * (foo([0.5+δ, 2.])[3] - foo([0.5, 2.])[3])  # ok
+    2x2 Array{Float64,2}:
+     1200.0  -400.0
+     -400.0     0.0
 
     1/δ * (foo([0.5, 2.+δ])[1] - foo([0.5, 2.])[1])  # 350, ok
-    1/δ * (foo([0.5, 2.+δ])[2] - foo([0.5, 2.])[2])  # faux  !!! 
-    1/δ * (foo([0.5, 2.+δ])[3] - foo([0.5, 2.])[3])  # pas ok
+    1/δ * (foo([0.5, 2.+δ])[2] - foo([0.5, 2.])[2])  # ok
+    1/δ * (foo([0.5, 2.+δ])[3] - foo([0.5, 2.])[3])  # ok
     # 2x2 Array{Float64,2}:
     #  -400.0  0.0
     #     0.0  0.0
@@ -60,31 +60,31 @@
     res = m.rdiff(ex, x=x0, order=3)
     @eval foo(x) = $res
     foo(x0)
-    (2.0,[3.0,3.0],
+    #=(2.0,[3.0,3.0],
     2x2 Array{Float64,2}:
      6.0  0.0
-     0.0  0.0,
+     0.0  6.0,
 
     2x2x2 Array{Float64,3}:
     [:, :, 1] =
-     6.0  0.0
+     0.0  0.0
      0.0  0.0
 
     [:, :, 2] =
      0.0  0.0
-     0.0  0.0)
+     0.0  0.0)=#
 
     δ = 1e-8
     1/δ * (foo(x0+[δ, 0])[1] - foo(x0)[1])  # 3, ok
     1/δ * (foo(x0+[δ, 0])[2] - foo(x0)[2])  # ok
-    1/δ * (foo(x0+[δ, 0])[3] - foo(x0)[3])  # ok
+    1/δ * (foo(x0+[δ, 0])[3] - foo(x0)[3])  # faux
     # 2x2 Array{Float64,2}:
     #  6.0  0.0
     #  0.0  0.0
 
     1/δ * (foo(x0+[0, δ])[1] - foo(x0)[1])  # 3, ok
-    1/δ * (foo(x0+[0, δ])[2] - foo(x0)[2])  # pas ok
-    1/δ * (foo(x0+[0, δ])[3] - foo(x0)[3])  # ok
+    1/δ * (foo(x0+[0, δ])[2] - foo(x0)[2])  # ok
+    1/δ * (foo(x0+[0, δ])[3] - foo(x0)[3])  # faux
     # 2x2 Array{Float64,2}:
     #  0.0  0.0
     #  0.0  6.0
@@ -271,265 +271,6 @@
      0.0  0.0  0.0
      0.0  0.0  0.0
      6.0  6.0  6.0)    <<<<<<
-
-###################### issue #8   ######################################
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
-
-    ex = :( x[1]^3 + x[2]^3)
-    x0 = ones(2)
-    res = m.rdiff(ex, x=x0, order=3)
-    @eval foo(x) = $res
-    foo(x0)
-    # (2.0,[3.0,3.0],
-    # 2x2 Array{Float64,2}:
-    #  6.0  0.0
-    #  0.0  6.0,
-
-    # 2x2x2 Array{Float64,3}:
-    # [:, :, 1] =
-    #  6.0  0.0
-    #  0.0  6.0
-
-    # [:, :, 2] =
-    #  0.0  0.0
-    #  0.0  0.0)
-
-    δ = 1e-8
-    (foo(x0+[δ, 0.])[1] - foo(x0)[1]) / δ  # 3, ok
-    (foo(x0+[δ, 0.])[2] - foo(x0)[2]) / δ  # ok
-    (foo(x0+[δ, 0.])[3] - foo(x0)[3]) / δ  # not ok
-    # 2.999999981767587
-    # 2-element Array{Float64,1}:
-    #  6.0
-    #  0.0
-    # 2x2 Array{Float64,2}:
-    #  6.0  0.0
-    #  0.0  0.0
-
-    (foo(x0+[0., δ])[1] - foo(x0)[1]) / δ  # 3, ok
-    (foo(x0+[0., δ])[2] - foo(x0)[2]) / δ  # ok
-    (foo(x0+[0., δ])[3] - foo(x0)[3]) / δ  # not ok
-    # 2.999999981767587
-    # 2-element Array{Float64,1}:
-    #  0.0
-    #  6.0
-    # 2x2 Array{Float64,2}:
-    #  0.0  0.0
-    #  0.0  6.0
-
-    let x=x0 
-        # _tmp1 = 1
-        # _tmp2 = 3
-        # 2 = 2
-        _tmp4 = length(x)
-        _tmp5 = fill(0.0,size(x))
-        _tmp6 = 1:_tmp4
-        _tmp7 = _tmp4
-        _tmp8 = zeros((_tmp4,_tmp4))
-        _tmp9 = zeros((_tmp4,_tmp4,_tmp4))
-        _tmp5[2] = _tmp5[2] + 3 * x[2]^2
-        _tmp5[1] = _tmp5[1] + 3 * x[1]^2
-        for _idx1 = _tmp6
-            _tmp11 = fill(0.0,size(x))
-            _tmp12 = fill(0.0,size(_tmp5))
-            _tmp12[_idx1] = _tmp12[_idx1] + 1.0
-            _tmp11[2] = _tmp11[2] + 2 * (x[2] * (3 * _tmp12[2]))
-            _tmp11[1] = _tmp11[1] + 2 * (x[1] * (3 * _tmp12[1]))
-            _tmp8[(_idx1 - 1.0) * _tmp4 + 1.0:_idx1 * _tmp4] = _tmp11
-        end
-        _tmp13 = _tmp8
-        for _idx2 = 1:_tmp4^2  
-            _idx2 = 3
-            _tmp14 = 0.0
-            _tmp15 = 0.0
-            # _tmp16 = 2 - 1.0
-            # _tmp17 = 3 - 1.0
-            _tmp18 = fill(0.0,size(x))
-            _tmp19 = fill(0.0,size(_tmp5))
-            _tmp20 = fill(0.0,size(_tmp13))
-            _tmp20[_idx2] = _tmp20[_idx2] + 1.0
-            for _idx1 = _tmp6
-                # _tmp21 = 2 - 1.0
-                _tmp22 = fill(0.0,size(x))
-                _tmp23 = fill(0.0,size(_tmp5))
-                # _tmp25 = 0.
-                _tmp23[_idx1] = _tmp23[_idx1] + 1.0
-                _tmp26 = 3 * _tmp23[1]
-                _tmp27 = 3 * _tmp23[2]
-                _tmp22[2] = _tmp22[2] + 2 * (x[2] * _tmp27)
-                _tmp14 = _tmp14 + (_tmp26 * (2 * _tmp20[1]))
-                _tmp22[1] = _tmp22[1] + 2 * (x[1] * _tmp26)
-                _tmp28 = fill(0.0,size(_tmp22)) + sum(_tmp20[(_idx1 - 1.0) * _tmp4 + 1.0:_idx1 * _tmp4])
-                _tmp15 = _tmp15 + (_tmp27 * (2 * _tmp28[2]))
-            end
-            # _tmp18[2] = _tmp18[2] + (_tmp15 + 2 * (x[2] * (3 * _tmp19[2])))
-            # _tmp18[1] = _tmp18[1] + (_tmp14 + 2 * (x[1] * (3 * _tmp19[1])))
-            _tmp18[2] = _tmp18[2] + _tmp15
-            _tmp18[1] = _tmp18[1] + _tmp14
-            _tmp9[(_idx2 - 1.0) * _tmp7 + 1.0:_idx2 * _tmp7] = _tmp18
-        end
-        (x[1]^3 + x[2]^3,_tmp5,_tmp13,_tmp9)
-    end
-
-
-    ex2 = quote
-        _tmp4 = length(x)
-        _tmp5 = fill(0.0,size(x))
-        _tmp6 = 1:_tmp4
-        _tmp7 = _tmp4
-        _tmp8 = zeros((_tmp4,_tmp4))
-        _tmp9 = zeros((_tmp4,_tmp4,_tmp4))
-        _tmp5[2] = _tmp5[2] + 3 * x[2]^2
-        _tmp5[1] = _tmp5[1] + 3 * x[1]^2
-        for _idx1 = _tmp6  
-            _tmp11 = fill(0.0,size(x))
-            _tmp12 = fill(0.0,size(_tmp5))
-            _tmp12[_idx1] = _tmp12[_idx1] + 1.0
-            _tmp11[2] = _tmp11[2] + 2 * (x[2] * (3 * _tmp12[2]))
-            _tmp11[1] = _tmp11[1] + 2 * (x[1] * (3 * _tmp12[1]))
-            _tmp8[(_idx1 - 1.0) * _tmp4 + 1.0:_idx1 * _tmp4] = _tmp11
-        end
-        _tmp8[_idx2]
-    end
-
-    @eval foo0(x) = $ex2
-    _idx2 = 1 ; foo0(x0)
-    _idx2 = 2 ; foo0(x0)
-    _idx2 = 3 ; foo0(x0)
-    _idx2 = 4 ; foo0(x0)
-    foo0(x0)
-
-
-    res = m.rdiff(ex2, x=x0, order=1)
-    @eval foo(x) = $res
-    foo(x0)
-    _idx2 = 1 ; foo(x0)[2][1]
-    _idx2 = 2 ; foo(x0)[2][1]
-    _idx2 = 3 ; foo(x0)[2][1]
-    _idx2 = 4 ; foo(x0)[2][1]
-
-    _idx2 = 3
-    x = copy(x0)
-    quote 
-        _tmp1 = length(x)
-        _tmp2 = size(x)
-        _tmp3 = fill(0.0,_tmp2)
-        _tmp4 = 1:_tmp1
-        _tmp5 = fill(0.0,_tmp2)
-        _tmp6 = zeros((_tmp1,_tmp1))
-        _tmp3[2] = _tmp3[2] + 3 * x[2]^2
-        _tmp3[1] = _tmp3[1] + 3 * x[1]^2
-        for _idx1 = _tmp4
-            _tmp7 = fill(0.0,size(x))
-            _tmp8 = fill(0.0,size(_tmp3))
-            _tmp8[_idx1] = _tmp8[_idx1] + 1.0
-            _tmp7[2] = _tmp7[2] + 2 * (x[2] * (3 * _tmp8[2]))
-            _tmp7[1.0] = _tmp7[1.0] + 2 * (x[1.0] * (3 * _tmp8[1.0]))
-            _tmp6[(_idx1 - 1.0) * _tmp1 + 1.0:_idx1 * _tmp1] = _tmp7
-        end
-        _tmp9 = fill(0.0,size(_tmp3))
-        _tmp10 = fill(0.0,size(_tmp6))
-        _tmp10[_idx2] = _tmp10[_idx2] + 1
-        for _idx1 = _tmp4 # _idx1 = 1
-            _tmp11 = fill(0.0,size(x))
-            _tmp12 = fill(0.0,size(_tmp3))
-            _tmp12[_idx1] = _tmp12[_idx1] + 1.0
-            _tmp13 = 3 * _tmp12[2]
-            _tmp14 = 3 * _tmp12[1.0]
-            _tmp5[1] = _tmp5[1] + _tmp14 * (2 * _tmp10[1])  <<<<  pourquoi indice fixe ??
-            _tmp11[2] = _tmp11[2] + 2 * (x[2] * _tmp13)
-            _tmp11[1] = _tmp11[1] + 2 * (x[1] * _tmp14)
-            _tmp15 = fill(0.0,size(_tmp11)) + sum(_tmp10[(_idx1 - 1) * _tmp1 + 1:_idx1 * _tmp1])
-            _tmp5[2] = _tmp5[2] + _tmp13 * (2 * _tmp15[2])
-        end
-        _tmp5[1] = _tmp5[1] + 2 * (x[1] * (3 * _tmp9[1]))
-        _tmp5[2] = _tmp5[2] + 2 * (x[2] * (3 * _tmp9[2]))
-    end
-
-###################### indexing pb ?  #######################
-
-    ex3 = quote
-        _tmp4 = length(x)
-        _tmp5 = fill(0.0,size(x))
-        _tmp6 = 1:_tmp4
-        _tmp7 = _tmp4
-        _tmp8 = zeros((_tmp4,_tmp4))
-        # _tmp9 = zeros((_tmp4,_tmp4,_tmp4))
-        _tmp5[1] = _tmp5[1] + 3 * x[1]^2
-        _tmp5[2] = _tmp5[2] + 3 * x[2]^2
-        for _idx1 = _tmp6  
-            _tmp11 = fill(0.0,size(x))
-            _tmp12 = fill(0.0,size(_tmp5))
-            _tmp12[_idx1] = _tmp12[_idx1] + 1.0
-            _tmp11[1] = _tmp11[1] + 2 * (x[1] * (3 * _tmp12[1]))
-            _tmp11[2] = _tmp11[2] + 2 * (x[2] * (3 * _tmp12[2]))
-            _tmp8[(_idx1 - 1.0) * _tmp4 + 1.0:_idx1 * _tmp4] = _tmp11
-        end
-        _tmp8[_idx2]
-    end
-
-    x0 = [1., 1.]
-    res = m.rdiff(ex3, x=x0);
-    @eval foo(x, _idx2) = $res
-    mapreduce(i -> foo(x0,i)[2][1], hcat, 1:4)
-    δ = 1e-8
-    [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
-
-###################### indexing pb ?  #######################
-
-    ex4 = quote
-        _tmp11 = fill(0.0,size(x))
-        _tmp12 = fill(0.0,size(x))
-        _tmp12[_idx1] = _tmp12[_idx1] + 1.0
-        _tmp11[1] = _tmp11[1] + 2 * (x[1] * (3 * _tmp12[1]))
-        _tmp11[2] = _tmp11[2] + 2 * (x[2] * (3 * _tmp12[2]))
-        _tmp11[_idx2]
-    end
-
-    x0 = [1., 1.]
-    res = m.rdiff(ex4, x=x0);
-    @eval foo(x, _idx2) = $res
-    mapreduce(i -> foo(x0,i)[2][1], hcat, 1:4)
-    δ = 1e-8
-    [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
-
-
-###################### indexing pb ?  #######################
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
-
-    function check(ex)
-        global _idx2
-
-        _idx2 = 1
-        x0 = [1., 1.]
-        res = m.rdiff(ex, x=x0);
-        @eval foo(x) = $res
-        cres = Array(Float64, 4, 2)
-        _idx2 = 1 ; cres[1,:] = foo(x0)[2][1]
-        _idx2 = 2 ; cres[2,:] = foo(x0)[2][1]
-        _idx2 = 3 ; cres[3,:] = foo(x0)[2][1]
-        _idx2 = 4 ; cres[4,:] = foo(x0)[2][1]
-        cres
-    end
-
-    ex3 = quote
-        _tmp8 = zeros(2,2)
-        _tmp11 = fill(0.0, size(x))
-        for _idx1 = 1:2  
-            _tmp11[2] = _tmp11[2] + x[2]
-            _tmp11[1] = _tmp11[1] + x[1]
-            _tmp8[((_idx1 - 1) * 2 + 1):(_idx1 * 2)] = _tmp11
-            # _tmp8[2 * _idx1]     = _tmp11[2]
-            # _tmp8[2 * _idx1 - 1] = _tmp11[1]
-            # _tmp8[2 * _idx1]     = _tmp11[2] + x[2]
-            # _tmp8[2 * _idx1 - 1] = _tmp11[1] + x[1]
-        end
-        _tmp8[_idx2]
-    end
-
-    check(ex3)
 
 ################  inconsistent NSRef   ###############
     reload("ReverseDiffSource")
@@ -740,25 +481,18 @@
 
     ex4 = quote
         a = zeros(2)
-
         a[1] = x
         a[2] = x
-
         sum(a)
     end
-    check(ex4) #    calc = 1.0 vs vrai = 2.0 
+    check(ex4) #    calc = 2.0 vs vrai = 2.0 
 
     m.rdiff(ex4, x=1.)
 
-    #  calc = 2.0 vs vrai = 2.0 # ok
-    # calc = 1.0 vs vrai = 2.0 
-
     ex4 = quote
         a = zeros(2)
-
         a[1] = x
         a[1] = x
-
         sum(a)
     end
     check(ex4) #  calc = 1.0 vs vrai = 1.0 
@@ -766,23 +500,93 @@
 
     ex4 = quote
         a = zeros(2)
-
         a[1] = 3x
         a[1] = x
-
         sum(a)
     end
     check(ex4)     #  calc = 1.0 vs vrai = 1.0 
 
     ex4 = quote
         a = zeros(2)
-
         a[1] = x
         a[1] = 3x
-
         sum(a)
     end
     check(ex4)     #   calc = 3.0 vs vrai = 3.0 
+
+############# loops ##################
+    reload("ReverseDiffSource")
+    m = ReverseDiffSource
+
+    function check(ex)
+        const δ = 1e-8
+        x0 = 1.
+        res = m.rdiff(ex, x=x0);
+        nfoo = @eval foo(x) = $res
+        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ)) ")
+    end
+
+
+    ex4 = quote
+        a = zeros(2)
+        for i in 1:2
+            a[i] = x
+        end
+        sum(a)
+    end
+    #    check(ex4)  #  calc = 2.0 vs vrai = 2.0 
+    m.rdiff(ex4, x=1.)
+
+    ex4 = quote
+        a = zeros(2)
+        for i in 1:2
+            a[1] = x
+        end
+        sum(a)
+    end
+    check(ex4)  #  calc = 2.0 vs vrai = 1.0 , FAUX !
+    m.rdiff(ex4, x=1.)
+
+
+    #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+                
+                ex = ex4
+                order = 1
+
+                paramsym    = Symbol[ :x ]
+                paramvalues = [ 1. ]
+                parval      = Dict(paramsym, paramvalues)
+
+                g = m.tograph(ex)
+
+                # reduce to variable of interest
+                g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
+
+                g |> m.splitnary! |> m.prune! |> m.simplify!
+                m.calc!(g, params=parval, emod=Main)
+
+                ov = g.seti.vk[nothing].val 
+
+                voi = Any[ nothing ]
+
+                    dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
+                    append!(g.nodes, dg.nodes)
+                    nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
+                    ns = m.newvar("_dv")
+                    g.seti[nn] = ns
+                    push!(voi, ns)
+
+                    dg.nodes[18].main[2]
+                    g.nodes[26].main[2]
+
+                    g
+                    m.tocode(g)
+
+                    m.ancestors()
+
+                    m.prune!(g)     #  il disparait à cette étape !!!
+                    m.tocode(g)
+                    g |> simplify!
 
 
 
@@ -799,6 +603,7 @@
         sum(a)
     end
     check(ex4)  #  calc = 4.0 vs vrai = 2.0 , faux
+    m.rdiff(ex4, x=1.)
 
     ex4 = quote
         a = zeros(2)
@@ -809,8 +614,7 @@
 
         sum(a)
     end
-    check(ex4)  # faux
-    # calc = 4.0 vs vrai = 1.0 
+    check(ex4)  # calc = 4.0 vs vrai = 1.0 
 
     ex4 = quote
         a = 0.
