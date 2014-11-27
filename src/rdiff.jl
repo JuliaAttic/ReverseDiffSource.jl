@@ -232,9 +232,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     ex = addnode!(g, NCall(:tuple, voin))
     g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
 
-    g |> splitnary! |> prune! |> simplify!
-
-    println("vvvvvv") ; println(g)
+    # g |> splitnary! |> prune! |> simplify!
 
     resetvar()
     tocode(g)

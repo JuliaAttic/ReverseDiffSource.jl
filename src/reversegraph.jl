@@ -91,34 +91,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		dnodes[n.parents[1]] = v4
 	end
 
-#=	function rev(n::NSRef)
-		#  find potential NSRef having n as a parent, so has to base derivative on it
-		ins = findfirst( x -> n in x.parents && isa(x, NSRef), reverse(g.nodes) )
-		# ins = findfirst( x -> n in x.parents && isa(x, NSRef), g.nodes )
-		println("oooo ", n, "   n = ", ins)
-
-		if ins != 0
-			ns = reverse(g.nodes)[ins]
-			# ns = g.nodes[ins]
-			dnodes[n] = dnodes[ns]
-			v2 = addnode!(g2, NRef(:getidx, [ dnodes[ns] , n.parents[3:end] ]) )
-		else
-			v2 = addnode!(g2, NRef(:getidx, [  dnodes[n] , n.parents[3:end] ]) )
-		end
-		
-		# treat case where a single value is allocated to several array elements
-		# if length(dnodes[n.parents[2]].val) == 1 
-		if length(n.parents[2].val) == 1 
-			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
-			if sz > 1
-				v2 = addnode!(g2, NCall(:sum, [ v2]))
-			end
-		end
-
-		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
-		dnodes[n.parents[2]] = v3
-	end=#
-
 	function rev(n::NSRef)
 		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
 
@@ -137,8 +109,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
 		v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
 		dnodes[n.parents[1]] = v4
-
-		println("NSREF====") ; println(g2)
 	end
 
 
@@ -205,36 +175,15 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 		# builds the graph for derivatives calculations
-		println("==== fg") ; println(fg)
-		println("==== fg2 avant rev") ; println(fg2)
-
 		reversepass!(fg2, fg, fdnodes)
-
-		println("==== fg2 après rev") ; println(fg2)
-
 		append!(fg.nodes, fg2.nodes)
-
-		println("==== fg + fg2") ; println(fg)
 		
 		# variables of interest are derivatives only
 		fg.seti = NSMap()
 		for (ni, (sym, on)) in ndmap
 			fg.seti[ fdnodes[ni] ] = sym
 		end
-
-		# println(fg.nodes)
-		println("ndmap = $(collect(ndmap))")
-		println("fdnodes = $(collect(fdnodes))")
-		println("ext = $(collect(fg.exti.kv))")
-		println("set = $(collect(fg.seti.kv))")
-		println("oext = $(collect(fg.exto.kv))")
-		println("oset = $(collect(fg.seto.kv))")
-		
-		println("==== avant prune") ; println(fg)
-
 		prune!(fg) # reduce to derivatives evaluation only
-
-		println("==== après prune") ; println(fg)
 
 		# create for loop
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
@@ -248,10 +197,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			fg.seto[rn] = sym
 			dnodes[on] = rn 
 		end
-
-		println("==== après insert") ; println(fg)
-
-
 		# TODO : update precedence of v2 here ? 
 	end
 

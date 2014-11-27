@@ -219,7 +219,6 @@ function prune!(g::ExGraph, exitnodes)
       exitnodes2 = ExNode[]
       for (k, sym) in g2.seto.kv
         k in ns2 || continue
-        println("+++ $sym")
         push!(exitnodes2, g2.seti.vk[sym])
       end
       # don't forget reentrant variables
@@ -227,9 +226,7 @@ function prune!(g::ExGraph, exitnodes)
       for n2 in anc
         haskey(g2.exti, n2) || continue
         sym = g2.exti[n2]
-        println("--- $sym")
         haskey(g2.seti.vk, sym) || continue
-        println("------ =  $(g2.seti.vk[sym])")
         push!(exitnodes2, g2.seti.vk[sym])
       end
 
