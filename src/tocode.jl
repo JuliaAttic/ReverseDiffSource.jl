@@ -121,10 +121,10 @@ end
 #  tells if an assignment should be created for this node
 #####################################################################
 
-# always evaluate nodes that change a variable's state
+# always print nodes that change a variable's state
 ispivot(n::Union(NSRef, NSDot, NFor), g::ExGraph) = (true, nothing)
 
-# evaluate only if names are linked
+# print only if names are linked
 function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	sym = getnames(n, g)
 	# (sym != nosym, sym)
@@ -141,8 +141,22 @@ function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	return (false, nothing)
 end
 
-# evaluate only if used in For loop
-function ispivot(n::Union(NConst, NIn), g::ExGraph)
+# print constants that are named or modified by a for loop
+function ispivot(n::NConst, g::ExGraph)
+	sym = getnames(n, g)
+	sym != nosym && return (true, sym)
+
+	for x in filter(x -> isa(x, NFor) && n in x.parents[2:end], g.nodes)
+		fg = x.main[2]
+		isym = fg.exto[n]
+		haskey(fg.seto.vk, isym) && return (true, nosym)
+	end
+
+	(false, nothing)
+end
+
+# print only if used in For loop
+function ispivot(n::NIn, g::ExGraph)
 	sym = getnames(n, g)
 	sym != nosym && return (true, sym)
 
@@ -152,7 +166,7 @@ function ispivot(n::Union(NConst, NIn), g::ExGraph)
 	(false, nothing)
 end
 
-# function ispivot(n::Union(NCall, NComp), g::ExGraph)
+
 function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	sym = getnames(n, g)
 

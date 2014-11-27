@@ -6,7 +6,7 @@
 
 ##########  function version   ##############
 
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main)
+function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -17,7 +17,7 @@ function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main)
     fargs = fcode.args[1]  # function parameters
 
     cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, cargs...)
+    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
@@ -27,7 +27,7 @@ end
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, params...)
 
     length(params) >= 1 || error("There should be at least one parameter specified, none found")
     
@@ -170,17 +170,8 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             ndsz = addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
 
             # create index range node
-    # nid = addgraph!( :( 1:sz ),  g, [ :sz => nsz ] )
             nid = addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
             push!(nf.parents, nid)
-
-    # # create stride size node
-    # nst = addgraph!( :( sz ^ $(i-1) ),  g, [ :sz => nsz ] )
-    # sst = newvar()
-    # inst = addnode!(dg, NExt(sst))
-    # dg.exti[inst] = sst
-    # dg.exto[nst]  = sst
-    # push!(nf.parents, nst)
 
             # pass size node inside subgraph
             sst = newvar()
@@ -198,11 +189,6 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             push!(nf.parents, nsa)
 
             # create result node update (in subgraph)
-    # nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                        # [ :res  => insa,
-                        #   :sidx => nmap[ni],
-                        #   :st   => inst,
-                        #   :dx   => collect(dg.seti)[1][1] ] )
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
                                 [ :res  => insa,
                                   :sidx => nmap[ni],
@@ -232,9 +218,9 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     ex = addnode!(g, NCall(:tuple, voin))
     g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
 
-    # g |> splitnary! |> prune! |> simplify!
+    g |> splitnary! |> prune! |> simplify!
 
     resetvar()
-    tocode(g)
+    debug ? g : tocode(g)
 end
 

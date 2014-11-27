@@ -7,12 +7,27 @@
 
     using DataFrames
 
+ex = quote
+    a = x
+    b = a
+    c = b
+    a += x
+    c
+end
+m.rdiff(ex, x=1)
+
 ###################### issue #8   ######################################
     reload("ReverseDiffSource")
     m = ReverseDiffSource
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-    res = m.rdiff(ex, x=zeros(2), order=3)
+    # res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
+    res = m.rdiff(ex, x=zeros(2), order=2)   # 75 lines
+    res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
+
+    g2 = g.nodes[38].main[2]
+    g3 = g2.nodes[36].main[2]
+
     @eval foo(x) = $res
     foo([0.5, 2.])
 
@@ -34,9 +49,9 @@
     1/δ * (foo([0.5+δ, 2.])[1] - foo([0.5, 2.])[1])  # - 351, ok
     1/δ * (foo([0.5+δ, 2.])[2] - foo([0.5, 2.])[2])  # ok
     1/δ * (foo([0.5+δ, 2.])[3] - foo([0.5, 2.])[3])  # ok
-    2x2 Array{Float64,2}:
-     1200.0  -400.0
-     -400.0     0.0
+    #=    2x2 Array{Float64,2}:
+         1200.0  -400.0
+         -400.0     0.0=#
 
     1/δ * (foo([0.5, 2.+δ])[1] - foo([0.5, 2.])[1])  # 350, ok
     1/δ * (foo([0.5, 2.+δ])[2] - foo([0.5, 2.])[2])  # ok
@@ -89,7 +104,6 @@
     #  0.0  0.0
     #  0.0  6.0
 
-
 ######################  loops    #######################################
     ex = quote
     	a = 0.
@@ -101,6 +115,7 @@
     # ERROR: assertion failed: [fusenodes] attempt to fuse ext_inode [external] :da (NaN)
 
     x0 = ones(3)
+
     res = m.rdiff(ex, x=x0, order=1)
     @eval foo(x) = $res
     foo(x0)
@@ -301,6 +316,45 @@
     end
     check(ex4)     #   calc = 3.0 vs vrai = 3.0 
 
+    res,g = m.rdiff(ex, x=x0, order=3)
+    @eval foo(x) = $res
+    foo(x0)
+
+    ex = quote
+        a = 0.
+        for i in 1:length(x)
+            a += i+i
+        end
+        a
+    end
+    res,g = m.rdiff(ex, x=x0, order=3)
+    @eval foo(x) = $res
+    foo(x0)
+
+
+    foo (generic function with 1 method)
+    (3.0,[1.0,2.0,3.0],
+    3x3 Array{Float64,2}:
+     0.0  0.0  0.0
+     0.0  2.0  0.0
+     0.0  0.0  6.0,
+
+    3x3x3 Array{Float64,3}:
+    [:, :, 1] =
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+
+    [:, :, 2] =
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+
+    [:, :, 3] =
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     6.0  6.0  6.0)   
+
 ############# loops ##################
     reload("ReverseDiffSource")
     m = ReverseDiffSource
@@ -328,96 +382,54 @@
         a = zeros(2)
         for i in 1:2
             a[1] = x
-        end
-        sum(a)
-    end
-    check(ex4)  #  calc = 1.0 vs vrai = 1.0 
-    m.rdiff(ex4, x=1.)
 
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
-                
-                ex = ex4
-                order = 1
+        order = 1
 
-                paramsym    = Symbol[ :x ]
-                paramvalues = [ 1. ]
-                parval      = Dict(paramsym, paramvalues)
+        paramsym    = Symbol[ :x ]
+        paramvalues = [ 1. ]
+        parval      = Dict(paramsym, paramvalues)
 
-                g = m.tograph(ex)
+        g = m.tograph(ex)
 
-                # reduce to variable of interest
-                g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
+        # reduce to variable of interest
+        g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
 
-                g |> m.splitnary! |> m.prune! |> m.simplify!
-                m.calc!(g, params=parval, emod=Main)
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+        m.calc!(g, params=parval, emod=Main)
 
-                ov = g.seti.vk[nothing].val 
+        voi = Any[ nothing ]
 
-                voi = Any[ nothing ]
+        g.nodes[6].main[2]
 
-                    dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-                    append!(g.nodes, dg.nodes)
-                    nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
-                    ns = m.newvar("_dv")
-                    g.seti[nn] = ns
-                    push!(voi, ns)
+            dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
 
-                    dg.nodes[18].main[2]
-                    g.nodes[26].main[2]
+            m.tocode(dg)
+            collect(keys(dg.seti))
+            collect(keys(dg.exti))
 
-                    g
-                    m.tocode(g)
-
-                    m.ancestors()
-
-                    m.prune!(g)     #  il disparait à cette étape !!!
-                    m.tocode(g)
-                    g |> simplify!
+            fdg = dg.nodes[9].main[2]
+            m.tocode(fdg)
+            collect(keys(fdg.seti))
+            collect(keys(fdg.exti))
 
 
+            append!(g.nodes, dg.nodes)
+            nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
 
-    m.@deriv_rule %(x,y)      x     0
-    m.@deriv_rule %(x,y)      y     0
+            g
+            m.tocode(g)
 
-    ex4 = quote
-        a = zeros(2)
+            m.ancestors()
 
-        for i in 1:4
-            a[1 + i % 2] = x
-        end
-
-        sum(a)
-    end
-    check(ex4)  #  calc = 2.0 vs vrai = 2.0 
-    m.rdiff(ex4, x=1.)
-
-    ex4 = quote
-        a = zeros(2)
-
-        for i in 1:4
-            a[1] = x
-        end
-
-        sum(a)
-    end
-    check(ex4)  # calc = 1.0 vs vrai = 1.0 
-
-    ex4 = quote
-        a = 0.
-        a = 3x
-        a = x
-        a
-    end
-    check(ex4)  #  calc = 1.0 vs vrai = 1.0 
-
-    ex4 = quote
-        a = zeros(2)
-        a += 3x
-        a = x
-        a
-    end
-    check(ex4)  #  calc = 1.0 vs vrai = 1.0 
+            m.prune!(g)     #  il disparait à cette étape !!!
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
 
 ################## setindex  #######################
     reload("ReverseDiffSource") ; m = ReverseDiffSource

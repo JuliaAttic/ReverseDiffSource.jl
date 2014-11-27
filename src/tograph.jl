@@ -161,26 +161,31 @@ function tograph(s, svars::Vector)
 		nf = addnode!(g, NFor( Any[ is, g2 ] ))
 		nf.parents = [nir]  # first parent is indexing range fo the loop
 
-		# create onodes (node in parent graph) for each :in_inode
+		# create onodes (node in parent graph) for each exti
 		for (k, sym) in g2.exti.kv
-			if sym != is  # loop index should be excluded
-				pn = explore(sym)  # look in setmap, externals or create it
-				g2.exto[pn] = sym
-				push!(nf.parents, pn) # mark as parent of for loop
-			end
+			sym==is  && continue # loop index should be excluded
+			pn = explore(sym)  # look in setmap, externals or create it
+			g2.exto[pn] = sym
+			push!(nf.parents, pn) # mark as parent of for loop
 		end
 
-		# create onodes and 'Nin' nodes for each :out_inode
+		# create onodes and 'Nin' nodes for each seti
 		#  will be restricted to variables that are defined in parent
 		#   (others are assumed to be local to the loop)
 		for (k, sym) in g2.seti.kv
 			if sym in nsvars && sym != is # only for variables set in parent scope
 				pn = explore(sym)                   # create node if needed
 				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
-				g.seti[rn] = sym              # signal we're setting the var
+				g.seti[rn] = sym                    # signal we're setting the var
 				g2.seto[rn] = sym
 
 				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
+
+				# create corresponding exti if it's not already done
+				if !haskey(g2.exto.vk, sym)
+					g2.exto[pn] = sym
+					push!(nf.parents, pn) # mark as parent of for loop
+				end
 			end
 		end
 	end
