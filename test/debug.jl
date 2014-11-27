@@ -105,6 +105,9 @@ m.rdiff(ex, x=1)
     #  0.0  6.0
 
 ######################  loops    #######################################
+    reload("ReverseDiffSource")
+    m = ReverseDiffSource
+
     ex = quote
     	a = 0.
     	for i in 1:length(x)
@@ -112,11 +115,28 @@ m.rdiff(ex, x=1)
     	end
     	a+1
     end
-    # ERROR: assertion failed: [fusenodes] attempt to fuse ext_inode [external] :da (NaN)
-
     x0 = ones(3)
 
     res = m.rdiff(ex, x=x0, order=1)
+    res = m.rdiff(ex, x=x0, order=1, debug=true)
+    res.nodes[11].main[2]
+    @eval foo(x) = $res
+    foo(x0)
+
+    ex = quote
+        a = 0.
+        for i in 1:length(x)
+            a += x[1]^i
+        end
+        a+1
+    end
+    x0 = ones(3)
+
+    res = m.rdiff(ex, x=x0, order=1)
+    @eval foo(x) = $res
+    foo(x0)
+
+    res = m.rdiff(ex, x=x0, order=2)
     @eval foo(x) = $res
     foo(x0)
 
@@ -322,14 +342,14 @@ m.rdiff(ex, x=1)
 
     ex = quote
         a = 0.
-        for i in 1:length(x)
-            a += i+i
+        for i in 1:3
+            a += x^i
         end
         a
     end
-    res,g = m.rdiff(ex, x=x0, order=3)
+    res = m.rdiff(ex, x=2., order=3)
     @eval foo(x) = $res
-    foo(x0)
+    foo(2.)
 
 
     foo (generic function with 1 method)
@@ -364,7 +384,7 @@ m.rdiff(ex, x=1)
         x0 = 1.
         res = m.rdiff(ex, x=x0);
         nfoo = @eval foo(x) = $res
-        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ)) ")
+        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ,2)) ")
     end
 
 
@@ -377,11 +397,6 @@ m.rdiff(ex, x=1)
     end
     check(ex4)  #  calc = 2.0 vs vrai = 2.0 
     m.rdiff(ex4, x=1.)
-
-    ex4 = quote
-        a = zeros(2)
-        for i in 1:2
-            a[1] = x
 
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
@@ -474,54 +489,95 @@ m.rdiff(ex, x=1)
 
 
 ################## for loops  #######################
+    function check(ex)
+        const δ = 1e-8
+        x0 = 1.
+        res = m.rdiff(ex, x=x0);
+        nfoo = @eval foo(x) = $res
+        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ,2)) ")
+    end
 
     ex = quote
         a=0
         for i in 1:2
             a += 2x    
         end
+        a
     end
+    check(ex)
 
     ex = quote
         a=0
         for i in 1:2
             a += x^2    
         end
+        a
     end
+    check(ex)
 
-
+    b = [1:4]
     ex = quote
         a=zeros(1+4)
         for i in 1:4
             t = 4+3+2
-            a[i] += b[i]+t
+            a[i] += b[i]+t-x
         end
-        z=sum(a)
+        sum(a)
     end
-
+    check(ex)
 
     ex = quote
         a=zeros(1+3)
         for i in 1:4
             t = 4+3+2
-            a[i] += b[i]+t
+            a[i] += b[i]*x+t
         end
-        z=sum(a)
+        sum(a)
     end
+    check(ex)
+
+    ex = quote
+        a = 0
+        for i in 1:4
+           a = x
+        end
+        sum(a)
+    end
+    check(ex)  # 0 (1 expected)
+
+    ex = quote
+        a = zeros(1)
+        for i in 1:4
+           a[1] = x
+        end
+        a[1]
+    end
+    check(ex)  # 4.0 (1 expected)
+    m.rdiff(ex, x=1.)
+
+
 
 ############### double loop   ################################
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
+    function check(ex)
+        const δ = 1e-8
+        x0 = 1.
+        res = m.rdiff(ex, x=x0);
+        nfoo = @eval foo(x) = $res
+        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ,2)) ")
+    end
 
     ex = quote
         a=0
         for i in 1:10
             for j in 1:10
-                a += x
+                a += (j < 4) * log(x) * sin(j)
             end
         end
         a
     end
+    check(ex)
 
 
 ##############   tests for composite types    #####################

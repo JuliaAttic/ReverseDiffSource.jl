@@ -143,35 +143,13 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   # if true, we create an NIn on nk, and associate var to it
   if haskey(g.seti, nr)
     nn = addnode!(g, NIn(g.seti[nr], [nk]))
+    nn.val = "fuse #1"
     g.seti[nn] = g.seti[nr]  # nn replaces nr as set_inode
 
     if haskey(g.seto, nr)   # change onodes too (if we are in a subgraph)
       g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
     end  
   end
-
-  # # same for references to nr in subgraphs
-  # for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
-  #   g2 = n.main[2]
-
-  #   # this should not happen...
-  #   @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
-
-  #   if haskey(g2.exto, nr)
-  #     nn = addnode!(g, NIn(g2.exto[nr], [nk]))
-  #     g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
-  #   end  
-  # end
-
-  # # replace references to nr by nk in parents of other nodes
-  # for n in filter(n -> n != nr && n != nk, g.nodes)
-  #   for (i, n2) in enumerate(n.parents)
-  #     n2 == nr && (n.parents[i] = nk)
-  #   end
-  #   for (i, n2) in enumerate(n.precedence)
-  #     n2 == nr && (n.precedence[i] = nk)
-  #   end
-  # end
 
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
@@ -182,11 +160,28 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
       if haskey(g2.exto, nr)
-        nn = addnode!(g, NIn(g2.exto[nr], [nk]))
-        g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
-        for (i, n2) in enumerate(n.parents)
-          n2 == nr && (n.parents[i] = nn)
+        symr = g2.exto[nr]
+        if haskey(g2.exto, nk)  # both nr and nk are used by the for loop
+          symk = g2.exto[nk]
+          fusenodes(g2, g2.exti[symk], g2.exti[symr])
         end
+
+        # nn = addnode!(g, NIn(g2.exto[nr], [nk]))
+        # nn.val = "fuse #2"
+        # g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
+        # for (i, n2) in enumerate(n.parents)
+        #   n2 == nr && (n.parents[i] = nn)
+        # end
+          g2.exto[nk] = g2.exto[nr]  # nk replaces nr as g2.exto
+          for (i, n2) in enumerate(n.parents)
+            n2 == nr && (n.parents[i] = nk)
+          end
+
+          for (i, n2) in enumerate(n.precedence)
+            n2 == nr && (n.parents[i] = nk)
+          end
+
+
       end  
     end
 
@@ -300,21 +295,12 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     end
   end
 
-  function evaluate(n::NCall)
+  function evaluate(n::Union(NCall, NComp))
     local ret
     try
-      # if isgeneric(n.main)
-      #   ret = invoke(emod.eval(n.main), 
-      #     tuple([ typeof(x.val) for x in n.parents]...),
-      #     [ x.val for x in n.parents]...)
-
-      # else
         ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
-
-      # end
-
     catch
-      error("[calc!] can't evaluate $(n.main)")
+      error("[calc!] can't evaluate $(n.main) \n $g \n $params")
     end
     return ret
   end 
