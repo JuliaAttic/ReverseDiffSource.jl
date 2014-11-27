@@ -170,17 +170,8 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             ndsz = addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
 
             # create index range node
-    # nid = addgraph!( :( 1:sz ),  g, [ :sz => nsz ] )
             nid = addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
             push!(nf.parents, nid)
-
-    # # create stride size node
-    # nst = addgraph!( :( sz ^ $(i-1) ),  g, [ :sz => nsz ] )
-    # sst = newvar()
-    # inst = addnode!(dg, NExt(sst))
-    # dg.exti[inst] = sst
-    # dg.exto[nst]  = sst
-    # push!(nf.parents, nst)
 
             # pass size node inside subgraph
             sst = newvar()
@@ -198,11 +189,6 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
             push!(nf.parents, nsa)
 
             # create result node update (in subgraph)
-    # nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                        # [ :res  => insa,
-                        #   :sidx => nmap[ni],
-                        #   :st   => inst,
-                        #   :dx   => collect(dg.seti)[1][1] ] )
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
                                 [ :res  => insa,
                                   :sidx => nmap[ni],
@@ -233,8 +219,6 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
 
     g |> splitnary! |> prune! |> simplify!
-
-    println("vvvvvv") ; println(g)
 
     resetvar()
     tocode(g)
