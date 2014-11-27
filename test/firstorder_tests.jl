@@ -38,7 +38,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 	if !all(good_enough, zip([grad0], [grad1]))
 		rg0 = map(x -> round(x,5), grad0)
 		rg1 = map(x -> round(x,5), grad1)
-		println("\nGradient false for $ex at x=$x0, expected $rg0, got $rg1")
+		println("\nGradient false for $ex at x=$x0, expected $rg1, got $rg0")
 		# println( ex2 )
 		error()
 	else
@@ -265,23 +265,4 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare  sum(x          * ones(3,2))    v2ref
 @compare  sum(x          * -1ones(3,1))  v2ref
 
-##  ref  testing
-@compare x[2]                v1ref
-@compare sum(x[2:3])         v1ref
-# @compare sum(x[2:end])       v1ref  # TODO : implement 'end'
 
-# @compare x[2:end]            v2ref  # TODO : implement 'end'
-@compare x[2]                v2ref
-@compare sum(x[2:4])         v2ref
-# @compare sum(x[:,2])         v2ref  # TODO : implement ':'
-# @compare x[1,:]              v2ref
-# @compare x[2:end,:]          v2ref
-# @compare x[:,2:end]          v2ref
-@compare x[2]+x[1]           v2ref
-@compare log(x[2]^2+x[1]^2)  v2ref
-
-@compare (a = zeros(5) ; a[1]   = x[3]   ; a[3]) v1ref
-@compare (a = zeros(5) ; a[1]   = x[3]   ; a[1]) v1ref
-@compare (a = zeros(5) ; a[1:2] = x[3]   ; a[1]) v1ref 
-@compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[1]) v1ref
-@compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[4]) v1ref

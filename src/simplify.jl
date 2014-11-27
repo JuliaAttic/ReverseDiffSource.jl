@@ -8,6 +8,11 @@
 #########################################################################
 
 function simplify!(g::ExGraph, emod = Main)
+	# separate pass on subgraphs
+	map( n -> simplify!(n.main[2], emod), 
+		filter(n->isa(n, NFor), g.nodes))
+
+
 	i = 1
 	markalloc!(g)
 	while i <= length(g.nodes)
@@ -22,8 +27,10 @@ function simplify!(g::ExGraph, emod = Main)
 			rule4(n, g) ||
 			rule5(n, g) ||
 			rule6(n, g) ||
+#=			rule7(n, g) ||=#
 			rule8(n, g) ||
-			rule9(n, g)
+			rule9(n, g) #=||
+			rule10(n, g)=#
 		
 		if restart
 			markalloc!(g)
@@ -33,9 +40,6 @@ function simplify!(g::ExGraph, emod = Main)
 		end
 	end
 
-	# separate pass on subgraphs
-	map( n -> simplify!(n.main[2], emod), 
-		filter(n->isa(n, NFor), g.nodes))
 	
 	g
 end
@@ -60,7 +64,6 @@ function markalloc!(g::ExGraph)
 	end
 end
 
-
 ## fusion of identical nodes
 function identical(n,n2,g)
 	n.main != n2.main       && return false
@@ -73,26 +76,23 @@ function identical(n,n2,g)
 	true
 end
 
-## calculate constant nodes
+### calculate constant nodes 
+#  only if they reduce to a real, zeros(..), etc. should not be converted
 # TODO : check that externals point to a constant in upper levels ?
 function evalconstants(n, g, emod)
 	!isa(n, NCall)                       && return false
 	any(m -> !isa(m, NConst), n.parents) && return false
-	# keep the function form for these
-	n.main in [:zeros, :ones, :vcat, :colon] && return false 
 
 	# calculate value
-	# TODO : add error catching here
 	res = 0.
 	try
-		# res = invoke(emod.eval(n.main), 
-	 #        tuple([ typeof(x.main) for x in n.parents]...),
-	 #        [ x.main for x in n.parents]...)
 		res = apply(emod.eval(n.main), [ x.main for x in n.parents]...)
 	catch e
 		println("error $e \n while evaluating $(n.main) on $([ x.main for x in n.parents]')")
 		rethrow(e)
 	end
+
+	!isa(res, Real) && return false
 
 	# create a new constant node and replace n with it
 	nn = addnode!(g, NConst(res) )
@@ -196,16 +196,18 @@ function rule6(n, g)
 	true
 end
 
-## getindex on ones() or zeros()
-# function rule7(n, g)
-# 	!isa(n, NRef)                             && return false
-# 	!isa(n.parents[2], NDot)                  && return false
-# 	(n.main != n.parents[2].main)             && return false
-# 	(n.parents[1] != n.parents[2].parents[1]) && return false
+## getindex on zeros()
+function rule7(n, g)
+	!isa(n, NRef)                               && return false
+	p = n.parents[1]
+	!isa(p, NCall)                              && return false
+	p.main != :zeros                            && return false
+	any(x -> !isa(x, NConst), n.parents[2:end]) && return false
 
-# 	fusenodes(g, n.parents[1], n)
-# 	true
-# end
+	nn = addnode!(g, NConst(0.0) )
+	fusenodes(g, nn, n)
+	true
+end
 
 
 ## change (-1 * x)  to  (-x) 
@@ -234,3 +236,32 @@ function rule9(n, g)
 	true
 end
 
+
+# TODO : propagate to grand-parent graph etc...
+function constequiv(n, g)
+	isa(n, NConst)          && return n.main
+	!isa(n, NExt)           && return nothing
+
+	sym = g.exti[n]
+	!haskey(g.exto.vk, sym) && return nothing
+	haskey(g.seto.vk, sym)  && return nothing
+
+	!isa(g.exto.vk[sym], NConst)  && return nothing
+	g.exto.vk[sym].main
+end
+
+## getindex on fill()
+function rule10(n, g)
+	!isa(n, NRef)                               && return false
+	p = n.parents[1]
+	!isa(p, NCall)                              && return false
+	p.main != :fill                             && return false
+	val = constequiv(p.parents[1], g)
+	(val == nothing)                            && return false
+
+	any(x -> !isa(x, NConst), n.parents[2:end]) && return false
+
+	nn = addnode!(g, NConst(val) )
+	fusenodes(g, nn, n)
+	true
+end

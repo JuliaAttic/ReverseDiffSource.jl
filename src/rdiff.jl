@@ -6,7 +6,7 @@
 
 ##########  function version   ##############
 
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main)
+function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -17,7 +17,7 @@ function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main)
     fargs = fcode.args[1]  # function parameters
 
     cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, cargs...)
+    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
@@ -27,7 +27,7 @@ end
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, params...)
 
     length(params) >= 1 || error("There should be at least one parameter specified, none found")
     
@@ -221,6 +221,6 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     g |> splitnary! |> prune! |> simplify!
 
     resetvar()
-    tocode(g)
+    debug ? g : tocode(g)
 end
 
