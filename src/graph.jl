@@ -288,7 +288,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
       try
         ret = emod.eval(thing)
       catch e
-        println("[calc!] can't evaluate $thing")
+        println("[calc!] can't evaluate $thing in \n $g \n with") ; display(params)
         rethrow(e)
       end
       return ret

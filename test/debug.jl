@@ -140,206 +140,6 @@ m.rdiff(ex, x=1)
     @eval foo(x) = $res
     foo(x0)
 
-
-################  inconsistent NSRef   ###############
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
-
-
-    function check(ex)
-        const δ = 1e-8
-        x0 = [1., 1.]
-        res = m.rdiff(ex, x=x0);
-        nfoo = @eval foo(x, _idx2) = $res
-        println( mapreduce(i -> nfoo(x0,i)[2][1], hcat, 1:4) )
-        println( Float64[ round((nfoo(x0+δ*eye(2)[:,v],i)[1] - nfoo(x0,i)[1]) / δ)  for v in 1:2, i in 1:4 ])
-    end
-
-
-    _idx2 = 1
-    ex3 = quote
-        a = zeros(2,2)
-        b = zeros(2)
-
-        b[2] = b[2] + x[2]
-        b[1] = b[1] + x[1]
-        a[1:2] = b
-
-        b[2] = b[2] + x[2]
-        b[1] = b[1] + x[1]
-        a[3:4] = b
-
-        a[_idx2]
-    end
-    check(ex3)
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 2.0]
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 2.0]
-
-
-    ex3 = quote
-        a = zeros(2,2)
-        b = zeros(2)
-
-        b[1] = b[1] + x[1]
-        b[2] = b[2] + x[2]
-        a[1] = b[1]
-        a[2] = b[2]
-
-        b[2] = b[2] + x[2]
-        b[1] = b[1] + x[1]
-        a[3] = b[1]
-        a[4] = b[2]
-
-        a[_idx2]
-    end
-    check(ex3)
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 2.0]
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 2.0]
-
-    ex3 = quote
-        a = zeros(4)
-        b = zeros(2)
-
-        b += x
-        a[1:2] = b
-        b[1] = b[1] + x[1]
-        # b[2] = b[2] + x[2]
-        a[3:4] = b
-
-        a[_idx2]
-    end
-    check(ex3)
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 1.0]
-    # [1.0 0.0 2.0 0.0
-    #  0.0 1.0 0.0 1.0]
-
-
-
-    ex3 = quote
-        a = zeros(2,2)
-
-        a[1] = x[1]
-        a[3] = x[1]
-        a[4] = x[1]
-        a[1] = x[1]  
-        a[_idx2]
-    end
-    check(ex3)
-    # [1.0 0.0 1.0 1.0
-    #  0.0 0.0 0.0 0.0]
-    # [1.0 0.0 1.0 1.0
-    #  0.0 0.0 0.0 0.0] ok
-
-
-
-
-
-
-    ex3 = quote
-        a = zeros(2,2)
-        b = fill(0.0, size(x))
-
-        b[2] = b[2] + x[2]
-        b[1] = b[1] + x[1]
-        a[1:2] = b
-        a[_idx2]
-    end
-    check(ex3)
-    # [1.0 0.0 0.0 0.0
-    #  0.0 1.0 0.0 0.0]
-    # Any[1.0 0.0 0.0 0.0
-    #     0.0 1.0 0.0 0.0]  , OK
-
-    ex3 = quote
-        a = zeros(2,2)
-        b = zeros(2)
-
-        b[2] = b[2] + x[2]
-        b[1] = b[1] + x[1]
-        # a[1:2] = b
-        a[1] = b[1]
-        a[2] = b[2]
-        a[_idx2]
-    end
-    check(ex3) # OK
-
-    ex3 = quote
-        a = zeros(2,2)
-        a[1:2] = x
-        a[_idx2]
-    end
-    check(ex3)  # ok
-
-    ex3 = quote
-        a = zeros(2,2)
-        a[1:2] = x[1]
-        a[_idx2]
-    end
-    check(ex3)  # OK
-
-    # x0 = [1., 1.]
-    # res = m.rdiff(ex3, x=x0);
-    # @eval foo(x, _idx2) = $res
-    # # map(i -> foo(x0,i), 1:4)
-    # δ = 1e-8
-    # [ (foo(x0+δ*eye(2)[:,v],i)[1] - foo(x0,i)[1]) / δ  for v in 1:2, i in 1:4 ]
-
-################  inconsistent NSRef   ###############
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
-
-    function check(ex)
-        const δ = 1e-8
-        x0 = 1.
-        res = m.rdiff(ex, x=x0);
-        nfoo = @eval foo(x) = $res
-        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ)) ")
-    end
-
-    ex4 = quote
-        a = zeros(2)
-        a[1] = x
-        a[2] = x
-        sum(a)
-    end
-    check(ex4) #    calc = 2.0 vs vrai = 2.0 
-
-    m.rdiff(ex4, x=1.)
-
-    ex4 = quote
-        a = zeros(2)
-        a[1] = x
-        a[1] = x
-        sum(a)
-    end
-    check(ex4) #  calc = 1.0 vs vrai = 1.0 
-    m.rdiff(ex4, x=1.)
-
-    ex4 = quote
-        a = zeros(2)
-        a[1] = 3x
-        a[1] = x
-        sum(a)
-    end
-    check(ex4)     #  calc = 1.0 vs vrai = 1.0 
-
-    ex4 = quote
-        a = zeros(2)
-        a[1] = x
-        a[1] = 3x
-        sum(a)
-    end
-    check(ex4)     #   calc = 3.0 vs vrai = 3.0 
-
-    res,g = m.rdiff(ex, x=x0, order=3)
-    @eval foo(x) = $res
-    foo(x0)
-
     ex = quote
         a = 0.
         for i in 1:3
@@ -351,29 +151,6 @@ m.rdiff(ex, x=1)
     @eval foo(x) = $res
     foo(2.)
 
-
-    foo (generic function with 1 method)
-    (3.0,[1.0,2.0,3.0],
-    3x3 Array{Float64,2}:
-     0.0  0.0  0.0
-     0.0  2.0  0.0
-     0.0  0.0  6.0,
-
-    3x3x3 Array{Float64,3}:
-    [:, :, 1] =
-     0.0  0.0  0.0
-     0.0  0.0  0.0
-     0.0  0.0  0.0
-
-    [:, :, 2] =
-     0.0  0.0  0.0
-     0.0  0.0  0.0
-     0.0  0.0  0.0
-
-    [:, :, 3] =
-     0.0  0.0  0.0
-     0.0  0.0  0.0
-     6.0  6.0  6.0)   
 
 ############# loops ##################
     reload("ReverseDiffSource")
@@ -445,47 +222,6 @@ m.rdiff(ex, x=1)
             m.tocode(g)
             m.simplify!(g)
             m.tocode(g)
-
-################## setindex  #######################
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
-
-    ex = quote
-        a=zeros(5)
-        a[3:5] = x 
-        sum(a)
-    end
-    check(ex)
-
-    ex = quote
-        a = ones(5)
-        b = sum(a)*x
-        a[2] += x
-        c = sum(a)
-        b + c
-    end
-    check(ex)
-
-    x = ones(4)
-    ex = quote
-        a=zeros(1+6)
-        z=sum(a)
-        for i in 1:4
-            t = 4+3+2
-            a[i] += b[i]+t
-        end
-        sum(a) + z
-    end
-    check(ex)
-    m.reversediff(ex, b=ones(6))
-
-    ex = quote
-        a=zeros(3)
-        b=zeros(3)
-        b[2]=x
-        a[1]=x
-        sum(a)+sum(b)
-    end
-    m.reversediff(ex, x=1)
 
 
 ################## for loops  #######################
@@ -579,6 +315,89 @@ m.rdiff(ex, x=1)
     end
     check(ex)
 
+
+#################   debug  ###################
+    ex = quote
+        a = 0.
+        for i in 1:4
+            a += 2+x
+        end
+        a
+    end
+
+    #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+    reload("ReverseDiffSource")
+    m = ReverseDiffSource
+    begin
+        order = 1
+        paramsym    = Symbol[ :x ]
+        paramvalues = [ 1. ]
+        parval      = Dict(paramsym, paramvalues)
+        g = m.tograph(ex)
+        # reduce to variable of interest
+        g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
+
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+        m.calc!(g, params=parval, emod=Main)
+
+        voi = Any[ nothing ]
+    end
+
+    g
+    g.nodes[6].main[2]
+
+    dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
+    dg.nodes[9].main[2]
+
+    m.tocode(dg)
+    collect(keys(dg.seti))
+    collect(keys(dg.exti))
+
+    fdg = dg.nodes[9].main[2]
+    m.tocode(fdg)
+    collect(keys(fdg.seti))
+    collect(keys(fdg.exti))
+
+
+    append!(g.nodes, dg.nodes)
+    nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
+    ns = m.newvar("_dv")
+    g.seti[nn] = ns
+    push!(voi, ns)
+
+    g
+    m.tocode(g)
+
+    m.ancestors()
+
+    m.prune!(g)     #  il disparait à cette étape !!!
+    m.tocode(g)
+    m.simplify!(g)
+    m.tocode(g)
+
+
+###############  slowness #################################
+    ex = quote
+        a = zeros(2,2)
+        b = zeros(2)
+        b[1] = b[1] + x[1]
+        b[2] = b[2] + x[2]
+        a[1] = b[1]
+        a[2] = b[2]
+        b[2] = b[2] + x[2]
+        b[1] = b[1] + x[1]
+        a[3] = b[1]
+        a[4] = b[2]
+        a[_idx2]
+    end
+
+    m.rdiff(ex, x=ones(2))
+    @profile m.rdiff(ex, x=ones(2))
+    Profile.print()
+
+    s = open("c:/temp/prof.txt","w")
+    Profile.print(s,cols = 500)
+    close(s)
 
 ##############   tests for composite types    #####################
     reload("ReverseDiffSource") ; tm = ReverseDiffSource

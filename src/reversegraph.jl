@@ -109,6 +109,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
 		v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
 		dnodes[n.parents[1]] = v4
+
+		println("g2 : \n$g2")
 	end
 
 
@@ -180,6 +182,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		nexti = NSMap()
 		nexto = NSMap()
+		# outgoing nodes become ingoing nodes
+ 		#   both for the var and its derivative accumulator
 		for (n2, sym) in filter((n,s) -> haskey(fg.seto.vk, s), fg.seti.kv)
 			on = fg.seto.vk[sym]
 			dsym = dprefix(sym)  # newvar() 
@@ -192,11 +196,12 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			fdnodes[n2] = nn
 		end
 
+		# ingoing nodes become potential outgoing dnodes
 		for (n2, sym) in filter((n,s) -> haskey(fg.exto.vk, s), fg.exti.kv)
 			on = fg.exto.vk[sym]
 			dsym = dprefix(sym)  # newvar()
 
-			if haskey(nexti.vk, dsym)  # not already mapped ?
+			if haskey(nexti.vk, dsym)  # already mapped ?
 				nn = nexti.vk[dsym]
 				# println("exti (refused) : $sym / $dsym : $nn")
 			else
@@ -205,16 +210,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 				nexti[nn] = dsym
 				nexto[dnodes[on]] = dsym
 
-				ndmap[n2] = (dsym, on)
 				# println("exti : $sym / $dsym : $nn")
 			end
+			ndmap[n2] = (dsym, on)
 			fdnodes[n2] = nn
 		end
-
 
 		fg.exti = nexti
 		fg.exto = nexto
 
+		# create regular zeronodes for the remaining fg nodes
 		for n2 in filter(n-> !isa(n,NFor) & !haskey(fdnodes, n), fg.nodes)
 			nn = createzeronode!(fg2, n2)
 			fdnodes[n2] = nn
@@ -224,12 +229,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		reversepass!(fg2, fg, fdnodes)
 		append!(fg.nodes, fg2.nodes)
 
+		println("after reverse\n$fg")
 		# variables of interest are derivatives only
 		fg.seti = NSMap()
 		for (ni, (sym, on)) in ndmap
 			fg.seti[ fdnodes[ni] ] = sym
 		end
+		println("after seti update\n$fg")
+
 		prune!(fg) # reduce to derivatives evaluation only
+		println("after pruning\n$fg")
 
 		# create for loop
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
