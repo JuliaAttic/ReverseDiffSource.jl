@@ -42,7 +42,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 		# println( ex2 )
 		error()
 	else
-		println(" ok")
+		# println(" ok")
 	end
 end
 

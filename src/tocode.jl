@@ -61,6 +61,10 @@ function tocode(g::ExGraph)
 		                      tocode(n.main[2]))
 
 	evalsort!(g)
+
+	# mark nodes in precedence
+
+
 	out = Any[]
 	for n in g.nodes
 	    # translate to Expr
@@ -131,7 +135,9 @@ function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	sym != nosym && return (true, sym)
 
 	# it is in the precedence of another node
-	ps = filter(x -> n in x.precedence, g.nodes)
+	# ps = filter(x -> (n in x.precedence) & !(n in x.parents), g.nodes) # faster but less clean
+	# length(ps) > 0 && return (true, nosym)
+	ps = filter(x -> (n in x.precedence), g.nodes) # faster but less clean
 	if length(ps) > 0
 		sv = collect(keys(g.seti))
 		(n in ancestors(sv, ps)) && return (true, nosym)
@@ -186,7 +192,9 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	(sum(x -> sum(n .== x.parents), g.nodes) > 1) && return (true, nosym)
 
 	# it is in the precedence of another node
-	ps = filter(x -> n in x.precedence, g.nodes)
+	# ps = filter(x -> (n in x.precedence) & !(n in x.parents), g.nodes) # faster but less clean
+	# length(ps) > 0 && return (true, nosym)
+	ps = filter(x -> (n in x.precedence), g.nodes) # faster but less clean
 	if length(ps) > 0
 		sv = collect(keys(g.seti))
 		(n in ancestors(sv, ps)) && return (true, nosym)

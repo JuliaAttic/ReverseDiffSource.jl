@@ -105,12 +105,11 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
 		dnodes[n.parents[2]] = v3
 
+		# shut down the influence of these indices
 		zn = addnode!(g2, NConst(0.))
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
 		v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
 		dnodes[n.parents[1]] = v4
-
-		println("g2 : \n$g2")
 	end
 
 
@@ -229,16 +228,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		reversepass!(fg2, fg, fdnodes)
 		append!(fg.nodes, fg2.nodes)
 
-		println("after reverse\n$fg")
+		# println("after reverse\n$fg")
 		# variables of interest are derivatives only
 		fg.seti = NSMap()
 		for (ni, (sym, on)) in ndmap
 			fg.seti[ fdnodes[ni] ] = sym
 		end
-		println("after seti update\n$fg")
+		# println("after seti update\n$fg")
 
 		prune!(fg) # reduce to derivatives evaluation only
-		println("after pruning\n$fg")
+		# println("after pruning\n$fg")
 
 		# create for loop
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )

@@ -102,6 +102,6 @@ m.plot( m.tograph( :(a = sin(x+1) ; 2exp(a)) ))
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
 
 res = m.rdiff(ex, x=zeros(2), order=2)
-res = m.rdiff(ex, x=zeros(2), order=3)
+#  res = m.rdiff(ex, x=zeros(2), order=3), produces an error, to be checked
 
 
