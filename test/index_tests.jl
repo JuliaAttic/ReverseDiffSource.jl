@@ -25,6 +25,7 @@
 @compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[1]) v1ref
 @compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[4]) v1ref
 
+_idx2 = 1
 
 ex = quote
     a = zeros(2,2)

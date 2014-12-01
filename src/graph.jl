@@ -215,6 +215,15 @@ function prune!(g::ExGraph, exitnodes)
   ns2 = copy(exitnodes)
   evalsort!(g)
   for n in reverse(g.nodes)
+    # removed NIn nodes should be removed from For loops too
+    if isa(n, NIn) && !(n in ns2) && isa(n.parents[1], NFor)
+      fg = n.parents[1].main[2]
+      sym = fg.seto[n]
+      delete!(fg.seto, n)
+      ni  = fg.seti.vk[sym]
+      delete!(fg.seti, ni)
+    end
+
     n in ns2 || continue
 
     if isa(n, NFor)
@@ -338,7 +347,8 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     g2 = n.main[2]
     is = n.main[1]                          # symbol of loop index
     iter = evaluate(n.parents[1])           #  myeval(n.main[1].args[2])
-    is0 = next(iter, start(iter))[2]        # first value of index
+    # is0 = next(iter, start(iter))[2]        # first value of index
+    is0 = first(iter)                       # first value of index
     params2 = merge(params, [ is => is0 ])  # set loop index to first value
     # println("params2 : $(params2)")
     calc!(g2, params=params2)

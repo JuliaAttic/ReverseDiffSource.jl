@@ -181,8 +181,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		nexti = NSMap()
 		nexto = NSMap()
-		# outgoing nodes become ingoing nodes
- 		#   both for the var and its derivative accumulator
+		# outgoing nodes generate ingoing dnodes
 		for (n2, sym) in filter((n,s) -> haskey(fg.seto.vk, s), fg.seti.kv)
 			on = fg.seto.vk[sym]
 			dsym = dprefix(sym) 
@@ -229,16 +228,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		reversepass!(fg2, fg, fdnodes)
 		append!(fg.nodes, fg2.nodes)
 
-		println("after reverse\n$fg")
+		# println("after reverse\n$fg")
 		# variables of interest are derivatives only
 		fg.seti = NSMap()
 		for (ni, (sym, on)) in ndmap
 			fg.seti[ fdnodes[ni] ] = sym
 		end
-		println("after seti update\n$fg")
+		# println("after seti update\n$fg")
 
 		prune!(fg) # reduce to derivatives evaluation only
-		println("after pruning\n$fg")
+		# println("after pruning\n$fg")
 
 		# create for loop
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
