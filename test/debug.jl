@@ -13,7 +13,7 @@
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
     # res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
-    res = m.rdiff(ex, x=zeros(2), order=2)   # 75 lines
+    res = m.rdiff(ex, x=zeros(2), order=2)   
     res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
 
     g2 = g.nodes[38].main[2]
@@ -310,6 +310,24 @@
         end
         a
     end
+    m.rdiff(ex, x=1., order=2)
+
+    ex = m.rdiff(ex, x=1.)
+    quote 
+        _tmp1 = 0.0
+        _tmp2 = 0.0
+        _tmp3 = 1.0
+        _tmp4 = 1:4
+        for i = _tmp4
+            _tmp1 = _tmp1 + (2 + x)
+        end
+        for i = _tmp4
+            _tmp3 = _tmp3 + _tmp3
+            _tmp2 = _tmp2 + _tmp3
+        end
+        (_tmp1,(_tmp2,))
+    end
+
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     reload("ReverseDiffSource")
@@ -354,9 +372,7 @@
     g
     m.tocode(g)
 
-    m.ancestors()
-
-    m.prune!(g)     #  il disparait à cette étape !!!
+    m.prune!(g) 
     m.tocode(g)
     m.simplify!(g)
     m.tocode(g)

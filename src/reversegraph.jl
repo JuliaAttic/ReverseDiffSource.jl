@@ -185,21 +185,22 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
  		#   both for the var and its derivative accumulator
 		for (n2, sym) in filter((n,s) -> haskey(fg.seto.vk, s), fg.seti.kv)
 			on = fg.seto.vk[sym]
-			dsym = dprefix(sym)  # newvar() 
-				#  derivative of var
-				nn = addnode!(fg2, NExt(dsym))
-				nn.val = "seti"
-				nexti[nn] = dsym
-				nexto[dnodes[on]] = dsym
-				# println("seti : $sym / $dsym : $nn")
+			dsym = dprefix(sym) 
+			#  derivative of var
+			nn = addnode!(fg2, NExt(dsym))
+			nn.val = "seti"
+			nexti[nn] = dsym
+			nexto[dnodes[on]] = dsym
+			# println("seti : $sym / $dsym : $nn")
 			fdnodes[n2] = nn
 		end
 
 		# ingoing nodes become potential outgoing dnodes
 		for (n2, sym) in filter((n,s) -> haskey(fg.exto.vk, s), fg.exti.kv)
 			on = fg.exto.vk[sym]
-			dsym = dprefix(sym)  # newvar()
 
+			## derivative accumulator
+			dsym = dprefix(sym)  
 			if haskey(nexti.vk, dsym)  # already mapped ?
 				nn = nexti.vk[dsym]
 				# println("exti (refused) : $sym / $dsym : $nn")
@@ -215,8 +216,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			fdnodes[n2] = nn
 		end
 
-		fg.exti = nexti
-		fg.exto = nexto
+		fg.exti = NSMap(merge(fg.exti.kv, nexti.kv))
+		fg.exto = NSMap(merge(fg.exto.kv, nexto.kv)) 
 
 		# create regular zeronodes for the remaining fg nodes
 		for n2 in filter(n-> !isa(n,NFor) & !haskey(fdnodes, n), fg.nodes)
@@ -228,16 +229,16 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		reversepass!(fg2, fg, fdnodes)
 		append!(fg.nodes, fg2.nodes)
 
-		# println("after reverse\n$fg")
+		println("after reverse\n$fg")
 		# variables of interest are derivatives only
 		fg.seti = NSMap()
 		for (ni, (sym, on)) in ndmap
 			fg.seti[ fdnodes[ni] ] = sym
 		end
-		# println("after seti update\n$fg")
+		println("after seti update\n$fg")
 
 		prune!(fg) # reduce to derivatives evaluation only
-		# println("after pruning\n$fg")
+		println("after pruning\n$fg")
 
 		# create for loop
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
@@ -249,8 +250,20 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
 			fdn = fdnodes[ns2]                 # final node in loop containing derivative
 			fg.seto[rn] = sym
+				append!(v2.precedence, filter(n -> dnodes[on] in n.parents && n != v2, g2.nodes))
 			dnodes[on] = rn 
+
 		end
+
+#=				pn = explore(sym)                   # create node if needed
+				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
+				g.seti[rn] = sym                    # signal we're setting the var
+				g2.seto[rn] = sym
+
+				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
+=#
+
+
 		# TODO : update precedence of v2 here ? 
 	end
 
