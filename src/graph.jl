@@ -63,12 +63,22 @@ end
 
 #####  ExGraph functions  #####
 
-### looks for ancestors, optionnally excluding some nodes
-function ancestors(ns::Vector, except=[])
-    ss = setdiff(ns, except)
-    isempty(ss) ? [] : mapreduce(n -> ancestors(n,except), union, ss)
+### checks if n is an ancestor of 'exits', optionnally excluding some nodes from the path
+##  !! assumes that g has been evalsorted
+function isancestor(anc::ExNode, exits::Vector{ExNode}, g::ExGraph, except::Vector{ExNode})
+    gm = Set(exits)
+    for n in reverse( g.nodes )
+        n in gm     || continue
+        n in except && continue
+        anc in n.parents && return true
+        union!(gm, n.parents)
+    end
+
+    false
 end
-ancestors(ns, except=[]) = union([ns], ancestors(ns.parents, except))
+
+isancestor(n::ExNode, exits::Vector{ExNode}, g::ExGraph) = isancestor(n, exits, g, ExNode[])
+
 
 # copies a graph and its nodes, leaves onodes references intact
 function copy(g::ExGraph)
@@ -217,11 +227,9 @@ function prune!(g::ExGraph, exitnodes)
         push!(exitnodes2, g2.seti.vk[sym])
       end
       # don't forget reentrant variables
-      anc = ancestors(exitnodes2)
-      for n2 in anc
-        haskey(g2.exti, n2) || continue
-        sym = g2.exti[n2]
-        haskey(g2.seti.vk, sym) || continue
+      for (n2, sym) in g2.exti.kv
+        haskey(g2.seti.vk, sym)        || continue
+        isancestor(n2, exitnodes2, g2) || continue
         push!(exitnodes2, g2.seti.vk[sym])
       end
 

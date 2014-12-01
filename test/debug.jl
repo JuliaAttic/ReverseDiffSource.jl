@@ -7,15 +7,6 @@
 
     using DataFrames
 
-ex = quote
-    a = x
-    b = a
-    c = b
-    a += x
-    c
-end
-m.rdiff(ex, x=1)
-
 ###################### issue #8   ######################################
     reload("ReverseDiffSource")
     m = ReverseDiffSource
@@ -151,7 +142,6 @@ m.rdiff(ex, x=1)
     @eval foo(x) = $res
     foo(2.)
 
-
 ############# loops ##################
     reload("ReverseDiffSource")
     m = ReverseDiffSource
@@ -223,7 +213,6 @@ m.rdiff(ex, x=1)
             m.simplify!(g)
             m.tocode(g)
 
-
 ################## for loops  #######################
     function check(ex)
         const δ = 1e-8
@@ -291,8 +280,6 @@ m.rdiff(ex, x=1)
     check(ex)  # 4.0 (1 expected)
     m.rdiff(ex, x=1.)
 
-
-
 ############### double loop   ################################
 
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -314,7 +301,6 @@ m.rdiff(ex, x=1)
         a
     end
     check(ex)
-
 
 #################   debug  ###################
     ex = quote
@@ -377,6 +363,8 @@ m.rdiff(ex, x=1)
 
 
 ###############  slowness #################################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
     ex = quote
         a = zeros(2,2)
         b = zeros(2)
@@ -390,8 +378,86 @@ m.rdiff(ex, x=1)
         a[4] = b[2]
         a[_idx2]
     end
+    _idx2 = 3
 
-    m.rdiff(ex, x=ones(2))
+    @time m.rdiff(ex, x=ones(2)) # elapsed time: 6.71 seconds, after = 0.06
+
+    ex = quote
+        a=zeros(5)
+        a[2:3] = x
+        a[3:4] = x
+        sum(a)
+    end
+    m.rdiff(ex, x=1)
+        _tmp1 = zeros(5)
+        _tmp2 = 2:3
+        _tmp3 = 3:4
+        _tmp1[_tmp2] = x
+        _tmp1[_tmp3] = x
+        _tmp4 = size(_tmp1)
+        _tmp5 = fill(0.0,_tmp4) + ones(_tmp4)
+        _tmp5[_tmp3] = 0.0
+        (sum(_tmp1),(sum(_tmp5[_tmp3]) + sum(_tmp5[_tmp2]),))
+
+    _tmp1 = zeros(5)
+    _tmp2 = 2:3
+    _tmp3 = 3:4
+    _tmp1[_tmp2] = x
+    _tmp1[_tmp3] = x
+    _tmp4 = size(_tmp1)
+    _tmp5 = fill(0.0,_tmp4) + ones(_tmp4)
+    _tmp6 = _tmp5[_tmp3]
+    _tmp5[_tmp3] = 0.0
+    (sum(_tmp1),(sum(_tmp6) + sum(_tmp5[_tmp2]),))
+    g = m.rdiff(ex, x=1.0, debug=true)
+    sv = collect( keys(g.seti))
+        (n in ancestors(sv, ps)) && return (true, nosym)
+        # isancestor(n, sv, g, ps) && return (true, nosym)
+
+    g.nodes[17] in m.ancestors(sv, g.nodes[[19]])
+    m.isancestor(g.nodes[17], sv, g, g.nodes[[19]])
+    isancestor(g.nodes[17], sv, g, g.nodes[[19]])
+
+
+    g = m.tograph(ex) |> m.evalsort!
+
+    @time refs = m.ancestors(g.nodes[[47,51,52]], g.nodes[[44]])  # 3.81 ms
+
+    function isancestor(anc, exits, g, except)
+        gm = Set(exits)
+        for n in reverse( g.nodes )
+            n in gm     || continue
+            n in except && continue
+            anc in n.parents && return true
+            union!(gm, n.parents)
+        end
+
+        false
+    end
+
+    @time isancestor(g.nodes[38], g.nodes[[47,51,52]], g, g.nodes[[44]])
+    filter((i,n) -> isancestor(n, g.nodes[[47,51,52]], g, g.nodes[[44]]), enumerate(g.nodes) )
+    filter((i,n) -> i < 4 , enumerate(g.nodes) )
+
+    isancestor(g.nodes[45], g.nodes[[47,51,52]], g, g.nodes[[44]])
+
+    @time begin 
+        gm = Dict(g.nodes, [ n in g.nodes[[42,50,52]] for n in g.nodes ])
+        for n in reverse( g.nodes )
+            gm[n] || continue
+            n in g.nodes[[35]] && continue
+            for n2 in n.parents
+                gm[n2] = true
+            end
+        end
+        news = collect(keys(filter((k,v) -> v, gm)))
+    end  # 1 ms
+
+    setdiff(news, refs) == g.nodes[[35]]
+    setdiff(refs, news)
+
+
+
     @profile m.rdiff(ex, x=ones(2))
     Profile.print()
 

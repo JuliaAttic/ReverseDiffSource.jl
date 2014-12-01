@@ -134,13 +134,11 @@ function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	# (sym != nosym, sym)
 	sym != nosym && return (true, sym)
 
-	# it is in the precedence of another node
-	# ps = filter(x -> (n in x.precedence) & !(n in x.parents), g.nodes) # faster but less clean
-	# length(ps) > 0 && return (true, nosym)
+	# it is in the precedence of another node and is (by another path) a parent of an exitnode
 	ps = filter(x -> (n in x.precedence), g.nodes) # faster but less clean
 	if length(ps) > 0
 		sv = collect(keys(g.seti))
-		(n in ancestors(sv, ps)) && return (true, nosym)
+		isancestor(n, sv, g, ps) && return (true, nosym)
 	end
 
 	# otherwise do not create assignment
@@ -191,13 +189,11 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	# (sum(x -> sum([ p == n for p in x.parents ]), g.nodes) > 1) &&
 	(sum(x -> sum(n .== x.parents), g.nodes) > 1) && return (true, nosym)
 
-	# it is in the precedence of another node
-	# ps = filter(x -> (n in x.precedence) & !(n in x.parents), g.nodes) # faster but less clean
-	# length(ps) > 0 && return (true, nosym)
+	# it is in the precedence of another node and is (by another path) a parent of an exitnode
 	ps = filter(x -> (n in x.precedence), g.nodes) # faster but less clean
 	if length(ps) > 0
 		sv = collect(keys(g.seti))
-		(n in ancestors(sv, ps)) && return (true, nosym)
+		isancestor(n, sv, g, ps) && return (true, nosym)
 	end
 
 	# otherwise do not create assignment
