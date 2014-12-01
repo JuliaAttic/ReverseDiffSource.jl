@@ -5,7 +5,7 @@ m = ReverseDiffSource
 
 my_tests = [
 			"unit_tests.jl",
-            "test_syntax.jl",
+            "syntax_tests.jl",
             "firstorder_tests.jl",
             "index_tests.jl",
             "more_tests.jl"
