@@ -62,103 +62,167 @@ begin # temp setup
     v2ref = [-1. 3 0 ; 0 5 -2]
 end;
 
-
-ex = quote
-    a = zeros(2)
-    for i in 1:2
-        a[i] = x
+### vector setting
+    ex = quote
+        a = zeros(2)
+        for i in 1:2
+            a[i] = x
+        end
+        sum(a)
     end
-    sum(a)
-end
-compare(ex, 1.)
+    compare(ex, 1.)
 
-ex = quote
-    a = zeros(2)
-    for i in 1:2
-        a[i] += x
+    b = [1:4]
+    ex = quote
+        a=zeros(1+4)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]+t-x
+        end
+        sum(a)
     end
-    sum(a)
-end
-compare(ex, 1.)
+    compare(ex, 1.)
 
-ex = quote
-    a = zeros(2)
-    for i in 1:2
-        a[1] = x
+    ex = quote
+        a=zeros(1+3)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]*x+t
+        end
+        sum(a)
     end
-    sum(a)
-end
-compare(ex, 2.) 
-
-ex = quote
-    a = zeros(2)
-    for i in 1:2
-        a[1] += x
+    compare(ex, 1.)
+    
+### vector accumulation
+    ex = quote
+        a = zeros(2)
+        for i in 1:2
+            a[i] += x
+        end
+        sum(a)
     end
-    sum(a)
-end
-compare(ex, 2.)
+    compare(ex, 1.)
 
-
-m.@deriv_rule %(x,y)      x     0
-m.@deriv_rule %(x,y)      y     0
-ex = quote
-    a = zeros(2)
-    for i in 1:4
-        a[1 + i % 2] = x
+### same var setting (vector)
+    ex = quote
+        a = zeros(2)
+        for i in 1:2
+            a[1] = x
+        end
+        sum(a)
     end
-    sum(a)
-end
-compare(ex, 1.) 
+    compare(ex, 2.)  #  expected 1.0, got 2.0
 
-
-ex = quote
-    a = 0.
-    for i in 1:4
-        a = 4*x
+    m.@deriv_rule %(x,y)      x     0
+    m.@deriv_rule %(x,y)      y     0
+    ex = quote
+        a = zeros(2)
+        for i in 1:4
+            a[1 + i % 2] = x
+        end
+        sum(a)
     end
-    a
-end
-compare(ex, 3.)  # faux
+    compare(ex, 1.) # expected 2.0, got 4.0
 
-ex = quote
-    a = 0.
-    for i in 1:4
-        a = x
+### same var accumulator (vector)
+    ex = quote
+        a = zeros(2)
+        for i in 1:2
+            a[1] += x
+        end
+        sum(a)
     end
-    a
-end
-compare(ex, 3.)  # faux
+    compare(ex, 2.)
 
-ex = quote
-    a = 0.
-    for i in 1:4
-        a += 2+x
+### same var setting (scalar)
+    ex = quote
+        a = 0.
+        for i in 1:4
+            a = 4*x
+        end
+        a
     end
-    a
-end
-compare(ex, 2.)  #  faux
+    compare(ex, 3.)  # expected 4.0, got 16.0
 
-
-ex = quote
-    a = 0.
-    for i in 1:length(x)
-        a = x[i]
+    ex = quote
+        a = 0.
+        for i in 1:4
+            a = x
+        end
+        a
     end
-    a
-end
-compare(ex, [3., 2.])  # faux
-compare(ex, [1.])      # plante [calc!] can't evaluate ([1.0])[2]
-compare(ex, ones(10))  # faux
+    compare(ex, 3.)  # expected 1.0, got 0.0
 
-
-ex = quote
-    a = 0.
-    for i in 1:length(x)
-        a += x[i]
+    ex = quote
+        a = 0.
+        for i in 1:length(x)
+            a = x[i]
+        end
+        a
     end
-    a
-end
-compare(ex, [3., 2.])  # faux
-compare(ex, [1.])      # plante [calc!] can't evaluate ([1.0])[2]
-compare(ex, ones(10))  # faux
+    compare(ex, [3., 2.])  #  expected [0.0,1.0], got [1.0,1.0]
+    compare(ex, [1.])      
+    compare(ex, ones(10))  # faux
+
+### same var accumulator (scalar)
+    ex = quote
+        a = 0.
+        for i in 1:4
+            a += 2+x
+        end
+        a
+    end
+    compare(ex, 2.) 
+
+    ex = quote
+        a = 0.
+        for i in 1:3
+            a += x^i
+        end
+        a
+    end
+    compare(ex, 2.) 
+
+    ex = quote
+        a = 0.
+        for i in 1:length(x)
+            a += x[i]
+        end
+        a
+    end
+    compare(ex, [3., 2.])  
+    compare(ex, [1.])      
+    compare(ex, ones(10)) 
+
+    ex = quote
+        a = 0.
+        for i in 1:length(x)
+            a += x[1]^i
+        end
+        a+1
+    end
+    compare(ex, [3., 2.])  
+    compare(ex, [1.])      
+    compare(ex, ones(10)) 
+
+### nested loops
+    b = [1:4]
+    ex = quote
+        a=zeros(1+4)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]+t-x
+        end
+        sum(a)
+    end
+    check(ex)
+
+    ex = quote
+        a=zeros(1+3)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]*x+t
+        end
+        sum(a)
+    end
+    check(ex)

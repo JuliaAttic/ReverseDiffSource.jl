@@ -247,23 +247,11 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		fg.seto = NSMap()
 		for (ns2, (sym, on)) in ndmap
 			rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
-			fdn = fdnodes[ns2]                 # final node in loop containing derivative
 			fg.seto[rn] = sym
-				append!(v2.precedence, filter(n -> dnodes[on] in n.parents && n != v2, g2.nodes))
+			
+			append!(v2.precedence, filter(n -> dnodes[on] in n.parents && n != v2, g2.nodes))
 			dnodes[on] = rn 
-
 		end
-
-#=				pn = explore(sym)                   # create node if needed
-				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
-				g.seti[rn] = sym                    # signal we're setting the var
-				g2.seto[rn] = sym
-
-				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
-=#
-
-
-		# TODO : update precedence of v2 here ? 
 	end
 
 	evalsort!(g)
