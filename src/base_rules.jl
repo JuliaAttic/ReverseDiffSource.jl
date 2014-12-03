@@ -24,6 +24,15 @@
 @deriv_rule tuple(x)        x     ds[1]
 @deriv_rule tuple(x,y)      x     ds[1]
 @deriv_rule tuple(x,y)      y     ds[2]
+@deriv_rule tuple(x,y,z)    x     ds[1]
+@deriv_rule tuple(x,y,z)    y     ds[2]
+@deriv_rule tuple(x,y,z)    z     ds[3]
+@deriv_rule tuple(x,y,z,t)  x     ds[1]
+@deriv_rule tuple(x,y,z,t)  y     ds[2]
+@deriv_rule tuple(x,y,z,t)  x     ds[3]
+@deriv_rule tuple(x,y,z,t)  t     ds[4]
+
+
 
 #  vcat
 # @deriv_rule vcat(x,y)       x     ds[1]

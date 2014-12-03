@@ -23,10 +23,10 @@ function simplify!(g::ExGraph, emod = Main)
 			rule4(n, g) ||
 			rule5(n, g) ||
 			rule6(n, g) ||
-			#rule7(n, g) ||
+			rule7(n, g) ||
 			rule8(n, g) ||
-			rule9(n, g) #=||
-			rule10(n, g)=#
+			rule9(n, g) ||
+			rule10(n, g)
 		
 		if restart
 			markalloc!(g)

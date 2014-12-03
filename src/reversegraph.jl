@@ -135,56 +135,15 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		fdnodes = Dict()
 		ndmap = Dict()
-#=		for n2 in filter(n-> !isa(n,NFor), fg.nodes)
-			# outgoing nodes become ingoing nodes
-	 		#   both for the var and its derivative accumulator
-			if haskey(fg.seti, n2)
-				sym = fg.seti[n2]
-				if haskey(fg.seto.vk, sym)  # this is not a local var
-					on = fg.seto.vk[sym]
-
-					# assumption : exti / onodes already exists for this sym
- 					dsym = dprefix(sym)  # newvar() 
-
-					#  derivative of var
-					nn = addnode!(fg2, NExt(dsym))
-					nn.val = "seti"
-					fg.exti[nn] = dsym
-					fg.exto[dnodes[on]] = dsym
-					println("c1 : $sym / $dsym : $nn")
-				else  # it is a local var
-					nn = createzeronode!(fg2, n2)
-				end
-
-			# ingoing nodes become potential outgoing dnodes
-			elseif haskey(fg.exti, n2)
-				sym = fg.exti[n2]
-				if sym != is 
-					on = fg.exto.vk[sym]
- 					dsym = dprefix(sym)  # newvar()
-
-					nn = addnode!(fg2, NExt(dsym))
-					nn.val = "exti"
-					fg.exti[nn] = dsym
-					fg.exto[dnodes[on]] = dsym
-
-					ndmap[n2] = (dsym, on)
-					println("c2 : $sym / $dsym : $nn")
-				end
-
-			else
-				nn = createzeronode!(fg2, n2)
-			end	
-
-			fdnodes[n2] = nn
-		end=#
 
 		nexti = NSMap()
 		nexto = NSMap()
+		# nexti = fg.exti
+		# nexto = fg.exto
 		# outgoing nodes generate ingoing dnodes
 		for (n2, sym) in filter((n,s) -> haskey(fg.seto.vk, s), fg.seti.kv)
 			on = fg.seto.vk[sym]
-			dsym = dprefix(sym) 
+			dsym = newvar(:_dtmp)  # dprefix(sym) 
 			#  derivative of var
 			nn = addnode!(fg2, NExt(dsym))
 			nn.val = "seti"
@@ -199,7 +158,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			on = fg.exto.vk[sym]
 
 			## derivative accumulator
-			dsym = dprefix(sym)  
+			dsym = newvar(:_dtmp)  # dprefix(sym)  
 			if haskey(nexti.vk, dsym)  # already mapped ?
 				nn = nexti.vk[dsym]
 				# println("exti (refused) : $sym / $dsym : $nn")
