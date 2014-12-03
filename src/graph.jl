@@ -146,13 +146,11 @@ end
 # removes node nr and keeps node nk 
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
-  # this should not happen...
-  # @assert !haskey(g.exti, nr) "[fusenodes] attempt to fuse ext_inode $nr"
   if haskey(g.exti, nr)
-    delete!(g.exti, nr)
+    g.exti[nk] = g.exti[nr]
   end
 
-  # test if nr is associated to a variable
+  # test if nr is associated to a setting node
   # if true, we create an NIn on nk, and associate var to it
   if haskey(g.seti, nr)
     nn = addnode!(g, NIn(g.seti[nr], [nk]))
@@ -173,21 +171,13 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
       if haskey(g2.exto, nr)
-        symr = g2.exto[nr]
         if haskey(g2.exto, nk)  # both nr and nk are used by the for loop
+          symr = g2.exto[nr]
           symk = g2.exto[nk]
           fusenodes(g2, g2.exti.vk[symk], g2.exti.vk[symr])
         end
 
-        g2.exto[nk] = g2.exto[nr]  # nk replaces nr as g2.exto
-        for (i, n2) in enumerate(n.parents)
-          n2 == nr && (n.parents[i] = nk)
-        end
-
-        for (i, n2) in enumerate(n.precedence)
-          n2 == nr && (n.parents[i] = nk)
-        end
-
+        g2.exto[nk] = g2.exto[nr]  # nk replaces nr in g2.exto
       end  
     end
 
