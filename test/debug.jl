@@ -8,11 +8,9 @@
     using DataFrames
 
 ###################### issue #8   ######################################
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-    # res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
     res = m.rdiff(ex, x=zeros(2), order=2)   
     res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
 
@@ -63,7 +61,7 @@
     # ex = :( sum(x * x'))
 
     x0 = ones(2)
-    res = m.rdiff(ex, x=x0, order=3)
+    res = m.rdiff(ex, x=x0, order=2)
     @eval foo(x) = $res
     foo(x0)
     # (2.0,[3.0,3.0],
@@ -95,247 +93,65 @@
     #  0.0  0.0
     #  0.0  6.0
 
-######################  loops    #######################################
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
-
-    ex = quote
-    	a = 0.
-    	for i in 1:length(x)
-    		a += x[i]^i
-    	end
-    	a+1
-    end
-    x0 = ones(3)
-
-    res = m.rdiff(ex, x=x0, order=1)
-    res = m.rdiff(ex, x=x0, order=1, debug=true)
-    res.nodes[11].main[2]
-    @eval foo(x) = $res
-    foo(x0)
-
-    ex = quote
-        a = 0.
-        for i in 1:length(x)
-            a += x[1]^i
-        end
-        a+1
-    end
-    x0 = ones(3)
-
-    res = m.rdiff(ex, x=x0, order=1)
-    @eval foo(x) = $res
-    foo(x0)
-
-    res = m.rdiff(ex, x=x0, order=2)
-    @eval foo(x) = $res
-    foo(x0)
-
-    ex = quote
-        a = 0.
-        for i in 1:3
-            a += x^i
-        end
-        a
-    end
-    res = m.rdiff(ex, x=2., order=3)
-    @eval foo(x) = $res
-    foo(2.)
-
-############# loops ##################
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
-
-    function check(ex)
-        const δ = 1e-8
-        x0 = 1.
-        res = m.rdiff(ex, x=x0);
-        nfoo = @eval foo(x) = $res
-        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ,2)) ")
-    end
-
-
-    ex4 = quote
-        a = zeros(2)
-        for i in 1:2
-            a[i] = x
-        end
-        sum(a)
-    end
-    check(ex4)  #  calc = 2.0 vs vrai = 2.0 
-    m.rdiff(ex4, x=1.)
-
-
-    #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
-        order = 1
-
-        paramsym    = Symbol[ :x ]
-        paramvalues = [ 1. ]
-        parval      = Dict(paramsym, paramvalues)
-
-        g = m.tograph(ex)
-
-        # reduce to variable of interest
-        g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
-
-        g |> m.splitnary! |> m.prune! |> m.simplify!
-        m.calc!(g, params=parval, emod=Main)
-
-        voi = Any[ nothing ]
-
-        g.nodes[6].main[2]
-
-            dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-
-            m.tocode(dg)
-            collect(keys(dg.seti))
-            collect(keys(dg.exti))
-
-            fdg = dg.nodes[9].main[2]
-            m.tocode(fdg)
-            collect(keys(fdg.seti))
-            collect(keys(fdg.exti))
-
-
-            append!(g.nodes, dg.nodes)
-            nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
-            ns = m.newvar("_dv")
-            g.seti[nn] = ns
-            push!(voi, ns)
-
-            g
-            m.tocode(g)
-
-            m.ancestors()
-
-            m.prune!(g)     #  il disparait à cette étape !!!
-            m.tocode(g)
-            m.simplify!(g)
-            m.tocode(g)
-
-################## for loops  #######################
-    function check(ex)
-        const δ = 1e-8
-        x0 = 1.
-        res = m.rdiff(ex, x=x0);
-        nfoo = @eval foo(x) = $res
-        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ,2)) ")
-    end
-
-    ex = quote
-        a=0
-        for i in 1:2
-            a += 2x    
-        end
-        a
-    end
-    check(ex)
-
-    ex = quote
-        a=0
-        for i in 1:2
-            a += x^2    
-        end
-        a
-    end
-    check(ex)
-
-    b = [1:4]
-    ex = quote
-        a=zeros(1+4)
-        for i in 1:4
-            t = 4+3+2
-            a[i] += b[i]+t-x
-        end
-        sum(a)
-    end
-    check(ex)
-
-    ex = quote
-        a=zeros(1+3)
-        for i in 1:4
-            t = 4+3+2
-            a[i] += b[i]*x+t
-        end
-        sum(a)
-    end
-    check(ex)
-
-    ex = quote
-        a = 0
-        for i in 1:4
-           a = x
-        end
-        sum(a)
-    end
-    check(ex)  # 0 (1 expected)
-
-    ex = quote
-        a = zeros(1)
-        for i in 1:4
-           a[1] = x
-        end
-        a[1]
-    end
-    check(ex)  # 4.0 (1 expected)
-    m.rdiff(ex, x=1.)
-
-############### double loop   ################################
-
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
-    function check(ex)
-        const δ = 1e-8
-        x0 = 1.
-        res = m.rdiff(ex, x=x0);
-        nfoo = @eval foo(x) = $res
-        println(" calc = $(nfoo(x0)[2][1]) vs vrai = $(round((nfoo(x0+δ)[1] - nfoo(x0)[1]) / δ,2)) ")
-    end
-
-    ex = quote
-        a=0
-        for i in 1:10
-            for j in 1:10
-                a += (j < 4) * log(x) * sin(j)
-            end
-        end
-        a
-    end
-    check(ex)
-
 #################   debug  ###################
-    ex = quote
-        a = 0.
-        for i in 1:4
-            a += 2+x
-        end
-        a
-    end
-    m.rdiff(ex, x=1., order=2)
+    ex = :( x[1]^3 + x[1]*x[2] )
+    res = m.rdiff(ex, x=zeros(2), order=3)   
+    res = m.rdiff(ex, x=zeros(2), order=2)   
 
-    ex = m.rdiff(ex, x=1.)
-    quote 
-        _tmp1 = 0.0
-        _tmp2 = 0.0
-        _tmp3 = 1.0
-        _tmp4 = 1:4
-        for i = _tmp4
-            _tmp1 = _tmp1 + (2 + x)
+    ex = quote 
+        _tmp1 = length(x)
+        _tmp2 = fill(0.0,size(x))
+        _tmp2[2] = x[1]
+        _tmp3 = zeros((_tmp1,_tmp1))
+        _tmp2[1] = _tmp2[1] + (x[2] + 3 * x[1]^2)
+        for _idx3 = 1:_tmp1
+            _tmp4 = fill(0.0,size(x))
+            _tmp5 = fill(0.0,size(_tmp2))
+            _tmp5[_idx3] = _tmp5[_idx3] + 1.0
+            _tmp6 = _tmp5[1]
+            _tmp5[1] = 0.0
+            _tmp4[2] = _tmp4[2] + _tmp6
+            _tmp5[1] = _tmp5[1] + _tmp6
+            _tmp4[1] = _tmp4[1] + (_tmp5[2] + 2 * (x[1] * (3_tmp6)))
+            _tmp3[(_idx3 - 1.0) * _tmp1 + 1.0:_idx3 * _tmp1] = _tmp4
         end
-        for i = _tmp4
-            _tmp3 = _tmp3 + _tmp3
-            _tmp2 = _tmp2 + _tmp3
-        end
-        (_tmp1,(_tmp2,))
+        _tmp3[idx2]
     end
+    idx2 = 1
+    m.rdiff(ex, x=ones(2))
 
+    #=    ex = quote
+            a = 0.
+            for i in 1:4
+                a += 2+x
+            end
+            a
+        end
+        m.rdiff(ex, x=1., order=2)
+
+        ex = m.rdiff(ex, x=1.)
+        quote 
+            _tmp1 = 0.0
+            _tmp2 = 0.0
+            _tmp3 = 1.0
+            _tmp4 = 1:4
+            for i = _tmp4
+                _tmp1 = _tmp1 + (2 + x)
+            end
+            for i = _tmp4
+                _tmp3 = _tmp3 + _tmp3
+                _tmp2 = _tmp2 + _tmp3
+            end
+            (_tmp1,(_tmp2,))
+        end
+    =#
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
     begin
         order = 1
         paramsym    = Symbol[ :x ]
-        paramvalues = [ 1. ]
+        paramvalues = Any[ [1., 0] ]
         parval      = Dict(paramsym, paramvalues)
         g = m.tograph(ex)
         # reduce to variable of interest
@@ -378,108 +194,452 @@
     m.tocode(g)
 
 
-###############  slowness #################################
+############## debug 2   ##################
+    ex = :( x[1]^3 + x[1]*x[2] )
+    res = m.rdiff(ex, x=zeros(2), order=3)   
+
+
+
+    #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     reload("ReverseDiffSource") ; m = ReverseDiffSource
+    begin
+        order = 3
+        paramsym    = Symbol[ :x ]
+        paramvalues = Any[ [1., 0] ]
+        parval      = Dict(paramsym, paramvalues)
+        g = m.tograph(ex)
+        # reduce to variable of interest
+        g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
 
-    ex = quote
-        a = zeros(2,2)
-        b = zeros(2)
-        b[1] = b[1] + x[1]
-        b[2] = b[2] + x[2]
-        a[1] = b[1]
-        a[2] = b[2]
-        b[2] = b[2] + x[2]
-        b[1] = b[1] + x[1]
-        a[3] = b[1]
-        a[4] = b[2]
-        a[_idx2]
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+        m.calc!(g, params=parval, emod=Main)
+
+        voi = Any[ nothing ]
     end
-    _idx2 = 3
-
-    @time m.rdiff(ex, x=ones(2)) # elapsed time: 6.71 seconds, after = 0.06
-
-    ex = quote
-        a=zeros(5)
-        a[2:3] = x
-        a[3:4] = x
-        sum(a)
-    end
-    m.rdiff(ex, x=1)
-        _tmp1 = zeros(5)
-        _tmp2 = 2:3
-        _tmp3 = 3:4
-        _tmp1[_tmp2] = x
-        _tmp1[_tmp3] = x
-        _tmp4 = size(_tmp1)
-        _tmp5 = fill(0.0,_tmp4) + ones(_tmp4)
-        _tmp5[_tmp3] = 0.0
-        (sum(_tmp1),(sum(_tmp5[_tmp3]) + sum(_tmp5[_tmp2]),))
-
-    _tmp1 = zeros(5)
-    _tmp2 = 2:3
-    _tmp3 = 3:4
-    _tmp1[_tmp2] = x
-    _tmp1[_tmp3] = x
-    _tmp4 = size(_tmp1)
-    _tmp5 = fill(0.0,_tmp4) + ones(_tmp4)
-    _tmp6 = _tmp5[_tmp3]
-    _tmp5[_tmp3] = 0.0
-    (sum(_tmp1),(sum(_tmp6) + sum(_tmp5[_tmp2]),))
-    g = m.rdiff(ex, x=1.0, debug=true)
-    sv = collect( keys(g.seti))
-        (n in ancestors(sv, ps)) && return (true, nosym)
-        # isancestor(n, sv, g, ps) && return (true, nosym)
-
-    g.nodes[17] in m.ancestors(sv, g.nodes[[19]])
-    m.isancestor(g.nodes[17], sv, g, g.nodes[[19]])
-    isancestor(g.nodes[17], sv, g, g.nodes[[19]])
 
 
-    g = m.tograph(ex) |> m.evalsort!
+    #### pass 1 
+        begin
+            dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
+            append!(g.nodes, dg.nodes)
+            ns = m.newvar(:_dv)
+            g.seti[ collect(keys(dg.seti))[1] ] = ns
+            push!(voi, ns)
 
-    @time refs = m.ancestors(g.nodes[[47,51,52]], g.nodes[[44]])  # 3.81 ms
-
-    function isancestor(anc, exits, g, except)
-        gm = Set(exits)
-        for n in reverse( g.nodes )
-            n in gm     || continue
-            n in except && continue
-            anc in n.parents && return true
-            union!(gm, n.parents)
+            g |> m.splitnary! |> m.prune! |> m.simplify!
         end
+    #### pass 2 
+        i = 2
+        # now order 2 to n
+        begin  
+            # launch derivation on a single value of the preceding
+            #   derivation vector
+            no = g.seti.vk[voi[i]]
+            si = m.newvar(:_idx)
+            ni = m.addnode!(g, m.NExt(si))
+            ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
 
-        false
-    end
+            m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=Main)
+            dg = m.reversegraph(g, ns, paramsym)
 
-    @time isancestor(g.nodes[38], g.nodes[[47,51,52]], g, g.nodes[[44]])
-    filter((i,n) -> isancestor(n, g.nodes[[47,51,52]], g, g.nodes[[44]]), enumerate(g.nodes) )
-    filter((i,n) -> i < 4 , enumerate(g.nodes) )
+            #### We will now wrap dg in a loop scanning all the elements of 'no'
+            # first create ext nodes to make dg a complete subgraph
+            dg2 = m.ExNode[]
+            nmap = Dict()
+            for n in dg.nodes  # n = dg.nodes[2]
+                for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
+                    if haskey(nmap, np) # already remapped
+                        n.parents[j] = nmap[np]
 
-    isancestor(g.nodes[45], g.nodes[[47,51,52]], g, g.nodes[[44]])
+                    elseif np == ni # it's the loop index
+                        nn = m.NExt(si)
+                        push!(dg2, nn)
+                        dg.exti[nn] = si
+                        n.parents[j] = nn
+                        nmap[np] = nn
 
-    @time begin 
-        gm = Dict(g.nodes, [ n in g.nodes[[42,50,52]] for n in g.nodes ])
-        for n in reverse( g.nodes )
-            gm[n] || continue
-            n in g.nodes[[35]] && continue
-            for n2 in n.parents
-                gm[n2] = true
+                    elseif np == ns # it's the selected element of the deriv vector
+                        # create 'no' ref if needed
+                        if !haskey(nmap, no)
+                            sn = m.newvar()
+                            nn = m.NExt(sn)
+                            push!(dg2, nn)
+                            dg.exti[nn] = sn
+                            dg.exto[no] = sn
+                            nmap[no] = nn
+                        end
+
+                        nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
+                        push!(dg2, nn)
+                        nmap[ns] = nn                            
+
+                    elseif !(np in dg.nodes) # it's not in dg (but in g)
+                        sn = m.newvar()
+                        nn = m.NExt(sn)
+                        push!(dg2, nn)
+                        dg.exti[nn] = sn
+                        dg.exto[np] = sn
+                        n.parents[j] = nn
+                        nmap[np] = nn
+
+                    end    
+                end
+
+                # update onodes in for loops
+                if isa(n, m.NFor)
+                    g2 = n.main[2]
+                    for (o,s) in g2.exto
+                        if haskey(nmap, o)
+                            g2.exto[ nmap[o] ] = s  # replace
+                        end
+                    end
+                end
             end
+            append!(dg.nodes, dg2)    
+            # dg |> prune! |> simplify!
+
+            # create for loop node
+            nf = m.addnode!(g, m.NFor(Any[ si, dg ] ) )
+
+            # create param size node
+            nsz = m.addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
+
+            # create (n-1)th derivative size node
+            ndsz = m.addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
+
+            # create index range node
+            nid = m.addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
+            push!(nf.parents, nid)
+
+            # pass size node inside subgraph
+            sst = m.newvar()
+            inst = m.addnode!(dg, m.NExt(sst))
+            dg.exti[inst] = sst
+            dg.exto[nsz]  = sst
+            push!(nf.parents, nsz)
+
+            # create result node (alloc in parent graph)
+            nsa = m.addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
+            ssa = m.newvar()
+            insa = m.addnode!(dg, m.NExt(ssa))
+            dg.exti[insa] = ssa
+            dg.exto[nsa]  = ssa
+            push!(nf.parents, nsa)
+
+            # create result node update (in subgraph)
+            nres = m.addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
+                                [ :res  => insa,
+                                  :sidx => nmap[ni],
+                                  :st   => inst,
+                                  :dx   => collect(dg.seti)[1][1] ] )
+            dg.seti = m.NSMap(Dict([nres], [ssa]))
+
+            # create exit node for result
+            nex = m.addnode!(g, m.NIn(ssa, [nf]))
+            dg.seto = m.NSMap(Dict([nex], [ssa]))
+
+            # update parents of for loop
+            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
+
+            ns = m.newvar(:_dv)
+            g.seti[nex] = ns
+            push!(voi, ns)
+
+            g |> m.splitnary! |> m.prune! |> m.simplify!
+            
+            m.calc!(g, params=Dict(paramsym, paramvalues), emod=Main)
         end
-        news = collect(keys(filter((k,v) -> v, gm)))
-    end  # 1 ms
 
-    setdiff(news, refs) == g.nodes[[35]]
-    setdiff(refs, news)
+    #### pass 3 
+        # now order 2 to n
+        begin  
+            i = 3
+            # launch derivation on a single value of the preceding
+            #   derivation vector
+            no = g.seti.vk[voi[i]]
+            si = m.newvar(:_idx)
+            ni = m.addnode!(g, m.NExt(si))
+            ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
+
+            m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=Main)
+            dg = m.reversegraph(g, ns, paramsym)
+
+            #### We will now wrap dg in a loop scanning all the elements of 'no'
+            # first create ext nodes to make dg a complete subgraph
+            dg2 = m.ExNode[]
+            nmap = Dict()
+            for n in dg.nodes  # n = dg.nodes[2]
+                for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
+                    if haskey(nmap, np) # already remapped
+                        n.parents[j] = nmap[np]
+
+                    elseif np == ni # it's the loop index
+                        nn = m.NExt(si)
+                        push!(dg2, nn)
+                        dg.exti[nn] = si
+                        n.parents[j] = nn
+                        nmap[np] = nn
+
+                    elseif np == ns # it's the selected element of the deriv vector
+                        # create 'no' ref if needed
+                        if !haskey(nmap, no)
+                            sn = m.newvar()
+                            nn = m.NExt(sn)
+                            push!(dg2, nn)
+                            dg.exti[nn] = sn
+                            dg.exto[no] = sn
+                            nmap[no] = nn
+                        end
+
+                        nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
+                        push!(dg2, nn)
+                        nmap[ns] = nn                            
+
+                    elseif !(np in dg.nodes) # it's not in dg (but in g)
+                        sn = m.newvar()
+                        nn = m.NExt(sn)
+                        push!(dg2, nn)
+                        dg.exti[nn] = sn
+                        dg.exto[np] = sn
+                        n.parents[j] = nn
+                        nmap[np] = nn
+
+                    end    
+                end
+
+                # update onodes in for loops
+                if isa(n, m.NFor)
+                    g2 = n.main[2]
+                    for (o,s) in g2.exto
+                        if haskey(nmap, o)
+                            g2.exto[ nmap[o] ] = s  # replace
+                        end
+                    end
+                end
+            end
+            append!(dg.nodes, dg2)    
+            # dg |> prune! |> simplify!
+
+            # create for loop node
+            nf = m.addnode!(g, m.NFor(Any[ si, dg ] ) )
+
+            # create param size node
+            nsz = m.addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
+
+            # create (n-1)th derivative size node
+            ndsz = m.addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
+
+            # create index range node
+            nid = m.addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
+            push!(nf.parents, nid)
+
+            # pass size node inside subgraph
+            sst = m.newvar()
+            inst = m.addnode!(dg, m.NExt(sst))
+            dg.exti[inst] = sst
+            dg.exto[nsz]  = sst
+            push!(nf.parents, nsz)
+
+            # create result node (alloc in parent graph)
+            nsa = m.addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
+            ssa = m.newvar()
+            insa = m.addnode!(dg, m.NExt(ssa))
+            dg.exti[insa] = ssa
+            dg.exto[nsa]  = ssa
+            push!(nf.parents, nsa)
+
+            # create result node update (in subgraph)
+            nres = m.addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
+                                [ :res  => insa,
+                                  :sidx => nmap[ni],
+                                  :st   => inst,
+                                  :dx   => collect(dg.seti)[1][1] ] )
+            dg.seti = m.NSMap(Dict([nres], [ssa]))
+
+            # create exit node for result
+            nex = m.addnode!(g, m.NIn(ssa, [nf]))
+            dg.seto = m.NSMap(Dict([nex], [ssa]))
+
+            # update parents of for loop
+            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
+
+            ns = m.newvar(:_dv)
+            g.seti[nex] = ns
+            push!(voi, ns)
+        end
+            gggggg = m.copy(g)
+            # g = m.copy(gggggg)
+            m.splitnary!(g)
+            m.prune!(g)
+            m.simplify!(g)  #  ERROR: key not found: :_tmp25
+i = 9
+
+m.eval( quote 
+            function simplify!(g::ExGraph, emod = Main)
+
+                i = 1
+                markalloc!(g)
+                println("+")
+                while i <= length(g.nodes)
+                    println("s in")
+                    restart = false
+                    n = g.nodes[i]
+
+                    restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) #=||
+                        evalconstants(n, g, emod) ||
+                        rule1(n, g) ||
+                        rule2(n, g) ||
+                        rule3(n, g) ||
+                        rule4(n, g) ||
+                        rule5(n, g) ||
+                        rule6(n, g) ||
+                        rule7(n, g) ||
+                        rule8(n, g) ||
+                        rule9(n, g) ||
+                        rule10(n, g)=#
+                    
+                    if restart
+                        markalloc!(g)
+                        i = 1
+                        println("sout reset $i")
+                    else
+                        i += 1
+                        println("sout +  $i")
+                    end
+                end
+
+                # separate pass on subgraphs
+                map( n -> simplify!(n.main[2], emod), 
+                    filter(n->isa(n, NFor), g.nodes))
+
+                
+                g
+            end
+
+            function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)  # nk = n ; nr = n2
+              println("fuse in")
+              # this should not happen...
+              # @assert !haskey(g.exti, nr) "[fusenodes] attempt to fuse ext_inode $nr"
+
+              # test if nr is associated to a variable
+              # if true, we create an NIn on nk, and associate var to it
+              if haskey(g.seti, nr)
+                nn = addnode!(g, NIn(g.seti[nr], [nk]))
+                nn.val = "fuse #1"
+                g.seti[nn] = g.seti[nr]  # nn replaces nr as set_inode
+
+                if haskey(g.seto, nr)   # change onodes too (if we are in a subgraph)
+                  g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
+                end  
+              end
+
+              # replace references to nr by nk in parents of other nodes
+              for n in filter(n -> n != nr && n != nk, g.nodes)
+                if isa(n, NFor)
+                  g2 = n.main[2]
+
+                  # this should not happen...
+                  @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+
+                  if haskey(g2.exto, nr)
+                      println("fuse f for 1")
+                    symr = g2.exto[nr]
+                      println("fuse f for 2")
+                    if haskey(g2.exto, nk)  # both nr and nk are used by the for loop
+                        println("fuse f for 3")
+                      symk = g2.exto[nk]
+                        println("fuse f for 4 $symk  <- $symr")
+                      fusenodes(g2, g2.exti.vk[symk], g2.exti.vk[symr])
+                        println("fuse f for 5")
+                    end
+
+                    # nn = addnode!(g, NIn(g2.exto[nr], [nk]))
+                    # nn.val = "fuse #2"
+                    # g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
+                    # for (i, n2) in enumerate(n.parents)
+                    #   n2 == nr && (n.parents[i] = nn)
+                    # end
+                      g2.exto[nk] = g2.exto[nr]  # nk replaces nr as g2.exto
+                      for (i, n2) in enumerate(n.parents)
+                        n2 == nr && (n.parents[i] = nk)
+                      end
+
+                      for (i, n2) in enumerate(n.precedence)
+                        n2 == nr && (n.parents[i] = nk)
+                      end
 
 
+                  end  
+                end
 
-    @profile m.rdiff(ex, x=ones(2))
-    Profile.print()
+                for (i, n2) in enumerate(n.parents)
+                  n2 == nr && (n.parents[i] = nk)
+                end
+                for (i, n2) in enumerate(n.precedence)
+                  n2 == nr && (n.precedence[i] = nk)
+                end
 
-    s = open("c:/temp/prof.txt","w")
-    Profile.print(s,cols = 500)
-    close(s)
+              end
+
+              println("fuse out")
+              # remove node nr in g
+              filter!(n -> n != nr, g.nodes)
+            end
+
+            function identical(n,n2,g)
+                n.main != n2.main       && return false
+                n.parents != n2.parents && return false
+                n.alloc                 && return false
+                n2.alloc                && return false
+                # isa(n, NConst) && isa(n.main, Real) && return false # no need for small constants
+
+                fusenodes(g, n, n2)
+                true
+            end
+end)
+
+            g
+            g2 = g.nodes[33].main[2]
+            collect( g2.exti )
+            g2.exti.vk[ :_tmp25 ]
+            collect( g2.exto )
+            g2.exto.vk[ :_tmp25 ]
+            findfirst(g.nodes .== g2.exto.vk[ :_tmp25 ])
+            g
+            
+            m.calc!(g, params=Dict(paramsym, paramvalues), emod=Main)
+        end
+
+    voin = map( s -> g.seti.vk[s], voi)
+    ex = m.addnode!(g, m.NCall(:tuple, voin))
+    g.seti = m.BiDict(Dict{m.ExNode,Any}( [ex], [nothing]) )
+
+    m.splitnary!(g)
+    m.prune!(g)
+    m.simplify!(g)  #  ERROR: key not found: :_tmp55
+
+    m.resetvar()
+    res = m.tocode(g)
+
+    ex = :( x[1]^3 + x[1]*x[2] )
+    res = m.rdiff(ex, x=zeros(2), order=3)   
+
+    @eval foo(x) = $res
+    foo([1., 2.])
+    (3.0,[5.0,1.0],
+    2x2 Array{Float64,2}:
+     6.0  1.0
+     1.0  0.0,
+
+    2x2x2 Array{Float64,3}:
+    [:, :, 1] =
+     6.0  0.0
+     0.0  0.0
+
+    [:, :, 2] =
+     0.0  0.0
+     0.0  0.0)
+
 
 ##############   tests for composite types    #####################
     reload("ReverseDiffSource") ; tm = ReverseDiffSource

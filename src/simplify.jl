@@ -8,10 +8,6 @@
 #########################################################################
 
 function simplify!(g::ExGraph, emod = Main)
-	# separate pass on subgraphs
-	map( n -> simplify!(n.main[2], emod), 
-		filter(n->isa(n, NFor), g.nodes))
-
 
 	i = 1
 	markalloc!(g)
@@ -27,10 +23,10 @@ function simplify!(g::ExGraph, emod = Main)
 			rule4(n, g) ||
 			rule5(n, g) ||
 			rule6(n, g) ||
-			rule7(n, g) ||
+			#rule7(n, g) ||
 			rule8(n, g) ||
-			rule9(n, g) ||
-			rule10(n, g)
+			rule9(n, g) #=||
+			rule10(n, g)=#
 		
 		if restart
 			markalloc!(g)
@@ -39,6 +35,10 @@ function simplify!(g::ExGraph, emod = Main)
 			i += 1
 		end
 	end
+
+	# separate pass on subgraphs
+	map( n -> simplify!(n.main[2], emod), 
+		filter(n->isa(n, NFor), g.nodes))
 
 	
 	g
@@ -77,7 +77,7 @@ function identical(n,n2,g)
 end
 
 ### calculate constant nodes 
-#  only if they reduce to a real, zeros(..), etc. should not be converted
+#  only if they reduce to a real (zeros(..), etc. should not be converted)
 # TODO : check that externals point to a constant in upper levels ?
 function evalconstants(n, g, emod)
 	!isa(n, NCall)                       && return false

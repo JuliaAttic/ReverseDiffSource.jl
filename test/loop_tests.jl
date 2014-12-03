@@ -92,7 +92,7 @@ end;
         sum(a)
     end
     compare(ex, 1.)
-    
+
 ### vector accumulation
     ex = quote
         a = zeros(2)
@@ -206,23 +206,13 @@ end;
     compare(ex, ones(10)) 
 
 ### nested loops
-    b = [1:4]
     ex = quote
-        a=zeros(1+4)
-        for i in 1:4
-            t = 4+3+2
-            a[i] += b[i]+t-x
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += (j < 4) * log(x) * sin(j)
+            end
         end
-        sum(a)
+        a
     end
-    check(ex)
-
-    ex = quote
-        a=zeros(1+3)
-        for i in 1:4
-            t = 4+3+2
-            a[i] += b[i]*x+t
-        end
-        sum(a)
-    end
-    check(ex)
+    compare(ex, 0.1)
