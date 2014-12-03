@@ -5,7 +5,7 @@
 
     include("runtests.jl")
 
-    using DataFrames
+    m.rdiff(:( a = fill(0.,4) ; a[1]+x^2 ), x=1., order=5)
 
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -50,8 +50,7 @@
     #     0.0  0.0
 
 ###################### issue #8   ######################################
-    reload("ReverseDiffSource")
-    m = ReverseDiffSource
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     # ex = :( x[1]^3 )  # ok
     # ex = :( x[2]^3 )  # ok
@@ -62,6 +61,7 @@
 
     x0 = ones(2)
     res = m.rdiff(ex, x=x0, order=2)
+    res = m.rdiff(ex, x=x0, order=4)
     @eval foo(x) = $res
     foo(x0)
     # (2.0,[3.0,3.0],
@@ -94,64 +94,22 @@
     #  0.0  6.0
 
 #################   debug  ###################
-    ex = :( x[1]^3 + x[1]*x[2] )
-    res = m.rdiff(ex, x=zeros(2), order=3)   
-    res = m.rdiff(ex, x=zeros(2), order=2)   
-
-    ex = quote 
-        _tmp1 = length(x)
-        _tmp2 = fill(0.0,size(x))
-        _tmp2[2] = x[1]
-        _tmp3 = zeros((_tmp1,_tmp1))
-        _tmp2[1] = _tmp2[1] + (x[2] + 3 * x[1]^2)
-        for _idx3 = 1:_tmp1
-            _tmp4 = fill(0.0,size(x))
-            _tmp5 = fill(0.0,size(_tmp2))
-            _tmp5[_idx3] = _tmp5[_idx3] + 1.0
-            _tmp6 = _tmp5[1]
-            _tmp5[1] = 0.0
-            _tmp4[2] = _tmp4[2] + _tmp6
-            _tmp5[1] = _tmp5[1] + _tmp6
-            _tmp4[1] = _tmp4[1] + (_tmp5[2] + 2 * (x[1] * (3_tmp6)))
-            _tmp3[(_idx3 - 1.0) * _tmp1 + 1.0:_idx3 * _tmp1] = _tmp4
+    ex = quote
+        a = zeros(2)
+        for i in 1:2
+            a[1] = x
         end
-        _tmp3[idx2]
+        sum(a)
     end
-    idx2 = 1
-    m.rdiff(ex, x=ones(2))
-
-    #=    ex = quote
-            a = 0.
-            for i in 1:4
-                a += 2+x
-            end
-            a
-        end
-        m.rdiff(ex, x=1., order=2)
-
-        ex = m.rdiff(ex, x=1.)
-        quote 
-            _tmp1 = 0.0
-            _tmp2 = 0.0
-            _tmp3 = 1.0
-            _tmp4 = 1:4
-            for i = _tmp4
-                _tmp1 = _tmp1 + (2 + x)
-            end
-            for i = _tmp4
-                _tmp3 = _tmp3 + _tmp3
-                _tmp2 = _tmp2 + _tmp3
-            end
-            (_tmp1,(_tmp2,))
-        end
-    =#
+    m.rdiff(ex, x=1.)
+    m.rdiff( :(a=zeros(2) ; a[1]=x ; sum(a)), x=1.)
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     reload("ReverseDiffSource") ; m = ReverseDiffSource
     begin
         order = 1
         paramsym    = Symbol[ :x ]
-        paramvalues = Any[ [1., 0] ]
+        paramvalues = Any[ 1. ]
         parval      = Dict(paramsym, paramvalues)
         g = m.tograph(ex)
         # reduce to variable of interest
@@ -169,14 +127,14 @@
     dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
     dg.nodes[9].main[2]
 
-    m.tocode(dg)
-    collect(keys(dg.seti))
-    collect(keys(dg.exti))
+    # m.tocode(dg)
+    # collect(keys(dg.seti))
+    # collect(keys(dg.exti))
 
-    fdg = dg.nodes[9].main[2]
-    m.tocode(fdg)
-    collect(keys(fdg.seti))
-    collect(keys(fdg.exti))
+    # fdg = dg.nodes[9].main[2]
+    # m.tocode(fdg)
+    # collect(keys(fdg.seti))
+    # collect(keys(fdg.exti))
 
 
     append!(g.nodes, dg.nodes)
@@ -186,9 +144,28 @@
     push!(voi, ns)
 
     g
+    g2 = g.nodes[26].main[2]
+    ns2 = [ g.nodes[28] ]
     m.tocode(g)
 
     m.prune!(g) 
+
+      # list of g2 nodes whose outer node is in ns2
+      exitnodes2 = m.ExNode[]
+      for (k, sym) in g2.seto.kv
+        k in ns2 || continue
+        push!(exitnodes2, g2.seti.vk[sym])
+      end
+      # don't forget reentrant variables
+      collect(g2.exti.kv)
+      for (n2, sym) in g2.exti.kv
+        haskey(g2.seti.vk, sym)        || continue
+        isancestor(n2, exitnodes2, g2) || continue
+        push!(exitnodes2, g2.seti.vk[sym])
+      end
+
+
+
     m.tocode(g)
     m.simplify!(g)
     m.tocode(g)
