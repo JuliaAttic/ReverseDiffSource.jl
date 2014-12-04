@@ -158,11 +158,14 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			on = fg.exto.vk[sym]
 
 			## derivative accumulator
-			dsym = newvar(:_dtmp)  # dprefix(sym)  
-			if haskey(nexti.vk, dsym)  # already mapped ?
-				nn = nexti.vk[dsym]
+			# if haskey(nexti.vk, dsym)  # already mapped ?
+			if haskey(fg.seti.vk, sym)  # already mapped ?
+				on2 = fg.seti.vk[sym]
+				nn   = fdnodes[on2]  # nexti.vk[dsym]
+				dsym = nexti[nn]
 				# println("exti (refused) : $sym / $dsym : $nn")
 			else
+				dsym = newvar(:_dtmp)  # dprefix(sym)  
 				nn = addnode!(fg2, NExt(dsym))
 				nn.val = "exti"
 				nexti[nn] = dsym

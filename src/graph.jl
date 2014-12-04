@@ -206,8 +206,8 @@ function prune!(g::ExGraph, exitnodes)
       fg = n.parents[1].main[2]
       sym = fg.seto[n]
       delete!(fg.seto, n)
-      ni  = fg.seti.vk[sym]
-      delete!(fg.seti, ni)
+      #= ni = fg.seti.vk[sym]
+      delete!(fg.seti, ni) =#
     end
 
     n in ns2 || continue
@@ -222,12 +222,17 @@ function prune!(g::ExGraph, exitnodes)
         push!(exitnodes2, g2.seti.vk[sym])
       end
       # don't forget reentrant variables
-      for (n2, sym) in g2.exti.kv
-        haskey(g2.seti.vk, sym)        || continue
-        isancestor(n2, exitnodes2, g2) || continue
-        push!(exitnodes2, g2.seti.vk[sym])
+      for (n2, sym) in g2.seti.kv
+        (n2 in exitnodes2)               && continue
+        haskey(g2.exti.vk, sym)          || continue
+        on = g2.exti.vk[sym]
+        isancestor(on, exitnodes2, g2)   || continue
+        push!(exitnodes2, n2)
       end
-
+      exitnodes2 = unique(exitnodes2)
+      #=println(exitnodes2)
+      println("before\n", g2)
+      println("after\n", g2)=#
       prune!(g2, exitnodes2)
 
       # update parents

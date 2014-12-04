@@ -12,10 +12,8 @@
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
     res = m.rdiff(ex, x=zeros(2), order=2)   
-    res = m.rdiff(ex, x=zeros(2), order=3)   # 75 lines
-
-    g2 = g.nodes[38].main[2]
-    g3 = g2.nodes[36].main[2]
+    res = m.rdiff(ex, x=zeros(2), order=3)   # 66/69 lines
+    res = m.rdiff(ex, x=zeros(2), order=4)   # 75 lines
 
     @eval foo(x) = $res
     foo([0.5, 2.])
@@ -62,6 +60,11 @@
     x0 = ones(2)
     res = m.rdiff(ex, x=x0, order=2)
     res = m.rdiff(ex, x=x0, order=4)
+
+#=ERROR: key not found: [subref] :setidx ([0.0 0.0
+ 0.0 0.0]), from = :_dtmp1 / 0.0 / :colon
+ in rev at D:\frtestar\.julia\v0.4\ReverseDiffSource\src\reversegraph.jl:164=#
+    
     @eval foo(x) = $res
     foo(x0)
     # (2.0,[3.0,3.0],
@@ -102,6 +105,16 @@
         sum(a)
     end
     m.rdiff(ex, x=1.)
+
+    ex = quote
+        a = 0.
+        for i in 1:4
+            a += 2+x
+        end
+        a
+    end
+    m.rdiff(ex, x=1.)
+
     m.rdiff( :(a=zeros(2) ; a[1]=x ; sum(a)), x=1.)
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
@@ -121,22 +134,7 @@
         voi = Any[ nothing ]
     end
 
-    g
-    g.nodes[6].main[2]
-
     dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-    dg.nodes[9].main[2]
-
-    # m.tocode(dg)
-    # collect(keys(dg.seti))
-    # collect(keys(dg.exti))
-
-    # fdg = dg.nodes[9].main[2]
-    # m.tocode(fdg)
-    # collect(keys(fdg.seti))
-    # collect(keys(fdg.exti))
-
-
     append!(g.nodes, dg.nodes)
     nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
     ns = m.newvar("_dv")
@@ -145,30 +143,34 @@
 
     g
     g2 = g.nodes[26].main[2]
-    ns2 = [ g.nodes[28] ]
+    ns2 = [ g.nodes[27] ]
     m.tocode(g)
-
     m.prune!(g) 
+    m.tocode(g)  # prune fait disparaitre !!
+
+    g2 = g.nodes[18].main[2]
 
       # list of g2 nodes whose outer node is in ns2
       exitnodes2 = m.ExNode[]
+      
       for (k, sym) in g2.seto.kv
         k in ns2 || continue
         push!(exitnodes2, g2.seti.vk[sym])
       end
-      # don't forget reentrant variables
-      collect(g2.exti.kv)
-      for (n2, sym) in g2.exti.kv
-        haskey(g2.seti.vk, sym)        || continue
-        isancestor(n2, exitnodes2, g2) || continue
-        push!(exitnodes2, g2.seti.vk[sym])
+      exitnodes2
+      for (n2, sym) in g2.seti.kv
+        (n2 in exitnodes2)               && continue
+        haskey(g2.exti.vk, sym)          || continue
+        on = g2.exti.vk[sym]
+        m.isancestor(on, exitnodes2, g2) || continue
+        push!(exitnodes2, n2)
       end
+      exitnodes2 = unique(exitnodes2)
 
-
-
-    m.tocode(g)
-    m.simplify!(g)
-    m.tocode(g)
+      g2
+      m.prune!(g2, exitnodes2)
+      m.tocode(g2)
+      m.tocode(g)
 
 
 ############## debug 2   ##################
