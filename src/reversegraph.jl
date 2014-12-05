@@ -92,24 +92,35 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NSRef)
-		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+		if length(n.parents) >= 3   # regular setindex
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
 
-		# treat case where a single value is allocated to several array elements
-		if length(n.parents[2].val) == 1 
-			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
-			if sz > 1
-				v2 = addnode!(g2, NCall(:sum, [ v2]))
+			# treat case where a single value is allocated to several array elements
+			if length(n.parents[2].val) == 1 
+				sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
+				if sz > 1
+					v2 = addnode!(g2, NCall(:sum, [ v2]))
+				end
 			end
+
+			v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
+			dnodes[n.parents[2]] = v3
+
+			# shut down the influence of these indices
+			zn = addnode!(g2, NConst(0.))
+			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
+			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
+			dnodes[n.parents[1]] = v4
+		else   # scalar assignment
+			v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], dnodes[n] ]) )
+			dnodes[n.parents[2]] = v3
+
+			# shut down the influence of the variable
+			zn = addnode!(g2, NConst(0.))
+			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn ]) )
+			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
+			dnodes[n.parents[1]] = v4
 		end
-
-		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
-		dnodes[n.parents[2]] = v3
-
-		# shut down the influence of these indices
-		zn = addnode!(g2, NConst(0.))
-		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
-		v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
-		dnodes[n.parents[1]] = v4
 	end
 
 

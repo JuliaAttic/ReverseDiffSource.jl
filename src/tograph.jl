@@ -114,11 +114,21 @@ function tograph(s, svars::Vector)
 		
 		if isSymbol(lhs)
 			lhss = lhs
-			rhn  = explore(ex.args[2])
+			#=	rhn  = explore(ex.args[2])
 			# we test if RHS has already a symbol
 			# if it does, to avoid loosing it, we create an NIn node
 			if haskey(g.seti, rhn) 
 				rhn = addnode!(g, NIn(lhss, [rhn]))
+			end=#
+
+			# set before ? call explore
+			if lhss in union(svars, collect(keys(g.seti.vk)))
+				vn = explore(lhss)
+				rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
+					                                explore(ex.args[2]) ])) # value affected in pos #2
+				rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+			else # never set before ? assume it is created here
+				rhn = explore(ex.args[2])
 			end
 
 		elseif isRef(lhs)
@@ -139,7 +149,6 @@ function tograph(s, svars::Vector)
 			error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
 		end
 
-		# g.map[rhn] = (lhss, :out_inode)
 		g.seti[rhn] = lhss
 
 		return nothing

@@ -48,6 +48,8 @@ function tocode(g::ExGraph)
 
 	function translate(n::NSRef)
 		np = n.parents
+		(length(np) == 2) && return :( $(valueof(np[1],n)) = $(valueof(np[2],n)) ) 
+
     	:( $(Expr(:ref, valueof(np[1],n), Any[ valueof(x,n) for x in np[3:end]]...)) = $(valueof(np[2],n)) ) 
 	end
 
@@ -110,8 +112,10 @@ end
 #####################################################################
 const nosym = 0x7c883061f2344364  # code for no symbol associated
 
-function getnames(n::ExNode, g::ExGraph)
-	haskey(g.seti, n) || return nosym
+#=function getnames(n::ExNode, g::ExGraph)
+	n = g2.nodes[1] ; g = g2
+
+	m.haskey(g.seti, n) || return nosym
 	sym = g.seti[n]
 
 	# return parent node evaluation if it exists
@@ -120,6 +124,24 @@ function getnames(n::ExNode, g::ExGraph)
 
 	return g.exto.vk[sym].val
 end
+=#
+function getnames(n::ExNode, g::ExGraph)
+	if haskey(g.seti, n)
+		sym = g.seti[n]
+		haskey(g.exto.vk, sym) || return sym
+		return g.exto.vk[sym].val
+	elseif haskey(g.exti, n)
+		sym = g.exti[n]
+		haskey(g.exto.vk, sym) || return sym
+		return g.exto.vk[sym].val
+	else	
+		return nosym
+	end
+	# return parent node evaluation if it exists
+	# haskey(g.exto.vk, sym) || return sym==nothing ? newvar() : sym
+
+end
+
 
 #####################################################################
 #  tells if an assignment should be created for this node
@@ -150,10 +172,15 @@ function ispivot(n::NConst, g::ExGraph)
 	sym = getnames(n, g)
 	sym != nosym && return (true, sym)
 
+	# it is used in a setfield/index or getfield/index 
+	any(x -> isa(x, Union(NSRef, NSDot, NRef, NDot)) && n == x.parents[1], g.nodes) &&
+		return (true, nosym)
+
 	for x in filter(x -> isa(x, NFor) && n in x.parents[2:end], g.nodes)
 		fg = x.main[2]
 		isym = fg.exto[n]
-		haskey(fg.seto.vk, isym) && return (true, nosym)
+		haskey(fg.exti.vk, isym) && haskey(fg.exti.vk, isym) && return (true, nosym)
+		# haskey(fg.seto.vk, isym) && return (true, nosym)
 	end
 
 	(false, nothing)

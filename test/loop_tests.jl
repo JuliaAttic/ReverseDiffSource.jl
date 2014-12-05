@@ -93,7 +93,7 @@
         end
         a
     end
-    compare(ex, 3.)  # expected 1.0, got 0.0
+    compare(ex, 3.)  # now works (devl2)   expected 1.0, got 0.0
 
     ex = quote
         a = 0.
@@ -157,4 +157,4 @@
         end
         a
     end
-    compare(ex, 0.1) # ERROR: syntax: invalid assignment location "1"
+    compare(ex, 0.1) # expected 189.18885, got 0.0
