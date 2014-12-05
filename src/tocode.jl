@@ -43,6 +43,7 @@ function tocode(g::ExGraph)
 	    haskey(g.exti, n) || return n.main
 	    sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
 	    haskey(g.exto.vk, sym) || return n.main
+	    # haskey(g.seti.vk, sym) && return n.main # for loop + reentrant => keep local symbol
 	    return g.exto.vk[sym].val  # return node val in parent graph
 	end
 

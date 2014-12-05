@@ -19,7 +19,7 @@
         a=zeros(1+4)
         for i in 1:4
             t = 4+3+2
-            a[i] += b[i]+t-x
+            a[i] = b[i]+t-x
         end
         sum(a)
     end
@@ -29,7 +29,7 @@
         a=zeros(1+3)
         for i in 1:4
             t = 4+3+2
-            a[i] += b[i]*x+t
+            a[i] = b[i]*x+t
         end
         sum(a)
     end
@@ -40,6 +40,16 @@
         a = zeros(2)
         for i in 1:2
             a[i] += x
+        end
+        sum(a)
+    end
+    compare(ex, 1.)
+
+    ex = quote
+        a=zeros(1+3)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]*x+t
         end
         sum(a)
     end
@@ -110,6 +120,15 @@
     ex = quote
         a = 0.
         for i in 1:4
+            a += x
+        end
+        a
+    end
+    compare(ex, 2.) # ERROR: syntax: invalid assignment location "1"
+
+    ex = quote
+        a = 0.
+        for i in 1:4
             a += 2+x
         end
         a
@@ -148,6 +167,51 @@
     compare(ex, ones(10)) 
 
 ### nested loops
+    ex = quote
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += x
+            end
+        end
+        a
+    end
+    compare(ex, 0.1) # ERROR: syntax: invalid assignment location "1"
+
+    x0 = 0.1
+    ex2 = m.rdiff( ex, x=x0 )
+    dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
+    dfunc(0.1)
+
+    let x = 0.1 # line 1:
+            _tmp1 = 0
+            _tmp2 = 0.0
+            _tmp3 = 1:10
+            for i = _tmp3
+                for j = 1:10
+                    _tmp1 = _tmp1 + x
+                end
+            end
+            for i = _tmp3
+                for j = 1:10
+                    1 = 1 + 1
+                    _tmp2 = _tmp2 + 1
+                end
+            end
+            (_tmp1,(_tmp2,))
+    end
+
+    ex = quote
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += log(x) * sin(j)
+            end
+        end
+        a
+    end
+    compare(ex, 0.1) # ERROR: syntax: invalid assignment location "1"
+
     ex = quote
         a=0
         for i in 1:10

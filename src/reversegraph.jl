@@ -159,7 +159,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 			## derivative accumulator
 			# if haskey(nexti.vk, dsym)  # already mapped ?
-			if haskey(fg.seti.vk, sym)  # already mapped ?
+			if haskey(fg.seti.vk, sym) && haskey(fg.seto.vk, sym)  # already mapped ?
 				on2 = fg.seti.vk[sym]
 				nn   = fdnodes[on2]  # nexti.vk[dsym]
 				dsym = nexti[nn]

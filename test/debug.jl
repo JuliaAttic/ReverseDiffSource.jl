@@ -61,10 +61,10 @@
     res = m.rdiff(ex, x=x0, order=2)
     res = m.rdiff(ex, x=x0, order=4)
 
-#=ERROR: key not found: [subref] :setidx ([0.0 0.0
- 0.0 0.0]), from = :_dtmp1 / 0.0 / :colon
- in rev at D:\frtestar\.julia\v0.4\ReverseDiffSource\src\reversegraph.jl:164=#
-    
+    #=ERROR: key not found: [subref] :setidx ([0.0 0.0
+     0.0 0.0]), from = :_dtmp1 / 0.0 / :colon
+     in rev at D:\frtestar\.julia\v0.4\ReverseDiffSource\src\reversegraph.jl:164=#
+
     @eval foo(x) = $res
     foo(x0)
     # (2.0,[3.0,3.0],
@@ -98,13 +98,36 @@
 
 #################   debug  ###################
     ex = quote
-        a = zeros(2)
-        for i in 1:2
-            a[1] = x
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += x
+            end
         end
-        sum(a)
+        a
     end
-    m.rdiff(ex, x=1.)
+    res = m.rdiff(ex, x=1.)
+    @eval foo(x) = $res
+    foo(1.)
+
+    ex = quote
+        a=0
+        for i in 1:2
+            a += x
+        end
+        a
+    end
+    res = m.rdiff(ex, x=1.)
+
+    ex = quote
+        a = zeros(3)
+        for i in 1:2
+            a[1] += x
+        end
+        a[1]
+    end
+    res = m.rdiff(ex, x=1.)
+
 
     ex = quote
         a = 0.
@@ -114,6 +137,9 @@
         a
     end
     m.rdiff(ex, x=1.)
+    @eval foo(x) = $(m.rdiff(ex, x=1.))
+    foo(1)
+    foo(1.1)
 
     m.rdiff( :(a=zeros(2) ; a[1]=x ; sum(a)), x=1.)
 
@@ -142,7 +168,8 @@
     push!(voi, ns)
 
     g
-    g2 = g.nodes[26].main[2]
+    g2 = g.nodes[16].main[2]
+    g2 = g.nodes[9].main[2]
     ns2 = [ g.nodes[27] ]
     m.tocode(g)
     m.prune!(g) 

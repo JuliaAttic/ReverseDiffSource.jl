@@ -22,6 +22,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 
 	ex2 = m.rdiff( ex, x=x0 )
 	dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
+	# @eval dfunc(x) = $ex2 
 
 	l0, (grad0,) = dfunc(x0)  
 	if ndims(x0) == 0  # scalar
