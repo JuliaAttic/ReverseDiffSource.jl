@@ -6,7 +6,7 @@
   
 typealias NSMap BiDict{ExNode, Any}   # ExNode - Symbol map
 
-#####  ExGraph type definition ######
+#####  ExGraph type definitions ######
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
   exti::NSMap
@@ -20,6 +20,11 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(),
                                            NSMap(), 
                                            NSMap(), 
                                            NSMap() )
+
+hasnode(m::NSMap, n::ExNode) = haskey(m.kv, n)
+hassym( m::NSMap, k::Symbol) = haskey(m.vk, k)
+nodes(m::NSMap)              = keys(m.kv)
+syms( m::NSMap)              = keys(m.vk)
 
 function show(io::IO, g::ExGraph)
   tn = fill("", length(g.nodes), 8)

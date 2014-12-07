@@ -115,8 +115,37 @@
         end
         a
     end
-    m.rdiff(ex, x=1.)
+    res = m.rdiff(ex, x=1.)
 
+    @eval foo(x) = $res
+    foo(1)
+    foo(1.01)
+
+
+    g = m.rdiff(ex, x=1., debug=true)
+
+    ex = quote
+        a=0
+        for j in 1:10
+            a += (j < 4) * log(x) * sin(j)
+        end
+        a
+    end
+    ex = quote
+        a = 0.
+        for i in 1:4
+            a = 4*x
+        end
+        a
+    end
+    res = m.rdiff(ex, x=1.)
+    res = m.rdiff(ex, x=1., debug=true)
+    res.nodes[7].main[2]
+    @eval foo(x) = $res
+    foo(1)
+    foo(1.01)
+
+    g = m.rdiff(ex, x=1., debug=true)
 
 
     m.rdiff( :(a=zeros(2) ; a[1]=x ; sum(a)), x=1.)
@@ -142,10 +171,6 @@
         voi = Any[ nothing ]
     end
 
-    g
-    g.nodes[6].main[2]
-
-
     dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
     append!(g.nodes, dg.nodes)
     nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
@@ -153,48 +178,144 @@
     g.seti[nn] = ns
     push!(voi, ns)
 
-    g |> m.splitnary! |> m.prune! |> m.simplify!
-
-    g
-    g2 = g.nodes[8].main[2]
-
-    m.ispivot(g2.nodes[5], g2)
-    m.ispivot(g2.nodes[1], g2)
-    m.getnames(g2.nodes[1], g2)
-
-    n2 = g2.nodes[1]
-    if haskey(g2.seti, n2)
-        sym = g.seti[n]
-        haskey(g.exto.vk, sym) || return sym
-        return g.exto.vk[sym].val
-    elseif haskey(g2.exti, n2)
-        sym = g2.exti[n2]
-        haskey(g2.exto.vk, sym) || return sym
-        return g2.exto.vk[sym].val
-    else    
-        return nosym
-    end
-
-
-    ns2 = [ g.nodes[27] ]
+    # g |> m.splitnary! |> m.prune! |> m.simplify!
 
     m.tocode(g)
     m.prune!(g) 
-    m.tocode(g)  
-    m.simplify!(g) 
-    m.tocode(g)  
 
-    g
-    g2 = g.nodes[8].main[2]
-    ns2 = [ g.nodes[27] ]
+    g2 = g.nodes[9].main[2]
+    m.tocode(g2)  
 
-    @eval foo(x) = $(m.tocode(g))
-    foo(1)
+    m.constequiv(g2.nodes[3], g2) == 1
 
-    g2 = g.nodes[18].main[2]
+    g3 =m.copy(g2)
+    g2 =m.copy(g3)
+
+    m.fusenodes(g2.nodes[2], g2.nodes[5])
+
+    m.simplify!(g2)
+    m.tocode(g2)
+
+    # initial
+        node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4        | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN    | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN    | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+        5    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+        6    |           |       | [call]     | 4, 2    |            | :+      | Symbol :_tmp4  | 
+        7    | _dtmp1 << |       | [subref]   | 2, 5    | 6          | :setidx | Float64 NaN    | 
+        8    |           |       | [call]     | 1, 6    |            | :*      | Expr :(4_tmp4) | 
+        9    | _dtmp2 << | +     | [call]     | 3, 8    |            | :+      | Float64 NaN    | 
+
+    # identical
+        node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4        | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN    | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN    | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+        5    |           |       | [call]     | 4, 2    |            | :+      | Symbol :_tmp4  | 
+        6    | _dtmp1 << |       | [subref]   | 2, 4    | 5          | :setidx | Float64 NaN    | 
+        7    |           |       | [call]     | 1, 5    |            | :*      | Expr :(4_tmp4) | 
+        8    | _dtmp2 << | +     | [call]     | 3, 7    |            | :+      | Float64 NaN    | 
 
 
+        m.evalconstants(g2.nodes[1], g2, Main)
+        m.evalconstants(g2.nodes[2], g2, Main)
+        m.evalconstants(g2.nodes[3], g2, Main)
+        m.evalconstants(g2.nodes[4], g2, Main)
+        m.evalconstants(g2.nodes[5], g2, Main)  # true
+            node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
+            ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
+            1    |           |       | [constant] |         |            | 4       | Int64 4        | 
+            2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Symbol :_tmp3  | 
+            3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Symbol :_tmp2  | 
+            4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+            5    | _dtmp1 << |       | [subref]   | 2, 4    | 8          | :setidx | Symbol :_tmp3  | 
+            6    |           |       | [call]     | 1, 8    |            | :*      | Expr :(4_tmp5) | 
+            7    | _dtmp2 << | +     | [call]     | 3, 6    |            | :+      | Symbol :_tmp2  | 
+            8    |           |       | [constant] |         |            | 1.0     | Float64 NaN    | 
 
+
+    # identical + evalconstants
+        node | symbol    | ext ? | type       | parents | precedence | main    | value       | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | ----------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4     | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0 | 
+        5    | _dtmp1 << |       | [subref]   | 2, 4    | 7          | :setidx | Float64 NaN | 
+        6    | _dtmp2 << | +     | [call]     | 3, 1    |            | :+      | Float64 NaN | 
+        7    |           |       | [constant] |         |            | 1.0     | Float64 NaN | 
+
+    # sans rules
+        node | symbol    | ext ? | type       | parents | precedence | main    | value       | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | ----------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4     | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0 | 
+        5    |           |       | [constant] |         |            | 1.0     | Float64 1.0 | 
+        6    | _dtmp1 << |       | [subref]   | 2, 4    | 5          | :setidx | Float64 NaN | 
+        7    | _dtmp2 << | +     | [call]     | 3, 1    |            | :+      | Float64 NaN | 
+
+
+    ########## simplify  ############
+    m.eval(quote 
+        function simplify!(g::ExGraph, emod = Main)
+            i = 1
+            markalloc!(g)
+            while i <= length(g.nodes)
+                restart = false
+                n = g.nodes[i]
+
+                restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
+                    evalconstants(n, g, emod) ||
+                    rule1(n, g) ||
+                    rule2(n, g) ||
+                    rule3(n, g) #||
+                    #rule4(n, g) ||
+                    #rule5(n, g) ||
+                    #rule6(n, g) ||
+                    #rule7(n, g) ||
+                    #rule8(n, g) ||
+                    #rule9(n, g) ||
+                    #rule10(n, g)
+                
+                if restart
+                    markalloc!(g)
+                    i = 1
+                else
+                    i += 1
+                end
+            end
+            g
+        end
+    end )
+
+    ##### rule 3  ###################
+    n = g2.nodes[6]
+    function rule3(n, g)
+        !isa(n, m.NCall)             && return false
+        (length(n.parents) != 2)   && return false # restricted to binary ops
+        val = m.constequiv(n.parents[1], g2)
+        (val == nothing)           && return false
+        # !isa(n.parents[1], NConst) && return false
+
+        if val == 0 && in(n.main, [:+, :.+])
+            m.fusenodes(g2, n.parents[2], n)
+            return true
+
+        elseif val == 1 && in(n.main, [:*, :.*])
+            fusenodes(g, n.parents[2], n)
+            return true
+
+        else
+            return false
+        end
+    end
 
 ############## debug 2   ##################
     ex = :( x[1]^3 + x[1]*x[2] )

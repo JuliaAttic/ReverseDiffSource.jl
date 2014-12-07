@@ -39,7 +39,6 @@ function simplify!(g::ExGraph, emod = Main)
 	# separate pass on subgraphs
 	map( n -> simplify!(n.main[2], emod), 
 		filter(n->isa(n, NFor), g.nodes))
-
 	
 	g
 end
@@ -52,7 +51,7 @@ function markalloc!(g::ExGraph)
 
 		elseif isa(n, NFor)
 			g2 = n.main[2]  # subgraph
-			syms = collect(values(g2.seto))
+			syms = collect(syms(g2.seto))
 			sn = collect(keys(filter((k,v) -> v in syms, g2.exto.kv)))
 			for n2 in sn
 				n2.alloc = true
@@ -224,7 +223,6 @@ function rule7(n, g)
 	true
 end
 
-
 ## change (-1 * x)  to  (-x) 
 function rule8(n, g)
 	!isa(n, NCall)             && return false
@@ -251,16 +249,15 @@ function rule9(n, g)
 	true
 end
 
-
 # TODO : propagate to grand-parent graph etc...
 function constequiv(n, g)
 	isa(n, NConst)          && return n.main
 	!isa(n, NExt)           && return nothing
 
-	sym = get(g.exti.kv, n, nothing)
-	(sym == nothing)        && return nothing
+	!haskey(g.exti.kv, n)   && return nothing
+	sym = g.exti.kv[n]
 	!haskey(g.exto.vk, sym) && return nothing
-	haskey(g.seto.vk, sym)  && return nothing
+	haskey(g.seti.vk, sym)  && return nothing
 
 	!isa(g.exto.vk[sym], NConst)  && return nothing
 	g.exto.vk[sym].main
