@@ -75,8 +75,8 @@ function tograph(s, svars::Vector)
 
 	function explore(ex::Symbol)
 		ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
-		haskey(g.seti.vk, ex)       && return g.seti.vk[ex]
-		haskey(g.exti.vk, ex)       && return g.exti.vk[ex]
+		hassym(g.seti, ex)       && return getnode(g.seti, ex)
+		hassym(g.exti, ex)       && return getnode(g.exti, ex)
 
 		nn = addnode!(g, NExt(ex))    # create external node for this var
 		g.exti[nn] = ex
@@ -126,7 +126,7 @@ function tograph(s, svars::Vector)
 
 				# we test if RHS has already a symbol
 				# if it does, to avoid loosing it, we create an NIn node
-				if haskey(g.seti, rhn) 
+				if hasnode(g.seti, rhn) 
 					rhn = addnode!(g, NIn(lhss, [rhn]))
 				end
 			end
@@ -163,7 +163,7 @@ function tograph(s, svars::Vector)
 		nir = explore(ex.args[1].args[2])
 
 		# explore the for block as a separate graph 
-		nsvars = union(svars, collect(keys(g.seti.vk)))
+		nsvars = union(svars, collect(syms(g.seti)))
 		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node
@@ -191,7 +191,7 @@ function tograph(s, svars::Vector)
 				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
 
 				# create corresponding exti if it's not already done
-				if !haskey(g2.exto.vk, sym)
+				if !hassym(g2.exto, sym)
 					g2.exto[pn] = sym
 					push!(nf.parents, pn) # mark as parent of for loop
 				end

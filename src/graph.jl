@@ -25,6 +25,9 @@ hasnode(m::NSMap, n::ExNode) = haskey(m.kv, n)
 hassym( m::NSMap, k::Symbol) = haskey(m.vk, k)
 nodes(m::NSMap)              = keys(m.kv)
 syms( m::NSMap)              = keys(m.vk)
+getsym( m::NSMap, n::ExNode) = m.kv[n]
+getnode(m::NSMap, k::Symbol) = m.vk[k]
+
 
 function show(io::IO, g::ExGraph)
   tn = fill("", length(g.nodes), 8)
