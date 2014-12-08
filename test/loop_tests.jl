@@ -84,7 +84,7 @@
         end
         a
     end
-    compare(ex, 3.)  # expected 4.0, got 16.0
+    compare(ex, 3.)  
 
     ex = quote
         a = 0.
@@ -93,7 +93,7 @@
         end
         a
     end
-    compare(ex, 3.)  # now works (devl2)   expected 1.0, got 0.0
+    compare(ex, 3.) 
 
     ex = quote
         a = 0.
@@ -102,9 +102,9 @@
         end
         a
     end
-    compare(ex, [3., 2.])  #  expected [0.0,1.0], got [1.0,1.0]
+    compare(ex, [3., 2.]) 
     compare(ex, [1.])      
-    compare(ex, ones(10))  # faux
+    compare(ex, ones(10)) 
 
 ### same var accumulator (scalar)
     ex = quote
@@ -114,7 +114,7 @@
         end
         a
     end
-    compare(ex, 2.) 
+    compare(ex, 2.)
 
     ex = quote
         a = 0.
@@ -157,4 +157,4 @@
         end
         a
     end
-    compare(ex, 0.1) # expected 189.18885, got 0.0
+    compare(ex, 0.1) 

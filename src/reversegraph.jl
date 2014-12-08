@@ -213,8 +213,9 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# println("after pruning\n$fg")
 
 		# create for loop
+		nr = addgraph!( :( reverse( x ) ), g2, [ :x => n.parents[1] ] ) # range in reverse order
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
-		v2.parents = [n.parents[1], collect( keys( fg.exto)) ]
+		v2.parents = [nr, collect( keys( fg.exto)) ]
 
 		# seto = dnodes of fg's ingoing variables
 		fg.seto = NSMap()

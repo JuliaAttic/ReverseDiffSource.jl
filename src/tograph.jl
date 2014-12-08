@@ -75,8 +75,8 @@ function tograph(s, svars::Vector)
 
 	function explore(ex::Symbol)
 		ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
-		haskey(g.seti.vk, ex) && return g.seti.vk[ex]
-		haskey(g.exti.vk, ex) && return g.exti.vk[ex]
+		haskey(g.seti.vk, ex)       && return g.seti.vk[ex]
+		haskey(g.exti.vk, ex)       && return g.exti.vk[ex]
 
 		nn = addnode!(g, NExt(ex))    # create external node for this var
 		g.exti[nn] = ex
@@ -114,12 +114,6 @@ function tograph(s, svars::Vector)
 		
 		if isSymbol(lhs)
 			lhss = lhs
-			#=	rhn  = explore(ex.args[2])
-			# we test if RHS has already a symbol
-			# if it does, to avoid loosing it, we create an NIn node
-			if haskey(g.seti, rhn) 
-				rhn = addnode!(g, NIn(lhss, [rhn]))
-			end=#
 
 			# set before ? call explore
 			if lhss in union(svars, collect(keys(g.seti.vk)))
@@ -129,6 +123,12 @@ function tograph(s, svars::Vector)
 				rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
 			else # never set before ? assume it is created here
 				rhn = explore(ex.args[2])
+
+				# we test if RHS has already a symbol
+				# if it does, to avoid loosing it, we create an NIn node
+				if haskey(g.seti, rhn) 
+					rhn = addnode!(g, NIn(lhss, [rhn]))
+				end
 			end
 
 		elseif isRef(lhs)

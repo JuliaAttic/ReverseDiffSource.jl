@@ -51,7 +51,7 @@ function markalloc!(g::ExGraph)
 
 		elseif isa(n, NFor)
 			g2 = n.main[2]  # subgraph
-			syms = collect(syms(g2.seto))
+			syms = collect(values(g2.seto.kv))
 			sn = collect(keys(filter((k,v) -> v in syms, g2.exto.kv)))
 			for n2 in sn
 				n2.alloc = true
@@ -148,6 +148,7 @@ end
 
 ## left neutral element
 function rule3(n, g)
+	n.alloc	                && return false
 	!isa(n, NCall)             && return false
 	(length(n.parents) != 2)   && return false # restricted to binary ops
 	val = constequiv(n.parents[1], g)

@@ -167,6 +167,19 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
     end  
   end
 
+  # test if nr is in the precedence of some node and nk is a parent of the same node
+  ps = filter(x -> (nr in x.precedence) && (nk in x.parents), g.nodes)
+  if length(ps) > 0
+    nn = addnode!(g, NIn(nothing, [nk]))
+    nn.val = "fuse #2"
+
+    for n in g.nodes
+      n.parents    = map(x -> x==nr ? nn : x, n.parents)
+      n.precedence = map(x -> x==nr ? nn : x, n.precedence)
+    end
+
+  end   
+
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
     if isa(n, NFor)

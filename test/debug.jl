@@ -10,11 +10,22 @@
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
     ex = :( a=1 ; b= zeros(3)  ) 
+
+    ex = quote
+        for i in 1:10
+            a[i] = b[i]+2
+        end
+        c=3
+    end
+
     g = m.tograph(ex)
+    m.simplify!(g)
+
+    g2 = g.nodes[4].main[2]
+
+    m.syms(g2.exto)
+    m.syms(g2.seto)
     m.tocode(g)
-
-
-
 
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -139,8 +150,23 @@
         a
     end
     res = m.rdiff(ex, x=1.)
-    res = m.rdiff(ex, x=1., debug=true)
-    res.nodes[7].main[2]
+    g = m.rdiff(ex, x=1., debug=true)
+    g2 = res.nodes[8].main[2]
+    m.tocode(g)
+
+    nb = g2.exto.vk[:_dtmp1]
+    nb in g.nodes
+    pn = res.nodes[8].parents
+    nb in pn
+    
+    pn[1] in g.nodes
+    pn[2] in g.nodes
+    pn[3] in g.nodes
+
+
+    m.ispivot(g2.nodes[2], g2)
+    m.getnames(g2.nodes[2], g2)
+
     @eval foo(x) = $res
     foo(1)
     foo(1.01)

@@ -63,15 +63,9 @@ function tocode(g::ExGraph)
 		                      tocode(n.main[2]))
 
 	evalsort!(g)
-
-	# mark nodes in precedence
-
-
 	out = Any[]
 	for n in g.nodes
-	    # translate to Expr
-		n.val = translate(n)
-
+		n.val = translate(n)       # translate to Expr
 		stat, lhs = ispivot(n, g)
 
 	    if stat && isa(n, Union(NSRef, NSDot))
@@ -89,12 +83,11 @@ function tocode(g::ExGraph)
 	        n.val = valdict
 
 		elseif stat && (lhs != n.val)  
-			if lhs == nothing && n == g.nodes[end] # last statment without assign
+			if lhs == nothing && n == g.nodes[end] # last statement without assignment
 				push!(out, :( $(n.val) )) 
+
 			else
 				( lhs in [ nosym, nothing] ) && ( lhs = newvar() )
-				# nlhs = ( lhs in [ nosym, nothing ] ) ? newvar() : lhs
-				# println("***", lhs, "^^", nlhs)
 				push!(out, :( $lhs = $(n.val) ))
 			end				
 
@@ -108,24 +101,11 @@ function tocode(g::ExGraph)
 end 
 
 #####################################################################
-#  variable names assigned to this node
+#  variable name assigned to this node
 #####################################################################
 const nosym = 0x7c883061f2344364  # code for no symbol associated
 
-#=function getnames(n::ExNode, g::ExGraph)
-	n = g2.nodes[1] ; g = g2
-
-	m.haskey(g.seti, n) || return nosym
-	sym = g.seti[n]
-
-	# return parent node evaluation if it exists
-	# haskey(g.exto.vk, sym) || return sym==nothing ? newvar() : sym
-	haskey(g.exto.vk, sym) || return sym
-
-	return g.exto.vk[sym].val
-end
-=#
-function getnames(n::ExNode, g::ExGraph)
+function getname(n::ExNode, g::ExGraph)
 	if haskey(g.seti, n)
 		sym = g.seti[n]
 		haskey(g.exto.vk, sym) || return sym
@@ -137,8 +117,6 @@ function getnames(n::ExNode, g::ExGraph)
 	else	
 		return nosym
 	end
-	# return parent node evaluation if it exists
-	# haskey(g.exto.vk, sym) || return sym==nothing ? newvar() : sym
 
 end
 
@@ -152,12 +130,12 @@ ispivot(n::Union(NSRef, NSDot, NFor), g::ExGraph) = (true, nothing)
 
 # print only if names are linked
 function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
-	sym = getnames(n, g)
+	sym = getname(n, g)
 	# (sym != nosym, sym)
 	sym != nosym && return (true, sym)
 
 	# it is in the precedence of another node and is (by another path) a parent of an exitnode
-	ps = filter(x -> (n in x.precedence), g.nodes) # faster but less clean
+	ps = filter(x -> (n in x.precedence), g.nodes) 
 	if length(ps) > 0
 		sv = collect(keys(g.seti))
 		isancestor(n, sv, g, ps) && return (true, nosym)
@@ -169,7 +147,7 @@ end
 
 # print constants that are named or modified by a for loop
 function ispivot(n::NConst, g::ExGraph)
-	sym = getnames(n, g)
+	sym = getname(n, g)
 	sym != nosym && return (true, sym)
 
 	# it is used in a setfield/index or getfield/index 
@@ -188,18 +166,25 @@ end
 
 # print only if used in For loop
 function ispivot(n::NIn, g::ExGraph)
-	sym = getnames(n, g)
+	sym = getname(n, g)
 	sym != nosym && return (true, sym)
 
 	any(x -> isa(x, NFor) && n in x.parents[2:end], g.nodes) && 
 		return (true, nosym)
+
+	# it is in the precedence of another node and is (by another path) a parent of an exitnode
+	ps = filter(x -> (n in x.precedence), g.nodes) 
+	if length(ps) > 0
+		sv = collect(keys(g.seti))
+		isancestor(n, sv, g, ps) && return (true, nosym)
+	end
 
 	(false, nothing)
 end
 
 
 function ispivot(n::Union(NCall, NComp), g::ExGraph)
-	sym = getnames(n, g)
+	sym = getname(n, g)
 
 	# it has a name assigned
 	sym != nosym && return (true, sym)
@@ -217,7 +202,7 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	(sum(x -> sum(n .== x.parents), g.nodes) > 1) && return (true, nosym)
 
 	# it is in the precedence of another node and is (by another path) a parent of an exitnode
-	ps = filter(x -> (n in x.precedence), g.nodes) # faster but less clean
+	ps = filter(x -> (n in x.precedence), g.nodes) 
 	if length(ps) > 0
 		sv = collect(keys(g.seti))
 		isancestor(n, sv, g, ps) && return (true, nosym)
