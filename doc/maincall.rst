@@ -104,8 +104,6 @@ When a second derivative expression is needed, only a single derivation variable
 Limitations
 ^^^^^^^^^^^
 
-* When determining the influence of a variable on a several ``setindex!`` on the same variable, for example ``a[2:3] = x ; a[3:4] = 2x``, the algorithm will overstate the influence of ``x`` if there is an overlap on the indices, ``a[3]`` in this case. The current algorithm is left with this limitation due to the complexity of tracking each different element of arrays and also because this should hardly occur in normal code.
-
 * The canonical implementation of ``for`` loops derivation in reverse accumulation requires the caching of the complete state of each iteration which makes the generated code complex and memory intensive. The current algorithm uses a simpler approach that limits the kind of loops that can be correctly derived : in short, loops should not have any kind of recursivity in them (the calculations of each iteration should not depend on the calculations of previous iterations)::
 
 	# will work
