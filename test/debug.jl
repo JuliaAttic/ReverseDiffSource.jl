@@ -5,35 +5,13 @@
 
     include("runtests.jl")
 
-######################  new branch devl2   ################################
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
-
-    ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-    ex = :( a=1 ; b= zeros(3)  ) 
-
-    ex = quote
-        for i in 1:10
-            a[i] = b[i]+2
-        end
-        c=3
-    end
-
-    g = m.tograph(ex)
-    m.simplify!(g)
-
-    g2 = g.nodes[4].main[2]
-
-    m.syms(g2.exto)
-    m.syms(g2.seto)
-    m.tocode(g)
-
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
     res = m.rdiff(ex, x=zeros(2), order=2)   
-    res = m.rdiff(ex, x=zeros(2), order=3)   # 66/69 lines  73  (devl2)
-    res = m.rdiff(ex, x=zeros(2), order=4)   # 75 lines, error
+    res = m.rdiff(ex, x=zeros(2), order=3)   # 66/69 lines  72  (devl2)
+    res = m.rdiff(ex, x=zeros(2), order=4)   #  error
 
     @eval foo(x) = $res
     foo([0.5, 2.])
@@ -117,66 +95,19 @@
     #  0.0  6.0
 
 #################   debug  ###################
-    ex = quote
-        a=0
-        for i in 1:10
-            for j in 1:10
-                a += (j < 4) * log(x) * sin(j)
-            end
-        end
-        a
-    end
+    ex = :( a = x ; b = a )
+    ex = :( a = x ; b = a ; a + b)
+    ex = :( a = x ; b = a ; c = b ; b)
+    ex = :( b = 0 ; a=x ; b = 3a ; b*x ) 
+
     res = m.rdiff(ex, x=1.)
-
-    @eval foo(x) = $res
-    foo(1)
-    foo(1.01)
-
-
-    g = m.rdiff(ex, x=1., debug=true)
-
-    ex = quote
-        a=0
-        for j in 1:10
-            a += (j < 4) * log(x) * sin(j)
-        end
-        a
-    end
-    ex = quote
-        a = 0.
-        for i in 1:4
-            a = 4*x
-        end
-        a
-    end
-    res = m.rdiff(ex, x=1.)
-    g = m.rdiff(ex, x=1., debug=true)
-    g2 = res.nodes[8].main[2]
+    g = m.tograph(ex)
     m.tocode(g)
 
-    nb = g2.exto.vk[:_dtmp1]
-    nb in g.nodes
-    pn = res.nodes[8].parents
-    nb in pn
-    
-    pn[1] in g.nodes
-    pn[2] in g.nodes
-    pn[3] in g.nodes
-
-
-    m.ispivot(g2.nodes[2], g2)
-    m.getnames(g2.nodes[2], g2)
-
     @eval foo(x) = $res
     foo(1)
     foo(1.01)
 
-    g = m.rdiff(ex, x=1., debug=true)
-
-
-    m.rdiff( :(a=zeros(2) ; a[1]=x ; sum(a)), x=1.)
-
-    ex = :( b = 0 ; a=x ; b = 3a ; b*x ) 
 
 
 
@@ -195,29 +126,31 @@
         m.calc!(g, params=parval, emod=Main)
 
         voi = Any[ nothing ]
-    end
 
-    dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-    append!(g.nodes, dg.nodes)
-    nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
-    ns = m.newvar("_dv")
-    g.seti[nn] = ns
-    push!(voi, ns)
+        dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
+        append!(g.nodes, dg.nodes)
+        nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
+        ns = m.newvar("_dv")
+        g.seti[nn] = ns
+        push!(voi, ns)
+    end
 
     # g |> m.splitnary! |> m.prune! |> m.simplify!
 
     m.tocode(g)
     m.prune!(g) 
 
-    g2 = g.nodes[9].main[2]
+    g2 = g.nodes[8].main[2]
     m.tocode(g2)  
 
-    m.constequiv(g2.nodes[3], g2) == 1
+    m.ispivot(g2.nodes[5], g2)
 
-    g3 =m.copy(g2)
+    g3 = m.copy(g2)
     g2 =m.copy(g3)
 
-    m.fusenodes(g2.nodes[2], g2.nodes[5])
+    m.fusenodes(g2, g2.nodes[4], g2.nodes[5])
+    g2
+    m.fusenodes(g2, g2.nodes[2], g2.nodes[5])
 
     m.simplify!(g2)
     m.tocode(g2)

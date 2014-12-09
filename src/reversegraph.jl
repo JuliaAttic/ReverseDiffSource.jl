@@ -13,9 +13,6 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	for n in filter(n-> !isa(n,NFor), g.nodes)
 		if n == exitnode
 			dnodes[n] = addnode!(g2, NConst(1.0))
-		# elseif isa(n, NSRef) || isa(n, NSDot)  # unique alloc for all NSRef and NSDot on same instance
-		# 	@assert haskey(dnodes, n.parents[1]) "[reversegraph] nodes not ordered ?"
-		# 	dnodes[n] = dnodes[n.parents[1]]
 		else
 			dnodes[n] = createzeronode!(g2, n)
 		end
@@ -152,8 +149,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# nexti = fg.exti
 		# nexto = fg.exto
 		# outgoing nodes generate ingoing dnodes
-		for (n2, sym) in filter((n,s) -> haskey(fg.seto.vk, s), fg.seti.kv)
-			on = fg.seto.vk[sym]
+		for (n2, sym) in filter((n,s) -> hassym(fg.seto, s), fg.seti.kv)
+			on = getnode(fg.seto, sym)
 			dsym = newvar(:_dtmp)  # dprefix(sym) 
 			#  derivative of var
 			nn = addnode!(fg2, NExt(dsym))
@@ -165,13 +162,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 		# ingoing nodes become potential outgoing dnodes
-		for (n2, sym) in filter((n,s) -> haskey(fg.exto.vk, s), fg.exti.kv)
-			on = fg.exto.vk[sym]
+		for (n2, sym) in filter((n,s) -> hassym(fg.exto, s), fg.exti.kv)
+			on = getnode(fg.exto, sym)
 
 			## derivative accumulator
 			# if haskey(nexti.vk, dsym)  # already mapped ?
-			if haskey(fg.seti.vk, sym)  # already mapped ?
-				on2 = fg.seti.vk[sym]
+			if hassym(fg.seti, sym)  # already mapped ?
+				on2 = getnode(fg.seti, sym)
 				nn   = fdnodes[on2]  # nexti.vk[dsym]
 				dsym = nexti[nn]
 				# println("exti (refused) : $sym / $dsym : $nn")

@@ -40,10 +40,10 @@ function tocode(g::ExGraph)
 	end
 
 	function translate(n::NExt)
-	    haskey(g.exti, n) || return n.main
+	    hasnode(g.exti, n) || return n.main
 	    sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
-	    haskey(g.exto.vk, sym) || return n.main
-	    return g.exto.vk[sym].val  # return node val in parent graph
+	    hassym(g.exto, sym) || return n.main
+	    return getnode(g.exto, sym).val  # return node val in parent graph
 	end
 
 	function translate(n::NSRef)
@@ -78,7 +78,7 @@ function tocode(g::ExGraph)
 	    	g2 = n.main[2]
 	        valdict = Dict()
 		    for (k, sym) in g2.seto
-		      valdict[k] = g2.seti.vk[sym].val
+		      valdict[k] = getnode(g2.seti, sym).val
 		    end
 	        n.val = valdict
 
@@ -106,14 +106,14 @@ end
 const nosym = 0x7c883061f2344364  # code for no symbol associated
 
 function getname(n::ExNode, g::ExGraph)
-	if haskey(g.seti, n)
+	if hasnode(g.seti, n)
 		sym = g.seti[n]
-		haskey(g.exto.vk, sym) || return sym
-		return g.exto.vk[sym].val
-	elseif haskey(g.exti, n)
+		hassym(g.exto, sym) || return sym
+		return getnode(g.exto, sym).val
+	elseif hasnode(g.exti, n)
 		sym = g.exti[n]
-		haskey(g.exto.vk, sym) || return sym
-		return g.exto.vk[sym].val
+		hassym(g.exto, sym) || return sym
+		return getnode(g.exto, sym).val
 	else	
 		return nosym
 	end
@@ -157,8 +157,7 @@ function ispivot(n::NConst, g::ExGraph)
 	for x in filter(x -> isa(x, NFor) && n in x.parents[2:end], g.nodes)
 		fg = x.main[2]
 		isym = fg.exto[n]
-		haskey(fg.exti.vk, isym) && haskey(fg.exti.vk, isym) && return (true, nosym)
-		# haskey(fg.seto.vk, isym) && return (true, nosym)
+		hassym(fg.exti, isym) && hassym(fg.exti, isym) && return (true, nosym)
 	end
 
 	(false, nothing)

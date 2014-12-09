@@ -22,11 +22,13 @@ ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(),
                                            NSMap() )
 
 hasnode(m::NSMap, n::ExNode) = haskey(m.kv, n)
-hassym( m::NSMap, k::Symbol) = haskey(m.vk, k)
+hassym( m::NSMap, k)         = haskey(m.vk, k)
 nodes(m::NSMap)              = keys(m.kv)
 syms( m::NSMap)              = keys(m.vk)
+
+getnode(m::NSMap, k)         = m.vk[k]
+getnode(m::NSMap, k::Void)   = m.vk[nothing]
 getsym( m::NSMap, n::ExNode) = m.kv[n]
-getnode(m::NSMap, k::Symbol) = m.vk[k]
 
 
 function show(io::IO, g::ExGraph)
@@ -35,14 +37,14 @@ function show(io::IO, g::ExGraph)
   for (i,n) in enumerate(g.nodes)
     tn[i,1] = "$i"
 
-    if haskey(g.exti, n)
+    if hasnode(g.exti, n)
       sym = g.exti[n]
       tn[i,2] = "$sym >>"
-      haskey(g.exto.vk, sym) && (tn[i,3] = "+")
-    elseif haskey(g.seti, n)
+      hassym(g.exto, sym) && (tn[i,3] = "+")
+    elseif hasnode(g.seti, n)
       sym = g.seti[n]
       tn[i,2] = "$sym <<"
-      haskey(g.seto.vk, sym) && (tn[i,3] = "+")
+      hassym(g.seto, sym) && (tn[i,3] = "+")
     end
 
     tn[i,4] = "[$(subtype(n))]"
@@ -104,13 +106,13 @@ function copy(g::ExGraph)
   for n in filter(x -> isa(x, NFor), g2.nodes)
     fg = n.main[2]
     no = NSMap()
-    for (k,v) in fg.exto.kv
+    for (k,v) in fg.exto
       no[ nmap[k] ] = v
     end
     fg.exto = no
 
     no = NSMap()
-    for (k,v) in fg.seto.kv
+    for (k,v) in fg.seto
       no[ nmap[k] ] = v
     end
     fg.seto = no
@@ -119,10 +121,10 @@ function copy(g::ExGraph)
   # copy node mapping and translate inner nodes to newly created ones
   g2.exto = NSMap(g.exto.kv)
   g2.seto = NSMap(g.seto.kv)
-  for (k,v) in g.exti.kv
+  for (k,v) in g.exti
     g2.exti[ nmap[k] ] = v
   end
-  for (k,v) in g.seti.kv
+  for (k,v) in g.seti
     g2.seti[ nmap[k] ] = v
   end
 
@@ -154,18 +156,18 @@ end
 # removes node nr and keeps node nk 
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
-  if haskey(g.exti, nr)
+  if hasnode(g.exti, nr)
     g.exti[nk] = g.exti[nr]
   end
 
   # test if nr is associated to a setting node
   # if true, we create an NIn on nk, and associate var to it
-  if haskey(g.seti, nr)
+  if hasnode(g.seti, nr)
     nn = addnode!(g, NIn(g.seti[nr], [nk]))
     nn.val = "fuse #1"
     g.seti[nn] = g.seti[nr]  # nn replaces nr as set_inode
 
-    if haskey(g.seto, nr)   # change onodes too (if we are in a subgraph)
+    if hasnode(g.seto, nr)   # change onodes too (if we are in a subgraph)
       g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
     end  
   end
@@ -189,13 +191,13 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       g2 = n.main[2]
 
       # this should not happen...
-      @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+      @assert !hasnode(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
-      if haskey(g2.exto, nr)
-        if haskey(g2.exto, nk)  # both nr and nk are used by the for loop
+      if hasnode(g2.exto, nr)
+        if hasnode(g2.exto, nk)  # both nr and nk are used by the for loop
           symr = g2.exto[nr]
           symk = g2.exto[nk]
-          fusenodes(g2, g2.exti.vk[symk], g2.exti.vk[symr])
+          fusenodes(g2, getnode(g2.exti, symk), getnode(g2.exti, symr))
         end
 
         g2.exto[nk] = g2.exto[nr]  # nk replaces nr in g2.exto
@@ -238,15 +240,15 @@ function prune!(g::ExGraph, exitnodes)
 
       # list of g2 nodes whose outer node is in ns2
       exitnodes2 = ExNode[]
-      for (k, sym) in g2.seto.kv
+      for (k, sym) in g2.seto
         k in ns2 || continue
-        push!(exitnodes2, g2.seti.vk[sym])
+        push!(exitnodes2, getnode(g2.seti, sym))
       end
       # don't forget reentrant variables
-      for (n2, sym) in g2.seti.kv
+      for (n2, sym) in g2.seti
         (n2 in exitnodes2)               && continue
-        haskey(g2.exti.vk, sym)          || continue
-        on = g2.exti.vk[sym]
+        hassym(g2.exti, sym)             || continue
+        on = getnode(g2.exti, sym)
         isancestor(on, exitnodes2, g2)   || continue
         push!(exitnodes2, n2)
       end
@@ -264,16 +266,16 @@ function prune!(g::ExGraph, exitnodes)
   end
 
   # remove unused external inodes in map and corresponding onodes (if they exist)
-  for (k,v) in g.exti.kv
+  for (k,v) in g.exti
     k in ns2 && continue
     delete!(g.exti, k)
-    haskey(g.exto.vk, v) && delete!(g.exto, g.exto.vk[v])
+    hassym(g.exto, v) && delete!(g.exto, getnode(g.exto, v))
   end
   # reduce set inodes to what was specified in initial exitnodes parameter
-  for (k,v) in g.seti.kv
+  for (k,v) in g.seti
     k in exitnodes && continue
     delete!(g.seti, k)
-    haskey(g.seto.vk, v) && delete!(g.seto, g.seto.vk[v])
+    hassym(g.seto, v) && delete!(g.seto, getnode(g.seto, v))
   end
 
   # remove precedence nodes that have disappeared
@@ -335,11 +337,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end 
 
   function evaluate(n::NExt)
-    haskey(g.exti, n) || return myeval(n.main)
+    hasnode(g.exti, n) || return myeval(n.main)
 
     sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
-    haskey(g.exto.vk, sym) || return myeval(n.main)
-    return g.exto.vk[sym].val  # return node val in parent graph
+    hassym(g.exto, sym) || return myeval(n.main)
+    return getnode(g.exto, sym).val  # return node val in parent graph
   end
 
   evaluate(n::NConst) = n.main
@@ -367,7 +369,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     
     valdict = Dict()
     for (k, sym) in g2.seto
-      valdict[k] = g2.seti.vk[sym].val
+      valdict[k] = getnode(g2.seti, sym).val
     end
 
     valdict
@@ -392,7 +394,7 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   # TODO : this control should be done at the deriv_rules.jl level
 
   ig = copy(src) # make a copy, update references
-  exitnode = ig.seti.vk[nothing] # result of added subgraph
+  exitnode = getnode(ig.seti, nothing) # result of added subgraph
 
   evalsort!(ig)
 
@@ -432,6 +434,5 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   end
 
   # return exitnode of subgraph
-  # ig.seti.vk[nothing]
   exitnode
 end

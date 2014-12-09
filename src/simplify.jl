@@ -255,13 +255,14 @@ function constequiv(n, g)
 	isa(n, NConst)          && return n.main
 	!isa(n, NExt)           && return nothing
 
-	!haskey(g.exti.kv, n)   && return nothing
+	!hasnode(g.exti, n)     && return nothing
 	sym = g.exti.kv[n]
-	!haskey(g.exto.vk, sym) && return nothing
-	haskey(g.seti.vk, sym)  && return nothing
+	!hassym(g.exto, sym)    && return nothing
+	 hassym(g.seti, sym)    && return nothing
 
-	!isa(g.exto.vk[sym], NConst)  && return nothing
-	g.exto.vk[sym].main
+	pn = getnode(g.exto, sym)
+	!isa(pn, NConst)  && return nothing
+	pn.main
 end
 
 ## getindex on fill()
