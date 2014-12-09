@@ -58,7 +58,7 @@ function plot(g::ExGraph)
       for n2 in g2.nodes
         if hasnode(g2.exti, n2)
           sym = g2.exti[n2]
-          if haskey(g2.exto.vk, sym)
+          if hassym(g2.exto, sym)
             p = getnode(g2.exto, sym)
             out = out * "$(nn[p]) -> $(nn[n2]) [style=dashed];"
           end

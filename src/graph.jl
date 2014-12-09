@@ -218,7 +218,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
-prune!(g::ExGraph) = prune!(g, collect(keys(g.seti.kv)))
+prune!(g::ExGraph) = prune!(g, collect(nodes(g.seti)))
 
 function prune!(g::ExGraph, exitnodes)
   ns2 = copy(exitnodes)
@@ -259,7 +259,7 @@ function prune!(g::ExGraph, exitnodes)
       prune!(g2, exitnodes2)
 
       # update parents
-      n.parents = [n.parents[1], intersect(n.parents, collect(keys(g2.exto)) ) ]
+      n.parents = [n.parents[1], intersect(n.parents, collect(nodes(g2.exto)) ) ]
     end
 
     ns2 = union(ns2, n.parents)

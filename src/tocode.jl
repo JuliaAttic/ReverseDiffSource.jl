@@ -137,7 +137,7 @@ function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph)
 	# it is in the precedence of another node and is (by another path) a parent of an exitnode
 	ps = filter(x -> (n in x.precedence), g.nodes) 
 	if length(ps) > 0
-		sv = collect(keys(g.seti))
+		sv = collect(nodes(g.seti))
 		isancestor(n, sv, g, ps) && return (true, nosym)
 	end
 
@@ -174,7 +174,7 @@ function ispivot(n::NIn, g::ExGraph)
 	# it is in the precedence of another node and is (by another path) a parent of an exitnode
 	ps = filter(x -> (n in x.precedence), g.nodes) 
 	if length(ps) > 0
-		sv = collect(keys(g.seti))
+		sv = collect(nodes(g.seti))
 		isancestor(n, sv, g, ps) && return (true, nosym)
 	end
 
@@ -203,7 +203,7 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 	# it is in the precedence of another node and is (by another path) a parent of an exitnode
 	ps = filter(x -> (n in x.precedence), g.nodes) 
 	if length(ps) > 0
-		sv = collect(keys(g.seti))
+		sv = collect(nodes(g.seti))
 		isancestor(n, sv, g, ps) && return (true, nosym)
 	end
 

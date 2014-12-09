@@ -87,7 +87,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
         dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
         ns = newvar(:_dv)
-        g.seti[ collect(keys(dg.seti))[1] ] = ns
+        g.seti[ collect(nodes(dg.seti))[1] ] = ns
         push!(voi, ns)
 
         g |> splitnary! |> prune! |> simplify!
@@ -201,7 +201,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             dg.seto = NSMap(Dict([nex], [ssa]))
 
             # update parents of for loop
-            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
+            append!( nf.parents, setdiff(collect( nodes(dg.exto)), nf.parents[2:end]) )
 
             ns = newvar(:_dv)
             g.seti[nex] = ns

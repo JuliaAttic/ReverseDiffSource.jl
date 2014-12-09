@@ -116,7 +116,7 @@ function tograph(s, svars::Vector)
 			lhss = lhs
 
 			# set before ? call explore
-			if lhss in union(svars, collect(keys(g.seti.vk)))
+			if lhss in union(svars, collect(syms(g.seti)))
 				vn = explore(lhss)
 				rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
 					                                explore(ex.args[2]) ])) # value affected in pos #2

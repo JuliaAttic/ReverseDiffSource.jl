@@ -51,12 +51,16 @@ function markalloc!(g::ExGraph)
 
 		elseif isa(n, NFor)
 			g2 = n.main[2]  # subgraph
-			syms = collect(values(g2.seto.kv))
-			sn = collect(keys(filter((k,v) -> v in syms, g2.exto.kv)))
+#=			ss = collect(syms(g2.seto))
+			sn = collect(keys(filter((k,v) -> v in ss, g2.exto.kv)))
 			for n2 in sn
 				n2.alloc = true
 			end
-
+=#
+			for (n2, s2) in g2.exto
+				hassym(g2.seto, s2) || continue
+				n2.alloc = true
+			end
 		else
 			n.alloc = false	
 		end
