@@ -149,7 +149,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# nexti = fg.exti
 		# nexto = fg.exto
 		# outgoing nodes generate ingoing dnodes
-		for (n2, sym) in filter((n,s) -> hassym(fg.seto, s), fg.seti.kv)
+		for (n2, sym) in fg.seti 
+			hassym(fg.seto, sym)  || continue
 			on = getnode(fg.seto, sym)
 			dsym = newvar(:_dtmp)  # dprefix(sym) 
 			#  derivative of var
@@ -162,12 +163,13 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 		# ingoing nodes become potential outgoing dnodes
-		for (n2, sym) in filter((n,s) -> hassym(fg.exto, s), fg.exti.kv)
+		for (n2, sym) in fg.exti
+			hassym(fg.exto, sym)  || continue
 			on = getnode(fg.exto, sym)
 
 			## derivative accumulator
 			# if haskey(nexti.vk, dsym)  # already mapped ?
-			if hassym(fg.seti, sym)  # already mapped ?
+			if hassym(fg.seto, sym)  # hassym(fg.seti, sym)  # already mapped ?
 				on2 = getnode(fg.seti, sym)
 				nn   = fdnodes[on2]  # nexti.vk[dsym]
 				dsym = nexti[nn]
