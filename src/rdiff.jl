@@ -44,24 +44,24 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
     g = tograph(ex)
 
-    haskey(g.seti.vk, outsym) || 
+    hassym(g.seti, outsym) || 
         error("can't find output var $( outsym==nothing ? "" : outsym)")
 
     # reduce to variable of interest
-    g.seti = BiDict{ExNode,Any}([g.seti.vk[outsym]], [ outsym ])    
+    g.seti = BiDict{ExNode,Any}([getnode(g.seti, outsym)], [ outsym ])    
 
     g |> splitnary! |> prune! |> simplify!
     calc!(g, params=parval, emod=evalmod)
 
-    ov = g.seti.vk[outsym].val 
+    ov = getnode(g.seti, outsym).val 
     isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
     voi = Any[ outsym ]
 
     if order == 1
-        dg = reversegraph(g, g.seti.vk[outsym], paramsym)
+        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
-        nn = addnode!( g, NCall(:tuple, [ dg.seti.vk[dprefix(p)] for p in paramsym] ) )
+        nn = addnode!( g, NCall(:tuple, [ getnode(dg.seti, dprefix(p)) for p in paramsym] ) )
         ns = newvar("_dv")
         g.seti[nn] = ns
         push!(voi, ns)
@@ -70,9 +70,9 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
     elseif order > 1 && isa(paramvalues[1], Real)
         for i in 1:order
-            dg = reversegraph(g, g.seti.vk[voi[i]], paramsym)
+            dg = reversegraph(g, getnode(g.seti, voi[i]), paramsym)
             append!(g.nodes, dg.nodes)
-            nn = collect(keys(dg.seti))[1]  # only a single node produced
+            nn = collect(nodes(dg.seti))[1]  # only a single node produced
             ns = newvar("_dv")
             g.seti[nn] = ns
             push!(voi, ns)
@@ -84,10 +84,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
     elseif order > 1 && isa(paramvalues[1], Vector)
         # do first order as usual
-        dg = reversegraph(g, g.seti.vk[outsym], paramsym)
+        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
         ns = newvar(:_dv)
-        g.seti[ collect(keys(dg.seti))[1] ] = ns
+        g.seti[ collect(nodes(dg.seti))[1] ] = ns
         push!(voi, ns)
 
         g |> splitnary! |> prune! |> simplify!
@@ -96,7 +96,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
         for i in 2:order  
             # launch derivation on a single value of the preceding
             #   derivation vector
-            no = g.seti.vk[voi[i]]
+            no = getnode(g.seti, voi[i])
             si = newvar(:_idx)
             ni = addnode!(g, NExt(si))
             ns = addnode!(g, NRef(:getidx, [ no, ni ]))
@@ -164,7 +164,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create param size node
-            nsz = addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
+            nsz = addgraph!( :( length( x ) ), g, [ :x => getnode(g.exti, paramsym[1]) ] )
 
             # create (n-1)th derivative size node
             ndsz = addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
@@ -201,7 +201,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             dg.seto = NSMap(Dict([nex], [ssa]))
 
             # update parents of for loop
-            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
+            append!( nf.parents, setdiff(collect( nodes(dg.exto)), nf.parents[2:end]) )
 
             ns = newvar(:_dv)
             g.seti[nex] = ns
@@ -214,7 +214,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
     end
 
-    voin = map( s -> g.seti.vk[s], voi)
+    voin = map( s -> getnode(g.seti, s), voi )
     ex = addnode!(g, NCall(:tuple, voin))
     g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
 

@@ -5,15 +5,13 @@
 
     include("runtests.jl")
 
-    m.rdiff(:( a = fill(0.,4) ; a[1]+x^2 ), x=1., order=5)
-
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
     res = m.rdiff(ex, x=zeros(2), order=2)   
-    res = m.rdiff(ex, x=zeros(2), order=3)   # 66/69 lines
-    res = m.rdiff(ex, x=zeros(2), order=4)   # 75 lines
+    res = m.rdiff(ex, x=zeros(2), order=3)   # 66/69 lines  72  (devl2)
+    res = m.rdiff(ex, x=zeros(2), order=4)   #  error
 
     @eval foo(x) = $res
     foo([0.5, 2.])
@@ -97,51 +95,19 @@
     #  0.0  6.0
 
 #################   debug  ###################
-    ex = quote
-        a=0
-        for i in 1:10
-            for j in 1:10
-                a += x
-            end
-        end
-        a
-    end
+    ex = :( a = x ; b = a )
+    ex = :( a = x ; b = a ; a + b)
+    ex = :( a = x ; b = a ; c = b ; b)
+    ex = :( b = 0 ; a=x ; b = 3a ; b*x ) 
+
     res = m.rdiff(ex, x=1.)
+    g = m.tograph(ex)
+    m.tocode(g)
+
     @eval foo(x) = $res
-    foo(1.)
-
-    ex = quote
-        a=0
-        for i in 1:2
-            a += x
-        end
-        a
-    end
-    res = m.rdiff(ex, x=1.)
-
-    ex = quote
-        a = zeros(3)
-        for i in 1:2
-            a[1] += x
-        end
-        a[1]
-    end
-    res = m.rdiff(ex, x=1.)
-
-
-    ex = quote
-        a = 0.
-        for i in 1:4
-            a += 2+x
-        end
-        a
-    end
-    m.rdiff(ex, x=1.)
-    @eval foo(x) = $(m.rdiff(ex, x=1.))
     foo(1)
-    foo(1.1)
+    foo(1.01)
 
-    m.rdiff( :(a=zeros(2) ; a[1]=x ; sum(a)), x=1.)
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -158,52 +124,161 @@
         m.calc!(g, params=parval, emod=Main)
 
         voi = Any[ nothing ]
+
+        dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
+        append!(g.nodes, dg.nodes)
+        nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
+        ns = m.newvar("_dv")
+        g.seti[nn] = ns
+        push!(voi, ns)
     end
 
-    dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-    append!(g.nodes, dg.nodes)
-    nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
-    ns = m.newvar("_dv")
-    g.seti[nn] = ns
-    push!(voi, ns)
+    # g |> m.splitnary! |> m.prune! |> m.simplify!
 
-    g
-    g2 = g.nodes[16].main[2]
-    g2 = g.nodes[9].main[2]
-    ns2 = [ g.nodes[27] ]
     m.tocode(g)
     m.prune!(g) 
-    m.tocode(g)  # prune fait disparaitre !!
 
-    g2 = g.nodes[18].main[2]
+    g2 = g.nodes[8].main[2]
+    m.tocode(g2)  
 
-      # list of g2 nodes whose outer node is in ns2
-      exitnodes2 = m.ExNode[]
-      
-      for (k, sym) in g2.seto.kv
-        k in ns2 || continue
-        push!(exitnodes2, g2.seti.vk[sym])
-      end
-      exitnodes2
-      for (n2, sym) in g2.seti.kv
-        (n2 in exitnodes2)               && continue
-        haskey(g2.exti.vk, sym)          || continue
-        on = g2.exti.vk[sym]
-        m.isancestor(on, exitnodes2, g2) || continue
-        push!(exitnodes2, n2)
-      end
-      exitnodes2 = unique(exitnodes2)
+    m.ispivot(g2.nodes[5], g2)
 
-      g2
-      m.prune!(g2, exitnodes2)
-      m.tocode(g2)
-      m.tocode(g)
+    g3 = m.copy(g2)
+    g2 =m.copy(g3)
 
+    m.fusenodes(g2, g2.nodes[4], g2.nodes[5])
+    g2
+    m.fusenodes(g2, g2.nodes[2], g2.nodes[5])
+
+    m.simplify!(g2)
+    m.tocode(g2)
+
+    # initial
+        node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4        | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN    | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN    | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+        5    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+        6    |           |       | [call]     | 4, 2    |            | :+      | Symbol :_tmp4  | 
+        7    | _dtmp1 << |       | [subref]   | 2, 5    | 6          | :setidx | Float64 NaN    | 
+        8    |           |       | [call]     | 1, 6    |            | :*      | Expr :(4_tmp4) | 
+        9    | _dtmp2 << | +     | [call]     | 3, 8    |            | :+      | Float64 NaN    | 
+
+    # identical
+        node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4        | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN    | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN    | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+        5    |           |       | [call]     | 4, 2    |            | :+      | Symbol :_tmp4  | 
+        6    | _dtmp1 << |       | [subref]   | 2, 4    | 5          | :setidx | Float64 NaN    | 
+        7    |           |       | [call]     | 1, 5    |            | :*      | Expr :(4_tmp4) | 
+        8    | _dtmp2 << | +     | [call]     | 3, 7    |            | :+      | Float64 NaN    | 
+
+
+        m.evalconstants(g2.nodes[1], g2, Main)
+        m.evalconstants(g2.nodes[2], g2, Main)
+        m.evalconstants(g2.nodes[3], g2, Main)
+        m.evalconstants(g2.nodes[4], g2, Main)
+        m.evalconstants(g2.nodes[5], g2, Main)  # true
+            node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
+            ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
+            1    |           |       | [constant] |         |            | 4       | Int64 4        | 
+            2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Symbol :_tmp3  | 
+            3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Symbol :_tmp2  | 
+            4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
+            5    | _dtmp1 << |       | [subref]   | 2, 4    | 8          | :setidx | Symbol :_tmp3  | 
+            6    |           |       | [call]     | 1, 8    |            | :*      | Expr :(4_tmp5) | 
+            7    | _dtmp2 << | +     | [call]     | 3, 6    |            | :+      | Symbol :_tmp2  | 
+            8    |           |       | [constant] |         |            | 1.0     | Float64 NaN    | 
+
+
+    # identical + evalconstants
+        node | symbol    | ext ? | type       | parents | precedence | main    | value       | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | ----------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4     | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0 | 
+        5    | _dtmp1 << |       | [subref]   | 2, 4    | 7          | :setidx | Float64 NaN | 
+        6    | _dtmp2 << | +     | [call]     | 3, 1    |            | :+      | Float64 NaN | 
+        7    |           |       | [constant] |         |            | 1.0     | Float64 NaN | 
+
+    # sans rules
+        node | symbol    | ext ? | type       | parents | precedence | main    | value       | 
+        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | ----------- | 
+        1    |           |       | [constant] |         |            | 4       | Int64 4     | 
+        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN | 
+        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN | 
+        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0 | 
+        5    |           |       | [constant] |         |            | 1.0     | Float64 1.0 | 
+        6    | _dtmp1 << |       | [subref]   | 2, 4    | 5          | :setidx | Float64 NaN | 
+        7    | _dtmp2 << | +     | [call]     | 3, 1    |            | :+      | Float64 NaN | 
+
+
+    ########## simplify  ############
+    m.eval(quote 
+        function simplify!(g::ExGraph, emod = Main)
+            i = 1
+            markalloc!(g)
+            while i <= length(g.nodes)
+                restart = false
+                n = g.nodes[i]
+
+                restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
+                    evalconstants(n, g, emod) ||
+                    rule1(n, g) ||
+                    rule2(n, g) ||
+                    rule3(n, g) #||
+                    #rule4(n, g) ||
+                    #rule5(n, g) ||
+                    #rule6(n, g) ||
+                    #rule7(n, g) ||
+                    #rule8(n, g) ||
+                    #rule9(n, g) ||
+                    #rule10(n, g)
+                
+                if restart
+                    markalloc!(g)
+                    i = 1
+                else
+                    i += 1
+                end
+            end
+            g
+        end
+    end )
+
+    ##### rule 3  ###################
+    n = g2.nodes[6]
+    function rule3(n, g)
+        !isa(n, m.NCall)             && return false
+        (length(n.parents) != 2)   && return false # restricted to binary ops
+        val = m.constequiv(n.parents[1], g2)
+        (val == nothing)           && return false
+        # !isa(n.parents[1], NConst) && return false
+
+        if val == 0 && in(n.main, [:+, :.+])
+            m.fusenodes(g2, n.parents[2], n)
+            return true
+
+        elseif val == 1 && in(n.main, [:*, :.*])
+            fusenodes(g, n.parents[2], n)
+            return true
+
+        else
+            return false
+        end
+    end
 
 ############## debug 2   ##################
     ex = :( x[1]^3 + x[1]*x[2] )
     res = m.rdiff(ex, x=zeros(2), order=3)   
 
+    ex = :( a = x ; b = a * 3 ; b * x )
 
 
     #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
@@ -478,143 +553,6 @@
             m.splitnary!(g)
             m.prune!(g)
             m.simplify!(g)  #  ERROR: key not found: :_tmp25
-i = 9
-
-m.eval( quote 
-            function simplify!(g::ExGraph, emod = Main)
-
-                i = 1
-                markalloc!(g)
-                println("+")
-                while i <= length(g.nodes)
-                    println("s in")
-                    restart = false
-                    n = g.nodes[i]
-
-                    restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) #=||
-                        evalconstants(n, g, emod) ||
-                        rule1(n, g) ||
-                        rule2(n, g) ||
-                        rule3(n, g) ||
-                        rule4(n, g) ||
-                        rule5(n, g) ||
-                        rule6(n, g) ||
-                        rule7(n, g) ||
-                        rule8(n, g) ||
-                        rule9(n, g) ||
-                        rule10(n, g)=#
-                    
-                    if restart
-                        markalloc!(g)
-                        i = 1
-                        println("sout reset $i")
-                    else
-                        i += 1
-                        println("sout +  $i")
-                    end
-                end
-
-                # separate pass on subgraphs
-                map( n -> simplify!(n.main[2], emod), 
-                    filter(n->isa(n, NFor), g.nodes))
-
-                
-                g
-            end
-
-            function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)  # nk = n ; nr = n2
-              println("fuse in")
-              # this should not happen...
-              # @assert !haskey(g.exti, nr) "[fusenodes] attempt to fuse ext_inode $nr"
-
-              # test if nr is associated to a variable
-              # if true, we create an NIn on nk, and associate var to it
-              if haskey(g.seti, nr)
-                nn = addnode!(g, NIn(g.seti[nr], [nk]))
-                nn.val = "fuse #1"
-                g.seti[nn] = g.seti[nr]  # nn replaces nr as set_inode
-
-                if haskey(g.seto, nr)   # change onodes too (if we are in a subgraph)
-                  g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
-                end  
-              end
-
-              # replace references to nr by nk in parents of other nodes
-              for n in filter(n -> n != nr && n != nk, g.nodes)
-                if isa(n, NFor)
-                  g2 = n.main[2]
-
-                  # this should not happen...
-                  @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
-
-                  if haskey(g2.exto, nr)
-                      println("fuse f for 1")
-                    symr = g2.exto[nr]
-                      println("fuse f for 2")
-                    if haskey(g2.exto, nk)  # both nr and nk are used by the for loop
-                        println("fuse f for 3")
-                      symk = g2.exto[nk]
-                        println("fuse f for 4 $symk  <- $symr")
-                      fusenodes(g2, g2.exti.vk[symk], g2.exti.vk[symr])
-                        println("fuse f for 5")
-                    end
-
-                    # nn = addnode!(g, NIn(g2.exto[nr], [nk]))
-                    # nn.val = "fuse #2"
-                    # g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
-                    # for (i, n2) in enumerate(n.parents)
-                    #   n2 == nr && (n.parents[i] = nn)
-                    # end
-                      g2.exto[nk] = g2.exto[nr]  # nk replaces nr as g2.exto
-                      for (i, n2) in enumerate(n.parents)
-                        n2 == nr && (n.parents[i] = nk)
-                      end
-
-                      for (i, n2) in enumerate(n.precedence)
-                        n2 == nr && (n.parents[i] = nk)
-                      end
-
-
-                  end  
-                end
-
-                for (i, n2) in enumerate(n.parents)
-                  n2 == nr && (n.parents[i] = nk)
-                end
-                for (i, n2) in enumerate(n.precedence)
-                  n2 == nr && (n.precedence[i] = nk)
-                end
-
-              end
-
-              println("fuse out")
-              # remove node nr in g
-              filter!(n -> n != nr, g.nodes)
-            end
-
-            function identical(n,n2,g)
-                n.main != n2.main       && return false
-                n.parents != n2.parents && return false
-                n.alloc                 && return false
-                n2.alloc                && return false
-                # isa(n, NConst) && isa(n.main, Real) && return false # no need for small constants
-
-                fusenodes(g, n, n2)
-                true
-            end
-end)
-
-            g
-            g2 = g.nodes[33].main[2]
-            collect( g2.exti )
-            g2.exti.vk[ :_tmp25 ]
-            collect( g2.exto )
-            g2.exto.vk[ :_tmp25 ]
-            findfirst(g.nodes .== g2.exto.vk[ :_tmp25 ])
-            g
-            
-            m.calc!(g, params=Dict(paramsym, paramvalues), emod=Main)
-        end
 
     voin = map( s -> g.seti.vk[s], voi)
     ex = m.addnode!(g, m.NCall(:tuple, voin))

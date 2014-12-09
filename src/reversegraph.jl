@@ -13,9 +13,6 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 	for n in filter(n-> !isa(n,NFor), g.nodes)
 		if n == exitnode
 			dnodes[n] = addnode!(g2, NConst(1.0))
-		# elseif isa(n, NSRef) || isa(n, NSDot)  # unique alloc for all NSRef and NSDot on same instance
-		# 	@assert haskey(dnodes, n.parents[1]) "[reversegraph] nodes not ordered ?"
-		# 	dnodes[n] = dnodes[n.parents[1]]
 		else
 			dnodes[n] = createzeronode!(g2, n)
 		end
@@ -92,24 +89,35 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NSRef)
-		v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+		if length(n.parents) >= 3   # regular setindex
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
 
-		# treat case where a single value is allocated to several array elements
-		if length(n.parents[2].val) == 1 
-			sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
-			if sz > 1
-				v2 = addnode!(g2, NCall(:sum, [ v2]))
+			# treat case where a single value is allocated to several array elements
+			if length(n.parents[2].val) == 1 
+				sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
+				if sz > 1
+					v2 = addnode!(g2, NCall(:sum, [ v2]))
+				end
 			end
+
+			v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
+			dnodes[n.parents[2]] = v3
+
+			# shut down the influence of these indices
+			zn = addnode!(g2, NConst(0.))
+			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
+			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
+			dnodes[n.parents[1]] = v4
+		else   # scalar assignment
+			v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], dnodes[n] ]) )
+			dnodes[n.parents[2]] = v3
+
+			# shut down the influence of the variable
+			zn = addnode!(g2, NConst(0.))
+			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn ]) )
+			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
+			dnodes[n.parents[1]] = v4
 		end
-
-		v3 = addnode!(g2, NCall(:+, [ dnodes[n.parents[2]], v2 ]) )
-		dnodes[n.parents[2]] = v3
-
-		# shut down the influence of these indices
-		zn = addnode!(g2, NConst(0.))
-		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
-		v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
-		dnodes[n.parents[1]] = v4
 	end
 
 
@@ -141,8 +149,9 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# nexti = fg.exti
 		# nexto = fg.exto
 		# outgoing nodes generate ingoing dnodes
-		for (n2, sym) in filter((n,s) -> haskey(fg.seto.vk, s), fg.seti.kv)
-			on = fg.seto.vk[sym]
+		for (n2, sym) in fg.seti 
+			hassym(fg.seto, sym)  || continue
+			on = getnode(fg.seto, sym)
 			dsym = newvar(:_dtmp)  # dprefix(sym) 
 			#  derivative of var
 			nn = addnode!(fg2, NExt(dsym))
@@ -154,13 +163,14 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		end
 
 		# ingoing nodes become potential outgoing dnodes
-		for (n2, sym) in filter((n,s) -> haskey(fg.exto.vk, s), fg.exti.kv)
-			on = fg.exto.vk[sym]
+		for (n2, sym) in fg.exti
+			hassym(fg.exto, sym)  || continue
+			on = getnode(fg.exto, sym)
 
 			## derivative accumulator
 			# if haskey(nexti.vk, dsym)  # already mapped ?
-			if haskey(fg.seti.vk, sym) && haskey(fg.seto.vk, sym)  # already mapped ?
-				on2 = fg.seti.vk[sym]
+			if hassym(fg.seto, sym)  # hassym(fg.seti, sym)  # already mapped ?
+				on2 = getnode(fg.seti, sym)
 				nn   = fdnodes[on2]  # nexti.vk[dsym]
 				dsym = nexti[nn]
 				# println("exti (refused) : $sym / $dsym : $nn")
@@ -202,8 +212,9 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# println("after pruning\n$fg")
 
 		# create for loop
+		nr = addgraph!( :( reverse( x ) ), g2, [ :x => n.parents[1] ] ) # range in reverse order
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
-		v2.parents = [n.parents[1], collect( keys( fg.exto)) ]
+		v2.parents = [nr, collect( nodes( fg.exto)) ]
 
 		# seto = dnodes of fg's ingoing variables
 		fg.seto = NSMap()

@@ -18,6 +18,7 @@
 @deriv_rule ones(x)      x     0.
 @deriv_rule size(x)      x     0.
 @deriv_rule sgn(x)       x     0.
+@deriv_rule reverse(x)   x     0.
 
 
 #  tuple  TODO : allow definitions of the type  @deriv_tuple  func(x...)

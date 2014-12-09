@@ -60,7 +60,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
 
     #### store graph, build proxy function
     rn = gensym("rule")
-    rdict[rn] = (g, argsn, g.seti.vk[nothing])
+    rdict[rn] = ( g, argsn, getnode(g.seti, nothing) )
 
     # diff function name
     fn = dfuncname(func.args[1], index)
@@ -80,23 +80,4 @@ macro typeequiv(typ::Union(Symbol, Expr), n::Int)
     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
 end
-
-# macro typeequiv2(typ::Union(Symbol, Expr), n::Int)
-#     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
-#     cm = current_module()
-#     et = cm.eval(typ)
-#     te = Expr(:(.), module_name(cm) , QuoteNode(methods(et).name) )
-
-#     se = Expr(:call, :equivnode, Expr(:(::), :x, te))
-#     # println(" module $v2 ($(typeof(v2)))")
-#     # local typ2 = v2.eval(typ)
-#     # v1 = methods(typ2).name
-#     # println(" name $v1 ($(typeof(v1))), module $v2 ($(typeof(v2)))")
-#     dump(:( equivnode(x::$(te))),7)
-#     deriv_rule(se , :x, ie)
-# end
-
-# function typeequiv(typ::DataType, n::Int)
-#     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
-#     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
-# end    
+ 

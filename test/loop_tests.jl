@@ -94,7 +94,7 @@
         end
         a
     end
-    compare(ex, 3.)  # expected 4.0, got 16.0
+    compare(ex, 3.)  
 
     ex = quote
         a = 0.
@@ -103,7 +103,7 @@
         end
         a
     end
-    compare(ex, 3.)  # expected 1.0, got 0.0
+    compare(ex, 3.) 
 
     ex = quote
         a = 0.
@@ -112,9 +112,9 @@
         end
         a
     end
-    compare(ex, [3., 2.])  #  expected [0.0,1.0], got [1.0,1.0]
+    compare(ex, [3., 2.]) 
     compare(ex, [1.])      
-    compare(ex, ones(10))  # faux
+    compare(ex, ones(10)) 
 
 ### same var accumulator (scalar)
     ex = quote
@@ -124,7 +124,7 @@
         end
         a
     end
-    compare(ex, 2.) # ERROR: syntax: invalid assignment location "1"
+    compare(ex, 2.) 
 
     ex = quote
         a = 0.
@@ -133,7 +133,7 @@
         end
         a
     end
-    compare(ex, 2.) 
+    compare(ex, 2.)
 
     ex = quote
         a = 0.
@@ -176,30 +176,7 @@
         end
         a
     end
-    compare(ex, 0.1) # ERROR: syntax: invalid assignment location "1"
-
-    x0 = 0.1
-    ex2 = m.rdiff( ex, x=x0 )
-    dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
-    dfunc(0.1)
-
-    let x = 0.1 # line 1:
-            _tmp1 = 0
-            _tmp2 = 0.0
-            _tmp3 = 1:10
-            for i = _tmp3
-                for j = 1:10
-                    _tmp1 = _tmp1 + x
-                end
-            end
-            for i = _tmp3
-                for j = 1:10
-                    1 = 1 + 1
-                    _tmp2 = _tmp2 + 1
-                end
-            end
-            (_tmp1,(_tmp2,))
-    end
+    compare(ex, 0.1) 
 
     ex = quote
         a=0
@@ -210,7 +187,7 @@
         end
         a
     end
-    compare(ex, 0.1) # ERROR: syntax: invalid assignment location "1"
+    compare(ex, 0.1)
 
     ex = quote
         a=0
@@ -221,4 +198,4 @@
         end
         a
     end
-    compare(ex, 0.1) # ERROR: syntax: invalid assignment location "1"
+    compare(ex, 0.1) 

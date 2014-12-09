@@ -39,7 +39,6 @@ function simplify!(g::ExGraph, emod = Main)
 	# separate pass on subgraphs
 	map( n -> simplify!(n.main[2], emod), 
 		filter(n->isa(n, NFor), g.nodes))
-
 	
 	g
 end
@@ -52,12 +51,16 @@ function markalloc!(g::ExGraph)
 
 		elseif isa(n, NFor)
 			g2 = n.main[2]  # subgraph
-			syms = collect(values(g2.seto))
-			sn = collect(keys(filter((k,v) -> v in syms, g2.exto.kv)))
+#=			ss = collect(syms(g2.seto))
+			sn = collect(keys(filter((k,v) -> v in ss, g2.exto.kv)))
 			for n2 in sn
 				n2.alloc = true
 			end
-
+=#
+			for (n2, s2) in g2.exto
+				hassym(g2.seto, s2) || continue
+				n2.alloc = true
+			end
 		else
 			n.alloc = false	
 		end
@@ -149,6 +152,7 @@ end
 
 ## left neutral element
 function rule3(n, g)
+	n.alloc	                && return false
 	!isa(n, NCall)             && return false
 	(length(n.parents) != 2)   && return false # restricted to binary ops
 	val = constequiv(n.parents[1], g)
@@ -224,7 +228,6 @@ function rule7(n, g)
 	true
 end
 
-
 ## change (-1 * x)  to  (-x) 
 function rule8(n, g)
 	!isa(n, NCall)             && return false
@@ -251,19 +254,19 @@ function rule9(n, g)
 	true
 end
 
-
 # TODO : propagate to grand-parent graph etc...
 function constequiv(n, g)
 	isa(n, NConst)          && return n.main
 	!isa(n, NExt)           && return nothing
 
-	sym = get(g.exti.kv, n, nothing)
-	(sym == nothing)        && return nothing
-	!haskey(g.exto.vk, sym) && return nothing
-	haskey(g.seto.vk, sym)  && return nothing
+	!hasnode(g.exti, n)     && return nothing
+	sym = g.exti.kv[n]
+	!hassym(g.exto, sym)    && return nothing
+	 hassym(g.seti, sym)    && return nothing
 
-	!isa(g.exto.vk[sym], NConst)  && return nothing
-	g.exto.vk[sym].main
+	pn = getnode(g.exto, sym)
+	!isa(pn, NConst)  && return nothing
+	pn.main
 end
 
 ## getindex on fill()
