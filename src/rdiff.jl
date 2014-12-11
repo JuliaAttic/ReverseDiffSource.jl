@@ -6,7 +6,7 @@
 
 ##########  function version   ##############
 
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main)
+function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -17,7 +17,7 @@ function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main)
     fargs = fcode.args[1]  # function parameters
 
     cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, cargs...)
+    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
@@ -27,7 +27,7 @@ end
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
+function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, params...)
 
     length(params) >= 1 || error("There should be at least one parameter specified, none found")
     
@@ -40,28 +40,28 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
     paramsym    = Symbol[ e[1] for e in params]
     paramvalues = [ e[2] for e in params]
-    parval      = Dict(paramsym, paramvalues)
+    parval      = Dict(zip(paramsym, paramvalues))
 
     g = tograph(ex)
 
-    haskey(g.seti.vk, outsym) || 
+    hassym(g.seti, outsym) || 
         error("can't find output var $( outsym==nothing ? "" : outsym)")
 
     # reduce to variable of interest
-    g.seti = BiDict{ExNode,Any}([g.seti.vk[outsym]], [ outsym ])    
+    g.seti = BiDict{ExNode,Any}([getnode(g.seti, outsym)], [ outsym ])    
 
     g |> splitnary! |> prune! |> simplify!
     calc!(g, params=parval, emod=evalmod)
 
-    ov = g.seti.vk[outsym].val 
+    ov = getnode(g.seti, outsym).val 
     isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
-    voi = { outsym }
+    voi = Any[ outsym ]
 
     if order == 1
-        dg = reversegraph(g, g.seti.vk[outsym], paramsym)
+        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
-        nn = addnode!( g, NCall(:tuple, [ dg.seti.vk[dprefix(p)] for p in paramsym] ) )
+        nn = addnode!( g, NCall(:tuple, [ getnode(dg.seti, dprefix(p)) for p in paramsym] ) )
         ns = newvar("_dv")
         g.seti[nn] = ns
         push!(voi, ns)
@@ -70,9 +70,9 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
     elseif order > 1 && isa(paramvalues[1], Real)
         for i in 1:order
-            dg = reversegraph(g, g.seti.vk[voi[i]], paramsym)
+            dg = reversegraph(g, getnode(g.seti, voi[i]), paramsym)
             append!(g.nodes, dg.nodes)
-            nn = collect(keys(dg.seti))[1]  # only a single node produced
+            nn = collect(nodes(dg.seti))[1]  # only a single node produced
             ns = newvar("_dv")
             g.seti[nn] = ns
             push!(voi, ns)
@@ -84,10 +84,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
     elseif order > 1 && isa(paramvalues[1], Vector)
         # do first order as usual
-        dg = reversegraph(g, g.seti.vk[outsym], paramsym)
+        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
         ns = newvar(:_dv)
-        g.seti[ collect(keys(dg.seti))[1] ] = ns
+        g.seti[ collect(nodes(dg.seti))[1] ] = ns
         push!(voi, ns)
 
         g |> splitnary! |> prune! |> simplify!
@@ -96,12 +96,12 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
         for i in 2:order  
             # launch derivation on a single value of the preceding
             #   derivation vector
-            no = g.seti.vk[voi[i]]
+            no = getnode(g.seti, voi[i])
             si = newvar(:_idx)
             ni = addnode!(g, NExt(si))
             ns = addnode!(g, NRef(:getidx, [ no, ni ]))
 
-            calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
+            calc!(g, params=Dict(zip([paramsym, si], [paramvalues, 1.])), emod=evalmod)
             dg = reversegraph(g, ns, paramsym)
 
             #### We will now wrap dg in a loop scanning all the elements of 'no'
@@ -158,28 +158,30 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
                 end
             end
             append!(dg.nodes, dg2)    
-            dg |> prune! |> simplify!
+            # dg |> prune! |> simplify!
 
             # create for loop node
-            nf = addnode!(g, NFor({si, dg}) )
+            nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
-            # create size node
-            nsz = addgraph!( :( length( x ) ), g, { :x => g.exti.vk[paramsym[1]] } )
+            # create param size node
+            nsz = addgraph!( :( length( x ) ), g, Dict( :x => getnode(g.exti, paramsym[1]) ) )
+
+            # create (n-1)th derivative size node
+            ndsz = addgraph!( :( sz ^ $(i-1) ), g, Dict( :sz => nsz ) )
 
             # create index range node
-            nid = addgraph!( :( 1:sz ),  g, { :sz => nsz } )
+            nid = addgraph!( :( 1:dsz ),  g, Dict( :dsz => ndsz ) )
             push!(nf.parents, nid)
 
-            # create stride size node
-            nst = addgraph!( :( sz ^ $(i-1) ),  g, { :sz => nsz } )
+            # pass size node inside subgraph
             sst = newvar()
             inst = addnode!(dg, NExt(sst))
             dg.exti[inst] = sst
-            dg.exto[nst]  = sst
-            push!(nf.parents, nst)
+            dg.exto[nsz]  = sst
+            push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, { :sz => nsz } )
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
             dg.exti[insa] = ssa
@@ -188,18 +190,18 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
             # create result node update (in subgraph)
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                { :res  => insa,
-                                  :sidx => nmap[ni],
-                                  :st   => inst,
-                                  :dx   => collect(dg.seti)[1][1] } )
-            dg.seti = BiDict{ExNode, Any}(Dict([nres], [ssa]))
+                                Dict(   :res  => insa,
+                                        :sidx => nmap[ni],
+                                        :st   => inst,
+                                        :dx   => collect(dg.seti)[1][1] ) )
+            dg.seti = NSMap([nres], [ssa])
 
             # create exit node for result
             nex = addnode!(g, NIn(ssa, [nf]))
-            dg.seto = BiDict{ExNode, Any}(Dict([nex], [ssa]))
+            dg.seto = NSMap([nex], [ssa])
 
             # update parents of for loop
-            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
+            append!( nf.parents, setdiff(collect( nodes(dg.exto)), nf.parents[2:end]) )
 
             ns = newvar(:_dv)
             g.seti[nex] = ns
@@ -207,16 +209,18 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
 
             g |> splitnary! |> prune! |> simplify!
             
-            calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+            calc!(g, params=Dict(zip(paramsym, paramvalues)), emod=evalmod)
         end
 
     end
 
-    voin = map( s -> g.seti.vk[s], voi)
+    voin = map( s -> getnode(g.seti, s), voi )
     ex = addnode!(g, NCall(:tuple, voin))
-    g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
+    g.seti = NSMap( [ex], [nothing])
+
+    g |> splitnary! |> prune! |> simplify!
 
     resetvar()
-    tocode(g)
+    debug ? g : tocode(g)
 end
 

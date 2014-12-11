@@ -13,10 +13,10 @@ type ExNode{T}
   val                     # value
   alloc::Bool             # Allocation ? Forbids fusions
 
-  ExNode()                               = new(nothing,      {},   {}, NaN, false)
-  ExNode(main)                           = new(   main,      {},   {}, NaN, false)
-  ExNode(main,parents)                   = new(   main, parents,   {}, NaN, false)
-  ExNode(main,parents, prec, val, alloc) = new(   main, parents, prec, val, alloc)
+  ExNode()                               = new(nothing,   Any[], Any[], NaN, false)
+  ExNode(main)                           = new(   main,   Any[], Any[], NaN, false)
+  ExNode(main,parents)                   = new(   main, parents, Any[], NaN, false)
+  ExNode(main,parents, prec, val, alloc) = new(   main, parents,  prec, val, alloc)
 end
 
 copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), 
@@ -25,7 +25,7 @@ copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main),
                                   copy(x.val), 
                                   x.alloc)
 
-copy(x::ExNode{:for}) = ExNode{:for}({x.main[1], copy(x.main[2])},    # make a copy of subgraph
+copy(x::ExNode{:for}) = ExNode{:for}(Any[ x.main[1], copy(x.main[2]) ],    # make a copy of subgraph
                               copy(x.parents), 
                               copy(x.precedence), 
                               copy(x.val), 

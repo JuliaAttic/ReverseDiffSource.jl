@@ -2,12 +2,12 @@
 #
 #    Internal function testing
 #
+#    m = ReverseDiffSource module
 #################################################################
 
-using Base.Test
-
-reload("ReverseDiffSource")
-m = ReverseDiffSource
+# using Base.Test
+# reload("ReverseDiffSource")
+# m = ReverseDiffSource
 
 
 @test m.isSymbol(:a)            == true
@@ -39,7 +39,7 @@ m = ReverseDiffSource
 #################################################################
 
 function striplinenumbers(ex::Expr)
-    args = {}
+    args = Any[]
     for a in ex.args
         isa(a, LineNumberNode) && continue
         isa(a, Expr) && a.head==:line && continue

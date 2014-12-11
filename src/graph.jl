@@ -4,63 +4,91 @@
 #
 #########################################################################
   
+typealias NSMap BiDict{ExNode, Any}   # ExNode - Symbol map
 
-#####  ExGraph type definition ######
+#####  ExGraph type definitions ######
 type ExGraph
   nodes::Vector{ExNode}  # nodes in this graph
-  exti::BiDict{ExNode, Any}
-  seti::BiDict{ExNode, Any}
-  exto::BiDict{ExNode, Any}
-  seto::BiDict{ExNode, Any}
+  exti::NSMap
+  seti::NSMap
+  exto::NSMap
+  seto::NSMap
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
-ExGraph(vn::Vector{ExNode}) = ExGraph( vn, BiDict{ExNode, Any}(), 
-                                           BiDict{ExNode, Any}(), 
-                                           BiDict{ExNode, Any}(), 
-                                           BiDict{ExNode, Any}() )
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(), 
+                                           NSMap(), 
+                                           NSMap(), 
+                                           NSMap() )
+
+hasnode(m::NSMap, n::ExNode) = haskey(m.kv, n)
+hassym( m::NSMap, k)         = haskey(m.vk, k)
+nodes(m::NSMap)              = keys(m.kv)
+syms( m::NSMap)              = keys(m.vk)
+
+getnode(m::NSMap, k)         = m.vk[k]
+getnode(m::NSMap, k::Void)   = m.vk[nothing]
+getsym( m::NSMap, n::ExNode) = m.kv[n]
 
 
 function show(io::IO, g::ExGraph)
-  # construct node number
+  tn = fill("", length(g.nodes), 8)
+
   for (i,n) in enumerate(g.nodes)
-    print(io, rpad("#$i",4))
+    tn[i,1] = "$i"
 
-    if haskey(g.exti, n)
-      print(io, rpad("< $(g.exti[n])", 6))
-    elseif haskey(g.seti, n)
-      print(io, rpad("> $(g.seti[n])", 6))
-    else
-      print(io, rpad("", 6))
+    if hasnode(g.exti, n)
+      sym = g.exti[n]
+      tn[i,2] = "$sym >>"
+      hassym(g.exto, sym) && (tn[i,3] = "+")
+    elseif hasnode(g.seti, n)
+      sym = g.seti[n]
+      tn[i,2] = "$sym <<"
+      hassym(g.seto, sym) && (tn[i,3] = "+")
     end
 
-    print(io, rpad("[$(subtype(n))]", 12))
+    tn[i,4] = "[$(subtype(n))]"
     main = isa(n, NFor) ? n.main[1] : n.main
-    print(io, rpad("$(repr(main)) ", 10))
-    print(io, rpad("($(repr(n.val)))", 10))
 
-    if length(n.parents) > 0
-      pnn = join( map( x -> "#$x", indexin(n.parents, {g.nodes...})), ", ")
-      print(io, ", parents : $pnn")
-    end
+    tn[i,5] = join( map( x -> "$x", indexin(n.parents,    Any[g.nodes...])), ", ")
+    tn[i,6] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
 
-    if length(n.precedence) > 0
-      pnn = join( map( x -> "#$x", indexin(n.precedence, {g.nodes...})), ", ")
-      print(io, ", precedence : $pnn")
-    end
-
-    println() 
+    tn[i,7] = "$(repr(main))"
+    tn[i,8] = "$(typeof(n.val)) $(repr(n.val)[1:min(40, end)])"
   end
+
+  tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"], 
+        tn)
+  sz = maximum(map(length, tn), 1)
+  tn = vcat(tn[1,:], map(s->"-"^s, sz), tn[2:end,:])
+  for i in 1:size(tn,1)
+    for j in 1:size(tn, 2)
+      print(io, rpad(tn[i,j], sz[j]), " | ")
+    end
+    println(io)
+  end
+
 end
+
 
 #####  ExGraph functions  #####
 
-### looks for ancestors, optionnally excluding some nodes
-function ancestors(ns::Vector, except=[])
-    ss = setdiff(ns, except)
-    isempty(ss) ? [] : mapreduce(n -> ancestors(n,except), union, ss)
+### checks if n is an ancestor of 'exits', optionnally excluding some nodes from the path
+##  !! assumes that g has been evalsorted
+function isancestor(anc::ExNode, exits::Vector{ExNode}, g::ExGraph, except::Vector{ExNode})
+    gm = Set(exits)
+    for n in reverse( g.nodes )
+        n in gm     || continue
+        n in except && continue
+        anc in n.parents && return true
+        union!(gm, n.parents)
+    end
+
+    false
 end
-ancestors(ns, except=[]) = union([ns], ancestors(ns.parents, except))
+
+isancestor(n::ExNode, exits::Vector{ExNode}, g::ExGraph) = isancestor(n, exits, g, ExNode[])
+
 
 # copies a graph and its nodes, leaves onodes references intact
 function copy(g::ExGraph)
@@ -77,26 +105,26 @@ function copy(g::ExGraph)
   # update onodes of subgraphs (for loops)
   for n in filter(x -> isa(x, NFor), g2.nodes)
     fg = n.main[2]
-    no = BiDict{ExNode, Any}()
-    for (k,v) in fg.exto.kv
+    no = NSMap()
+    for (k,v) in fg.exto
       no[ nmap[k] ] = v
     end
     fg.exto = no
 
-    no = BiDict{ExNode, Any}()
-    for (k,v) in fg.seto.kv
+    no = NSMap()
+    for (k,v) in fg.seto
       no[ nmap[k] ] = v
     end
     fg.seto = no
   end
 
   # copy node mapping and translate inner nodes to newly created ones
-  g2.exto = BiDict{ExNode, Any}(g.exto.kv)
-  g2.seto = BiDict{ExNode, Any}(g.seto.kv)
-  for (k,v) in g.exti.kv
+  g2.exto = NSMap(g.exto.kv)
+  g2.seto = NSMap(g.seto.kv)
+  for (k,v) in g.exti
     g2.exti[ nmap[k] ] = v
   end
-  for (k,v) in g.seti.kv
+  for (k,v) in g.seti
     g2.seti[ nmap[k] ] = v
   end
 
@@ -128,42 +156,34 @@ end
 # removes node nr and keeps node nk 
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
-  # this should not happen...
-  @assert !haskey(g.exti, nr) "[fusenodes] attempt to fuse ext_inode $nr"
+  if hasnode(g.exti, nr)
+    g.exti[nk] = g.exti[nr]
+  end
 
-  # test if nr is associated to a variable
+  # test if nr is associated to a setting node
   # if true, we create an NIn on nk, and associate var to it
-  if haskey(g.seti, nr)
+  if hasnode(g.seti, nr)
     nn = addnode!(g, NIn(g.seti[nr], [nk]))
+    nn.val = "fuse #1"
     g.seti[nn] = g.seti[nr]  # nn replaces nr as set_inode
 
-    if haskey(g.seto, nr)   # change onodes too (if we are in a subgraph)
+    if hasnode(g.seto, nr)   # change onodes too (if we are in a subgraph)
       g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
     end  
   end
 
-  # # same for references to nr in subgraphs
-  # for n in filter(n -> isa(n, NFor) && n != nr && n != nk, g.nodes)
-  #   g2 = n.main[2]
+  # test if nr is in the precedence of some node and nk is a parent of the same node
+  ps = filter(x -> (nr in x.precedence) && (nk in x.parents), g.nodes)
+  if length(ps) > 0
+    nn = addnode!(g, NIn(nothing, [nk]))
+    nn.val = "fuse #2"
 
-  #   # this should not happen...
-  #   @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+    for n in g.nodes
+      n.parents    = map(x -> x==nr ? nn : x, n.parents)
+      n.precedence = map(x -> x==nr ? nn : x, n.precedence)
+    end
 
-  #   if haskey(g2.exto, nr)
-  #     nn = addnode!(g, NIn(g2.exto[nr], [nk]))
-  #     g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
-  #   end  
-  # end
-
-  # # replace references to nr by nk in parents of other nodes
-  # for n in filter(n -> n != nr && n != nk, g.nodes)
-  #   for (i, n2) in enumerate(n.parents)
-  #     n2 == nr && (n.parents[i] = nk)
-  #   end
-  #   for (i, n2) in enumerate(n.precedence)
-  #     n2 == nr && (n.precedence[i] = nk)
-  #   end
-  # end
+  end   
 
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
@@ -171,14 +191,16 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       g2 = n.main[2]
 
       # this should not happen...
-      @assert !haskey(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
+      @assert !hasnode(g2.seto, nr) "[fusenodes (for)] attempt to fuse set_onode $nr"
 
-      if haskey(g2.exto, nr)
-        nn = addnode!(g, NIn(g2.exto[nr], [nk]))
-        g2.exto[nn] = g2.exto[nr]  # nn replaces nr as g2.exto
-        for (i, n2) in enumerate(n.parents)
-          n2 == nr && (n.parents[i] = nn)
+      if hasnode(g2.exto, nr)
+        if hasnode(g2.exto, nk)  # both nr and nk are used by the for loop
+          symr = g2.exto[nr]
+          symk = g2.exto[nk]
+          fusenodes(g2, getnode(g2.exti, symk), getnode(g2.exti, symr))
         end
+
+        g2.exto[nk] = g2.exto[nr]  # nk replaces nr in g2.exto
       end  
     end
 
@@ -196,12 +218,21 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 end
 
 ####### trims the graph to necessary nodes for exitnodes to evaluate  ###########
-prune!(g::ExGraph) = prune!(g, collect(keys(g.seti.kv)))
+prune!(g::ExGraph) = prune!(g, collect(nodes(g.seti)))
 
 function prune!(g::ExGraph, exitnodes)
   ns2 = copy(exitnodes)
   evalsort!(g)
   for n in reverse(g.nodes)
+    # removed NIn nodes should be removed from For loops too
+    if isa(n, NIn) && !(n in ns2) && isa(n.parents[1], NFor)
+      fg = n.parents[1].main[2]
+      sym = fg.seto[n]
+      delete!(fg.seto, n)
+      #= ni = fg.seti.vk[sym]
+      delete!(fg.seti, ni) =#
+    end
+
     n in ns2 || continue
 
     if isa(n, NFor)
@@ -209,31 +240,42 @@ function prune!(g::ExGraph, exitnodes)
 
       # list of g2 nodes whose outer node is in ns2
       exitnodes2 = ExNode[]
-      for (k, sym) in g2.seto.kv
+      for (k, sym) in g2.seto
         k in ns2 || continue
-        push!(exitnodes2, g2.seti.vk[sym])
+        push!(exitnodes2, getnode(g2.seti, sym))
       end
-
+      # don't forget reentrant variables
+      for (n2, sym) in g2.seti
+        (n2 in exitnodes2)               && continue
+        hassym(g2.exti, sym)             || continue
+        on = getnode(g2.exti, sym)
+        isancestor(on, exitnodes2, g2)   || continue
+        push!(exitnodes2, n2)
+      end
+      exitnodes2 = unique(exitnodes2)
+      #=println(exitnodes2)
+      println("before\n", g2)
+      println("after\n", g2)=#
       prune!(g2, exitnodes2)
 
       # update parents
-      n.parents = [n.parents[1], intersect(n.parents, collect(keys(g2.exto)) ) ]
+      n.parents = [n.parents[1], intersect(n.parents, collect(nodes(g2.exto)) ) ]
     end
 
     ns2 = union(ns2, n.parents)
   end
 
   # remove unused external inodes in map and corresponding onodes (if they exist)
-  for (k,v) in g.exti.kv
+  for (k,v) in g.exti
     k in ns2 && continue
     delete!(g.exti, k)
-    haskey(g.exto.vk, v) && delete!(g.exto, g.exto.vk[v])
+    hassym(g.exto, v) && delete!(g.exto, getnode(g.exto, v))
   end
   # reduce set inodes to what was specified in initial exitnodes parameter
-  for (k,v) in g.seti.kv
+  for (k,v) in g.seti
     k in exitnodes && continue
     delete!(g.seti, k)
-    haskey(g.seto.vk, v) && delete!(g.seto, g.seto.vk[v])
+    hassym(g.seto, v) && delete!(g.seto, getnode(g.seto, v))
   end
 
   # remove precedence nodes that have disappeared
@@ -277,44 +319,35 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
       try
         ret = emod.eval(thing)
       catch e
-        println("[calc!] can't evaluate $thing")
+        println("[calc!] can't evaluate $thing in \n $g \n with") ; display(params)
         rethrow(e)
       end
       return ret
     end
   end
 
-  function evaluate(n::NCall)
+  function evaluate(n::Union(NCall, NComp))
     local ret
     try
-      # if isgeneric(n.main)
-      #   ret = invoke(emod.eval(n.main), 
-      #     tuple([ typeof(x.val) for x in n.parents]...),
-      #     [ x.val for x in n.parents]...)
-
-      # else
-        ret = emod.eval( Expr(:call, n.main, { x.val for x in n.parents}...) )
-
-      # end
-
+        ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
     catch
-      error("[calc!] can't evaluate $(n.main)")
+      error("[calc!] can't evaluate $(n.main) \n $g \n $params")
     end
     return ret
   end 
 
   function evaluate(n::NExt)
-    haskey(g.exti, n) || return myeval(n.main)
+    hasnode(g.exti, n) || return myeval(n.main)
 
     sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
-    haskey(g.exto.vk, sym) || return myeval(n.main)
-    return g.exto.vk[sym].val  # return node val in parent graph
+    hassym(g.exto, sym) || return myeval(n.main)
+    return getnode(g.exto, sym).val  # return node val in parent graph
   end
 
   evaluate(n::NConst) = n.main
   # evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
   #                                    map(a->myeval(a), n.main)... ) )
-  evaluate(n::NRef)   = myeval( Expr(:ref , { x.val for x in n.parents}...))
+  evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
   evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
   evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
@@ -328,14 +361,15 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     g2 = n.main[2]
     is = n.main[1]                          # symbol of loop index
     iter = evaluate(n.parents[1])           #  myeval(n.main[1].args[2])
-    is0 = next(iter, start(iter))[2]        # first value of index
-    params2 = merge(params, { is => is0 })  # set loop index to first value
+    # is0 = next(iter, start(iter))[2]        # first value of index
+    is0 = first(iter)                       # first value of index
+    params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
     # println("params2 : $(params2)")
     calc!(g2, params=params2)
     
     valdict = Dict()
     for (k, sym) in g2.seto
-      valdict[k] = g2.seti.vk[sym].val
+      valdict[k] = getnode(g2.seti, sym).val
     end
 
     valdict
@@ -360,7 +394,7 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   # TODO : this control should be done at the deriv_rules.jl level
 
   ig = copy(src) # make a copy, update references
-  exitnode = ig.seti.vk[nothing] # result of added subgraph
+  exitnode = getnode(ig.seti, nothing) # result of added subgraph
 
   evalsort!(ig)
 
@@ -400,6 +434,5 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   end
 
   # return exitnode of subgraph
-  # ig.seti.vk[nothing]
   exitnode
 end

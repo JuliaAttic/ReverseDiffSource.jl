@@ -36,11 +36,11 @@
 
 
 
-tograph(s) = tograph(s, {})
+tograph(s) = tograph(s, Any[])
 
 #  s     : expression to convert
 #  svars : vars set since the toplevel graph (helps separate globals / locals)
-function tograph(s, svars::Vector{Any})
+function tograph(s, svars::Vector)
 
 	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
 	explore(ex::Expr)      = explore(toExH(ex))
@@ -74,9 +74,9 @@ function tograph(s, svars::Vector{Any})
 	explore(ex::ExRef)     = addnode!(g, NRef(:getidx, map(explore, ex.args)))
 
 	function explore(ex::Symbol)
-		ex in {:(:), symbol("end")} && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
-		haskey(g.seti.vk, ex) && return g.seti.vk[ex]
-		haskey(g.exti.vk, ex) && return g.exti.vk[ex]
+		ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
+		hassym(g.seti, ex)       && return getnode(g.seti, ex)
+		hassym(g.exti, ex)       && return getnode(g.exti, ex)
 
 		nn = addnode!(g, NExt(ex))    # create external node for this var
 		g.exti[nn] = ex
@@ -114,11 +114,21 @@ function tograph(s, svars::Vector{Any})
 		
 		if isSymbol(lhs)
 			lhss = lhs
-			rhn  = explore(ex.args[2])
-			# we test if RHS has already a symbol
-			# if it does, to avoid loosing it, we create an NIn node
-			if haskey(g.seti, rhn) 
-				rhn = addnode!(g, NIn(lhss, [rhn]))
+
+			# set before ? call explore
+			if lhss in union(svars, collect(syms(g.seti)))
+				vn = explore(lhss)
+				rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
+					                                explore(ex.args[2]) ])) # value affected in pos #2
+				rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+			else # never set before ? assume it is created here
+				rhn = explore(ex.args[2])
+
+				# we test if RHS has already a symbol
+				# if it does, to avoid loosing it, we create an NIn node
+				if hasnode(g.seti, rhn) 
+					rhn = addnode!(g, NIn(lhss, [rhn]))
+				end
 			end
 
 		elseif isRef(lhs)
@@ -139,7 +149,6 @@ function tograph(s, svars::Vector{Any})
 			error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
 		end
 
-		# g.map[rhn] = (lhss, :out_inode)
 		g.seti[rhn] = lhss
 
 		return nothing
@@ -154,33 +163,38 @@ function tograph(s, svars::Vector{Any})
 		nir = explore(ex.args[1].args[2])
 
 		# explore the for block as a separate graph 
-		nsvars = union(svars, collect(keys(g.seti.vk)))
+		nsvars = union(svars, collect(syms(g.seti)))
 		g2 = tograph(ex.args[2], nsvars)
 
 		# create "for" node
-		nf = addnode!(g, NFor( { is, g2 } ))
+		nf = addnode!(g, NFor( Any[ is, g2 ] ))
 		nf.parents = [nir]  # first parent is indexing range fo the loop
 
-		# create onodes (node in parent graph) for each :in_inode
+		# create onodes (node in parent graph) for each exti
 		for (k, sym) in g2.exti.kv
-			if sym != is  # loop index should be excluded
-				pn = explore(sym)  # look in setmap, externals or create it
-				g2.exto[pn] = sym
-				push!(nf.parents, pn) # mark as parent of for loop
-			end
+			sym==is  && continue # loop index should be excluded
+			pn = explore(sym)  # look in setmap, externals or create it
+			g2.exto[pn] = sym
+			push!(nf.parents, pn) # mark as parent of for loop
 		end
 
-		# create onodes and 'Nin' nodes for each :out_inode
+		# create onodes and 'Nin' nodes for each seti
 		#  will be restricted to variables that are defined in parent
 		#   (others are assumed to be local to the loop)
 		for (k, sym) in g2.seti.kv
 			if sym in nsvars && sym != is # only for variables set in parent scope
 				pn = explore(sym)                   # create node if needed
 				rn = addnode!(g, NIn(sym, [nf]))    # exit node for this var in this graph
-				g.seti[rn] = sym              # signal we're setting the var
+				g.seti[rn] = sym                    # signal we're setting the var
 				g2.seto[rn] = sym
 
 				append!(nf.precedence, filter(n -> pn in n.parents && n != nf, g.nodes))
+
+				# create corresponding exti if it's not already done
+				if !hassym(g2.exto, sym)
+					g2.exto[pn] = sym
+					push!(nf.parents, pn) # mark as parent of for loop
+				end
 			end
 		end
 	end

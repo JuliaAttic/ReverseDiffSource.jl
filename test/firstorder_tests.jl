@@ -4,8 +4,8 @@
 #
 #################################################################
 
-reload("ReverseDiffSource")
-m = ReverseDiffSource
+# reload("ReverseDiffSource")
+# m = ReverseDiffSource
 
 #####  Error thresholds  #####
 DIFF_DELTA = 1e-9
@@ -17,11 +17,12 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
-	print("testing $ex with size(x) = $(size(x0))")
+	# print("testing $ex with size(x) = $(size(x0))")
 	nx = length(x0)  
 
 	ex2 = m.rdiff( ex, x=x0 )
 	dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
+	# @eval dfunc(x) = $ex2 
 
 	l0, (grad0,) = dfunc(x0)  
 	if ndims(x0) == 0  # scalar
@@ -38,11 +39,11 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 	if !all(good_enough, zip([grad0], [grad1]))
 		rg0 = map(x -> round(x,5), grad0)
 		rg1 = map(x -> round(x,5), grad1)
-		println("\nGradient false for $ex at x=$x0, expected $rg0, got $rg1")
+		println("\nGradient false for $ex at x=$x0, expected $rg1, got $rg0")
 		# println( ex2 )
 		error()
 	else
-		println(" ok")
+		# println(" ok")
 	end
 end
 
@@ -265,17 +266,4 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 @compare  sum(x          * ones(3,2))    v2ref
 @compare  sum(x          * -1ones(3,1))  v2ref
 
-##  ref  testing
-@compare x[2]                v1ref
-@compare sum(x[2:3])         v1ref
-# @compare sum(x[2:end])       v1ref  # TODO : implement 'end'
 
-# @compare x[2:end]            v2ref  # TODO : implement 'end'
-@compare x[2]                v2ref
-@compare sum(x[2:4])         v2ref
-# @compare sum(x[:,2])         v2ref  # TODO : implement ':'
-# @compare x[1,:]              v2ref
-# @compare x[2:end,:]          v2ref
-# @compare x[:,2:end]          v2ref
-@compare x[2]+x[1]           v2ref
-@compare log(x[2]^2+x[1]^2)  v2ref
