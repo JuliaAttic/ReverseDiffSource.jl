@@ -37,7 +37,7 @@ function createzeronode!(g2::ExGraph, n)
 	if method_exists(d_equivnode_1, (typeof(n.val),) )
 		rn = invoke(d_equivnode_1, (typeof(n.val),) , n.val)
     	dg, dd, de = rdict[ rn ]
-    	smap = [ dd[1] => n ]  # map 'x' node to n
+    	smap = Dict( dd[1] => n )  # map 'x' node to n
     	exitnode = addgraph!(dg, g2, smap)
 
     	return exitnode
@@ -46,7 +46,7 @@ function createzeronode!(g2::ExGraph, n)
 	elseif (isa(n.val, Array) || isa(n.val, Tuple)) && method_exists(d_equivnode_1, (eltype(n.val),) )
 		rn = invoke(d_equivnode_1, (eltype(n.val),) , n.val[1])
     	dg, dd, de = rdict[ rn ]
-    	smap = [ dd[1] => n ]  # map 'x' node to n
+    	smap = Dict( dd[1] => n )  # map 'x' node to n
     	exitnode = addgraph!(dg, g2, smap)
 
     	v1 = addnode!(g2, NCall(:size, [n]))
@@ -70,7 +70,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
             	fn = dfuncname(n.main, index)
             	dg, dd, de = rdict[ eval(Expr(:call, fn, vargs...)) ]
 
-            	smap = Dict( dd, [n.parents, dnodes[n]])
+            	smap = Dict( zip(dd, [n.parents, dnodes[n]]))
 
             	exitnode = addgraph!(dg, g2, smap)
 
@@ -212,7 +212,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		# println("after pruning\n$fg")
 
 		# create for loop
-		nr = addgraph!( :( reverse( x ) ), g2, [ :x => n.parents[1] ] ) # range in reverse order
+		nr = addgraph!( :( reverse( x ) ), g2, Dict( :x => n.parents[1] ) ) # range in reverse order
 		v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
 		v2.parents = [nr, collect( nodes( fg.exto)) ]
 

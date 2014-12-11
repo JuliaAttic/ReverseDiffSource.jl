@@ -40,7 +40,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
     paramsym    = Symbol[ e[1] for e in params]
     paramvalues = [ e[2] for e in params]
-    parval      = Dict(paramsym, paramvalues)
+    parval      = Dict(zip(paramsym, paramvalues))
 
     g = tograph(ex)
 
@@ -101,7 +101,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             ni = addnode!(g, NExt(si))
             ns = addnode!(g, NRef(:getidx, [ no, ni ]))
 
-            calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=evalmod)
+            calc!(g, params=Dict(zip([paramsym, si], [paramvalues, 1.])), emod=evalmod)
             dg = reversegraph(g, ns, paramsym)
 
             #### We will now wrap dg in a loop scanning all the elements of 'no'
@@ -164,13 +164,13 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create param size node
-            nsz = addgraph!( :( length( x ) ), g, [ :x => getnode(g.exti, paramsym[1]) ] )
+            nsz = addgraph!( :( length( x ) ), g, Dict( :x => getnode(g.exti, paramsym[1]) ) )
 
             # create (n-1)th derivative size node
-            ndsz = addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
+            ndsz = addgraph!( :( sz ^ $(i-1) ), g, Dict( :sz => nsz ) )
 
             # create index range node
-            nid = addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
+            nid = addgraph!( :( 1:dsz ),  g, Dict( :dsz => ndsz ) )
             push!(nf.parents, nid)
 
             # pass size node inside subgraph
@@ -181,7 +181,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
             dg.exti[insa] = ssa
@@ -190,15 +190,15 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
             # create result node update (in subgraph)
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                [ :res  => insa,
-                                  :sidx => nmap[ni],
-                                  :st   => inst,
-                                  :dx   => collect(dg.seti)[1][1] ] )
-            dg.seti = NSMap(Dict([nres], [ssa]))
+                                Dict(   :res  => insa,
+                                        :sidx => nmap[ni],
+                                        :st   => inst,
+                                        :dx   => collect(dg.seti)[1][1] ) )
+            dg.seti = NSMap([nres], [ssa])
 
             # create exit node for result
             nex = addnode!(g, NIn(ssa, [nf]))
-            dg.seto = NSMap(Dict([nex], [ssa]))
+            dg.seto = NSMap([nex], [ssa])
 
             # update parents of for loop
             append!( nf.parents, setdiff(collect( nodes(dg.exto)), nf.parents[2:end]) )
@@ -209,14 +209,14 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
             g |> splitnary! |> prune! |> simplify!
             
-            calc!(g, params=Dict(paramsym, paramvalues), emod=evalmod)
+            calc!(g, params=Dict(zip(paramsym, paramvalues)), emod=evalmod)
         end
 
     end
 
     voin = map( s -> getnode(g.seti, s), voi )
     ex = addnode!(g, NCall(:tuple, voin))
-    g.seti = BiDict(Dict{ExNode,Any}( [ex], [nothing]) )
+    g.seti = NSMap( [ex], [nothing])
 
     g |> splitnary! |> prune! |> simplify!
 

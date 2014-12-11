@@ -44,11 +44,11 @@ type BiDict{K,V}
   end
 end
 
-BiDict() = BiDict{Any,Any}()
+BiDict()                                                = BiDict{Any,Any}()
 BiDict{K,V}(ks::AbstractArray{K}, vs::AbstractArray{V}) = BiDict{K,V}(ks,vs)
-BiDict(ks, vs) = BiDict{Any,Any}(ks, vs)
-BiDict{K,V}(d::Dict{K,V}) = BiDict{K,V}(d)
-BiDict(d) = BiDict{Any,Any}(d)
+BiDict(ks, vs)                                          = BiDict{Any,Any}(ks, vs)
+BiDict{K,V}(d::Dict{K,V})                               = BiDict{K,V}(d)
+BiDict(d)                                               = BiDict{Any,Any}(d)
 
 # use first dict (kv) by default for base functions
 function setindex!(bd::BiDict, v, k)

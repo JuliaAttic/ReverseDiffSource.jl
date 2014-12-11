@@ -51,12 +51,6 @@ function markalloc!(g::ExGraph)
 
 		elseif isa(n, NFor)
 			g2 = n.main[2]  # subgraph
-#=			ss = collect(syms(g2.seto))
-			sn = collect(keys(filter((k,v) -> v in ss, g2.exto.kv)))
-			for n2 in sn
-				n2.alloc = true
-			end
-=#
 			for (n2, s2) in g2.exto
 				hassym(g2.seto, s2) || continue
 				n2.alloc = true
@@ -65,6 +59,22 @@ function markalloc!(g::ExGraph)
 			n.alloc = false	
 		end
 	end
+end
+
+
+# TODO : propagate to grand-parent graph etc...
+function constequiv(n, g)
+	isa(n, NConst)          && return n.main
+	!isa(n, NExt)           && return nothing
+
+	!hasnode(g.exti, n)     && return nothing
+	sym = g.exti.kv[n]
+	!hassym(g.exto, sym)    && return nothing
+	 hassym(g.seti, sym)    && return nothing
+
+	pn = getnode(g.exto, sym)
+	!isa(pn, NConst)  && return nothing
+	pn.main
 end
 
 ## fusion of identical nodes
@@ -90,13 +100,13 @@ function evalconstants(n, g, emod)
 		vals[i] = constequiv(p,g)
 		vals[i] == nothing && return false
 	end
-	# any(p -> constequiv(p,g) == nothing, n.parents) && return false
 
 	# calculate value
 	res = 0.
 	try
 		# res = apply(emod.eval(n.main), [ x.main for x in n.parents]...)
-		res = apply(emod.eval(n.main), vals...)
+		# res = apply(emod.eval(n.main), vals...)
+		res = (emod.eval(n.main))(vals...)
 	catch e
 		println("error $e \n while evaluating $(n.main) on $([ x.main for x in n.parents]')")
 		rethrow(e)
@@ -254,20 +264,6 @@ function rule9(n, g)
 	true
 end
 
-# TODO : propagate to grand-parent graph etc...
-function constequiv(n, g)
-	isa(n, NConst)          && return n.main
-	!isa(n, NExt)           && return nothing
-
-	!hasnode(g.exti, n)     && return nothing
-	sym = g.exti.kv[n]
-	!hassym(g.exto, sym)    && return nothing
-	 hassym(g.seti, sym)    && return nothing
-
-	pn = getnode(g.exto, sym)
-	!isa(pn, NConst)  && return nothing
-	pn.main
-end
 
 ## getindex on fill()
 function rule10(n, g)
