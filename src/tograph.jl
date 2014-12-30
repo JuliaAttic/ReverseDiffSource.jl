@@ -33,6 +33,7 @@
   typealias ExTuple    ExH{:tuple}
   typealias ExReturn   ExH{:return}
   typealias ExBody     ExH{:body}
+  typealias ExQuote    ExH{:QuoteNode}
 
 
 
@@ -42,12 +43,13 @@ tograph(s) = tograph(s, Any[])
 #  svars : vars set since the toplevel graph (helps separate globals / locals)
 function tograph(s, svars::Vector)
 
-	explore(ex::Any)       = error("[tograph] unmanaged type $ex")
+	explore(ex::Any)       = error("[tograph] unmanaged type $ex ($(typeof(ex)))")
 	explore(ex::Expr)      = explore(toExH(ex))
 	explore(ex::ExH)       = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
 
 	explore(ex::ExLine)         = nothing     # remove line info
 	explore(ex::LineNumberNode) = nothing     # remove line info
+	explore(ex::QuoteNode)      = addnode!(g, NConst(ex.value))  # consider as constant
 
 	explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
 

@@ -6,6 +6,7 @@
 
 @typeequiv    Real     1    # derivatives of scalars are scalars
 @typeequiv    Range    2    # usualy not derived against but useful for reversegraph anyway
+@typeequiv    Symbol   1    # usualy not derived against but useful for reversegraph anyway
 
 
 # derivation neutral functions
