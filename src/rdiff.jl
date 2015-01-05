@@ -164,13 +164,13 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create param size node
-            nsz = addgraph!( :( length( x ) ), g, Dict( :x => getnode(g.exti, paramsym[1]) ) )
+            nsz = addgraph!( :( length( x ) ), g, @compat Dict( :x => getnode(g.exti, paramsym[1]) ) )
 
             # create (n-1)th derivative size node
-            ndsz = addgraph!( :( sz ^ $(i-1) ), g, Dict( :sz => nsz ) )
+            ndsz = addgraph!( :( sz ^ $(i-1) ), g, @compat Dict( :sz => nsz ) )
 
             # create index range node
-            nid = addgraph!( :( 1:dsz ),  g, Dict( :dsz => ndsz ) )
+            nid = addgraph!( :( 1:dsz ),  g, @compat Dict( :dsz => ndsz ) )
             push!(nf.parents, nid)
 
             # pass size node inside subgraph
@@ -181,7 +181,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, Dict( :sz => nsz ) )
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, @compat Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
             dg.exti[insa] = ssa
@@ -190,10 +190,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
             # create result node update (in subgraph)
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                Dict(   :res  => insa,
-                                        :sidx => nmap[ni],
-                                        :st   => inst,
-                                        :dx   => collect(dg.seti)[1][1] ) )
+                                @compat Dict(:res  => insa,
+                                             :sidx => nmap[ni],
+                                             :st   => inst,
+                                             :dx   => collect(dg.seti)[1][1] ) )
             dg.seti = NSMap([nres], [ssa])
 
             # create exit node for result
