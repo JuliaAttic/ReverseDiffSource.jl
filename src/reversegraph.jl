@@ -34,18 +34,21 @@ function createzeronode!(g2::ExGraph, n)
 	# d_equivnode_1 is the name of function returning dnodes constructors
 	#   as defined by calls to the macro @typeequiv
 
-	if method_exists(d_equivnode_1, (typeof(n.val),) )
-		rn = invoke(d_equivnode_1, (typeof(n.val),) , n.val)
-    	dg, dd, de = rdict[ rn ]
+	# if method_exists(d_equivnode_1, (typeof(n.val),) )
+	# 	rn = invoke(d_equivnode_1, (typeof(n.val),) , n.val)
+ #    	dg, dd, de = rdict[ rn ]
+	if haskey(tdict, typeof(n.val))
+    	dg, dd, de = tdict[ typeof(n.val) ]
     	smap = Dict( dd[1] => n )  # map 'x' node to n
     	exitnode = addgraph!(dg, g2, smap)
 
     	return exitnode
 	
 	# try the array of defined types
-	elseif (isa(n.val, Array) || isa(n.val, Tuple)) && method_exists(d_equivnode_1, (eltype(n.val),) )
-		rn = invoke(d_equivnode_1, (eltype(n.val),) , n.val[1])
-    	dg, dd, de = rdict[ rn ]
+	# elseif (isa(n.val, Array) || isa(n.val, Tuple)) && method_exists(d_equivnode_1, (eltype(n.val),) )
+	# 	rn = invoke(d_equivnode_1, (eltype(n.val),) , n.val[1])
+	elseif (isa(n.val, Array) || isa(n.val, Tuple)) && haskey(tdict, eltype(n.val))
+    	dg, dd, de = tdict[ eltype(n.val) ]
     	smap = Dict( dd[1] => n )  # map 'x' node to n
     	exitnode = addgraph!(dg, g2, smap)
 

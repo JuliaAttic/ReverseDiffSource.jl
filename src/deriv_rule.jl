@@ -4,7 +4,10 @@
 #
 #########################################################################
 
-rdict = Dict()
+rdict = Dict() # holds the derivation expressions
+tdict = Dict() # holds the type equivalence expressions
+
+#### function derivation rules declaration functions/macros
 
 function dfuncname(nam::Union(Expr, Symbol), ind::Int)
     if isa(nam, Symbol)
@@ -74,26 +77,21 @@ macro deriv_rule(func::Expr, dv::Symbol, diff)
     deriv_rule(func, dv, diff)
 end
 
-#####  composite type - vector equivalence declaration  ######
+#### composite type - vector equivalence declaration function ######
 
-macro typeequiv(typ::Union(Symbol, Expr), n::Int)
-    ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
-    deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
-end
+# macro typeequiv(typ::Union(Symbol, Expr), n::Int)
+#     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
+#     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
+# end
 
+# TODO : implement type hierarchy (only leaf types work)
 function typeequiv(typ::DataType, n::Int)
     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
+
     ### make the graph
     g = tograph( ie )
 
     #### store graph, build proxy function
-    rn = gensym("rule")
-    rdict[rn] = ( g, Symbol[:x], getnode(g.seti, nothing) )
-
-    # diff function name
-    fn  = dfuncname(:equivnode, 1)
-    sig = Expr(:(::), :x, symbol("$typ"))
-
-    # create function returning applicable rule # for this signature
-    eval( :( $(Expr(:call, fn, sig)) = $(Expr(:quote, rn)) ) )
+    tdict[typ] = ( g, Symbol[:x], getnode(g.seti, nothing) )
 end 
+
