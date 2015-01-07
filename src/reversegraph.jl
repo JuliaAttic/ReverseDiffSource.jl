@@ -54,7 +54,7 @@ function createzeronode!(g2::ExGraph, n)
 
 	end
 
-	error("[reversegraph] Unknown type $(typeof(n.val)) for node $n")
+	error("[reversegraph] Unknown type $(typeof(n.val)) for node $(repr(n)[1:min(40, end)])")
 end
 
 #  climbs the reversed evaluation tree

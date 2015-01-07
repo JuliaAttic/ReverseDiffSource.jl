@@ -80,4 +80,20 @@ macro typeequiv(typ::Union(Symbol, Expr), n::Int)
     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
 end
- 
+
+function typeequiv(typ::DataType, n::Int)
+    ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
+    ### make the graph
+    g = tograph( ie )
+
+    #### store graph, build proxy function
+    rn = gensym("rule")
+    rdict[rn] = ( g, Symbol[:x], getnode(g.seti, nothing) )
+
+    # diff function name
+    fn  = dfuncname(:equivnode, 1)
+    sig = Expr(:(::), :x, symbol("$typ"))
+
+    # create function returning applicable rule # for this signature
+    eval( :( $(Expr(:call, fn, sig)) = $(Expr(:quote, rn)) ) )
+end 
