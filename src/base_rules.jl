@@ -21,7 +21,7 @@ typeequiv( FloatRange{Float64}, 2)
 @deriv_rule zeros(x)     x     0.
 @deriv_rule ones(x)      x     0.
 @deriv_rule size(x)      x     0.
-@deriv_rule sgn(x)       x     0.
+@deriv_rule sign(x)      x     0.
 @deriv_rule reverse(x)   x     0.
 
 

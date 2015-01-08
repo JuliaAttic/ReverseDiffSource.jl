@@ -138,7 +138,7 @@ addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 function splitnary!(g::ExGraph)
   for n in g.nodes
       if isa(n, NCall) &&
-          in(n.main, [:+, :*, :sum, :min, :max, :vcat]) && 
+          in(n.main, [+, *, sum, min, max, vcat]) && 
           (length(n.parents) > 2 )
 
           nn = addnode!(g, NCall( n.main, n.parents[2:end] ) )
@@ -326,10 +326,21 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     end
   end
 
-  function evaluate(n::Union(NCall, NComp))
+  function evaluate(n::NCall)
     local ret
     try
-        ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
+      # ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
+      ret = (n.main)([ x.val for x in n.parents]...) 
+    catch
+      error("[calc!] can't evaluate $(n.main) \n $g \n $params")
+    end
+    return ret
+  end 
+
+  function evaluate(n::NComp)
+    local ret
+    try
+      ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
     catch
       error("[calc!] can't evaluate $(n.main) \n $g \n $params")
     end
@@ -386,7 +397,9 @@ end
 ###### inserts graph src into dest  ######
 # TODO : inserted graph may update variables and necessitate a precedence update
 
-addgraph!(src::Expr, dest::ExGraph, smap::Dict) = addgraph!(tograph(src), dest, smap)
+function addgraph!(src::Expr, dest::ExGraph, smap::Dict)
+  addgraph!(tograph(src), dest, smap)
+end
 
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   length(src.exto.kv)>0 && warn("[addgraph] adding graph with external onodes")

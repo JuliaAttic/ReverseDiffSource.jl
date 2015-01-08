@@ -25,18 +25,18 @@ function tocode(g::ExGraph)
 
 	function translate(n::NCall)
 	  	# special translation cases
-	  	if n.main == :vcat
-	  		return Expr      (:vcat, Any[ valueof(x,n) for x in n.parents ]...)
-	  	elseif n.main == :colon
+	  	if n.main == vcat
+	  		return Expr(      :vcat, Any[ valueof(x,n) for x in n.parents ]...)
+	  	elseif n.main == colon
 	  		return Expr(       :(:), Any[ valueof(x,n) for x in n.parents ]...)
-	  	elseif n.main == :transpose
+	  	elseif n.main == transpose
 	  		return Expr(symbol("'"),                 valueof(n.parents[1], n) )
-	  	elseif n.main == :tuple
+	  	elseif n.main == tuple
 	  		return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents ]...)
 		end
 
 		# default translation
-		Expr(:call, n.main, Any[ valueof(x,n) for x in n.parents ]...)
+		Expr(:call, symbol(string(n.main)), Any[ valueof(x,n) for x in n.parents ]...)
 	end
 
 	function translate(n::NExt)

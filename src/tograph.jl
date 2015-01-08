@@ -36,12 +36,9 @@
   typealias ExQuote    ExH{:QuoteNode}
 
 
-
-tograph(s) = tograph(s, Any[])
-
 #  s     : expression to convert
 #  svars : vars set since the toplevel graph (helps separate globals / locals)
-function tograph(s, svars::Vector)
+function tograph(s, evalmod=Main, svars=Any[])
 
 	explore(ex::Any)       = error("[tograph] unmanaged type $ex ($(typeof(ex)))")
 	explore(ex::Expr)      = explore(toExH(ex))
@@ -107,7 +104,8 @@ function tograph(s, svars::Vector)
 
 		else #TODO : add setfield!
 
-			return  addnode!(g, NCall(ex.args[1], map(explore, ex.args[2:end]) ))
+			return  addnode!(g, NCall( 	evalmod.eval(ex.args[1]), 
+										map(explore, ex.args[2:end]) ))
 		end
 	end
 
@@ -166,7 +164,7 @@ function tograph(s, svars::Vector)
 
 		# explore the for block as a separate graph 
 		nsvars = union(svars, collect(syms(g.seti)))
-		g2 = tograph(ex.args[2], nsvars)
+		g2 = tograph(ex.args[2], evalmod, nsvars)
 
 		# create "for" node
 		nf = addnode!(g, NFor( Any[ is, g2 ] ))

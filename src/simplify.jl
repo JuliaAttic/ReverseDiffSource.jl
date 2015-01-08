@@ -129,11 +129,11 @@ function rule1(n, g)
 	(val == nothing)           && return false
 	# !isa(n.parents[2], NConst) && return false
 
-	if val == 0 && in(n.main, [:+, :-, :.+, :.-])
+	if val == 0 && in(n.main, [+, -, .+, .-])
 		fusenodes(g, n.parents[1], n)
 		return true
 
-	elseif val == 1 && in(n.main, [:*, :/, :^, :.*, :./, :.^])
+	elseif val == 1 && in(n.main, [*, /, ^, .*, ./, .^])
 		fusenodes(g, n.parents[1], n)
 		return true
 
@@ -150,7 +150,7 @@ function rule2(n, g)
 	(val == nothing)           && return false
 	# !isa(n.parents[2], NConst) && return false
 
-	if val == 0 && in(n.main, [:*, :.*])
+	if val == 0 && in(n.main, [*, .*])
 		nn = addnode!(g, NConst(0.0) )
 		fusenodes(g, nn, n)
 		return true
@@ -169,11 +169,11 @@ function rule3(n, g)
 	(val == nothing)           && return false
 	# !isa(n.parents[1], NConst) && return false
 
-	if val == 0 && in(n.main, [:+, :.+])
+	if val == 0 && in(n.main, [+, .+])
 		fusenodes(g, n.parents[2], n)
 		return true
 
-	elseif val == 1 && in(n.main, [:*, :.*])
+	elseif val == 1 && in(n.main, [*, .*])
 		fusenodes(g, n.parents[2], n)
 		return true
 
@@ -190,7 +190,7 @@ function rule4(n, g)
 	(val == nothing)           && return false
 	# !isa(n.parents[1], NConst) && return false
 
-	if val == 0 && in(n.main, [:*, :/, :^, :.*, :./, :.^])
+	if val == 0 && in(n.main, [*, /, ^, .*, ./, .^])
 		nn = addnode!(g, NConst(0.0) )
 		fusenodes(g, nn, n) 
 		return true
@@ -242,11 +242,11 @@ end
 function rule8(n, g)
 	!isa(n, NCall)             && return false
 	(length(n.parents) != 2)   && return false # restricted to binary ops
-	!in(n.main, [:*, :.*])     && return false
+	!in(n.main, [*, .*])     && return false
 	!isa(n.parents[1], NConst) && return false
 	(n.parents[1].main != -1)  && return false
 
-	nn = addnode!(g, NCall(:-, [n.parents[2]]) )
+	nn = addnode!(g, NCall(-, [n.parents[2]]) )
 	fusenodes(g, nn, n)
 	true
 end
@@ -255,11 +255,11 @@ end
 function rule9(n, g)
 	!isa(n, NCall)             && return false
 	(length(n.parents) != 2)   && return false # restricted to binary ops
-	!in(n.main, [:*, :.*])     && return false
+	!in(n.main, [*, .*])     && return false
 	!isa(n.parents[2], NConst) && return false
 	(n.parents[2].main != -1)  && return false
 
-	nn = addnode!(g, NCall(:-, [n.parents[1]]) )
+	nn = addnode!(g, NCall(-, [n.parents[1]]) )
 	fusenodes(g, nn, n)
 	true
 end

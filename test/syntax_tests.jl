@@ -81,7 +81,7 @@ ex = :( z = Bar(a*a, sin(a)) ; norm(z) )
 a = 1
 @eval $ex
 
-m.typeequiv( Bar, 2 )
+m.@typeequiv   Bar    2
 m.@deriv_rule  Bar(x,y)      x  ds[1]
 m.@deriv_rule  Bar(x,y)      y  ds[2]
 m.@deriv_rule  norm(z::Bar)  z  [ 2*z.x , 2*z.y ] .* ds
