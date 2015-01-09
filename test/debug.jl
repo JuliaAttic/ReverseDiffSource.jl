@@ -2,11 +2,19 @@
     Pkg.status()
 
     cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
-
     include("runtests.jl")
+
+###################### rules rewrite   ######################################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    @deriv_rule reverse(x)   x     0.
+
+    m.rdiff( :(sin(x)) , order=3, x=2.)
 
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    m.drules[(+,1)]
+
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
     res = m.rdiff(ex, x=zeros(2), order=2)   

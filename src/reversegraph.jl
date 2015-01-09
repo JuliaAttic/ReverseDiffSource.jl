@@ -31,19 +31,24 @@ end
 
 # creates the starting points for derivatives accumulation variables
 function createzeronode!(g2::ExGraph, n)
-	if haskey(trules, typeof(n.val))
-    	dg, dd = trules[ typeof(n.val) ]
+	if (isa(n.val, AbstractArray) || isa(n.val, Tuple))
+		targs = ( eltype(n.val), )
+		sk = tmatch( targs, collect(keys(trules)) )
+		(sk == nothing) && error("[reversegraph] Unknown element type $targs for node $(repr(n)[1:min(40, end)])")
+
+    	dg, dd = trules[ sk ]
+    	v1 = addgraph!(dg, g2, Dict())
+    	v2 = addnode!(g2, NCall(size, [n]))
+		return addnode!(g2, NCall(fill, [v1, v2]))
+
+	else
+		targs = ( typeof(n.val), )
+		sk = tmatch( targs, collect(keys(trules)) )
+		(sk == nothing) && error("[reversegraph] Unknown type $targs for node $(repr(n)[1:min(40, end)])")
+
+    	dg, dd = trules[ sk ]
     	return addgraph!(dg, g2, Dict())
-	
-	elseif (isa(n.val, Array) || isa(n.val, Tuple)) && haskey(trules, eltype(n.val))
-    	dg, dd = trules[ eltype(n.val) ]
-    	exitnode = addgraph!(dg, g2, Dict())
-
-    	v1 = addnode!(g2, NCall(size, [n]))
-		return addnode!(g2, NCall(fill, [exitnode, v1]))
 	end
-
-	error("[reversegraph] Unknown type $(typeof(n.val)) for node $(repr(n)[1:min(40, end)])")
 end
 
 #  climbs the reversed evaluation tree

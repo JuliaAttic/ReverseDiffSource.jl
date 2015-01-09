@@ -4,13 +4,13 @@
 #
 #########################################################################
 
-typeequiv( Float64 , 1)    # derivatives of scalars are scalars
-typeequiv(   Int64 , 1)    # derivatives of scalars are scalars
-typeequiv(  Bool , 1)    # derivatives of scalars are scalars
+typeequiv( Real, 1)    # derivatives of scalars are scalars
+# typeequiv(   Int64 , 1)    # derivatives of scalars are scalars
+# typeequiv(  Bool , 1)    # derivatives of scalars are scalars
 typeequiv(  Range  , 2)    # usualy not derived against but useful for reversegraph anyway
 typeequiv( Symbol  , 1)    # usualy not derived against but useful for reversegraph anyway
-typeequiv( UnitRange{Int64}, 2)
-typeequiv( FloatRange{Float64}, 2)
+# typeequiv( UnitRange{Int64}, 2)
+# typeequiv( FloatRange{Float64}, 2)
 
 # derivation neutral functions
 @deriv_rule colon(x,y)   x     0.

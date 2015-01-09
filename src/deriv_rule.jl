@@ -34,6 +34,8 @@ macro deriv_rule(func::Expr, dv::Symbol, diff)
 end
 
 function deriv_rule{T<:Type}(func::Union(Function, Type), args::Vector{(Symbol, T)}, dv::Symbol, diff::Union(Expr, Symbol, Real))
+    emod = current_module()
+
     sig = tuple( Type[ e[2] for e in args ]... )
     ss  = Symbol[ e[1] for e in args ]
 
@@ -42,8 +44,15 @@ function deriv_rule{T<:Type}(func::Union(Function, Type), args::Vector{(Symbol, 
 
     haskey(drules, (func, index)) || (drules[(func, index)] = Dict())
 
-    g = tograph(diff, current_module())  # make the graph
+    g = tograph(diff, emod)  # make the graph
     push!(ss, :ds)
+
+    # Force resolution of external references that are not in ss (Types notably)
+    for en in filter(n -> isa(n, NExt) & !in(n.main, ss) , keys(g.exti))
+        delete!(g.exti, en)
+        nc = addnode!(g, NConst( emod.eval(en.main) ))
+        fusenodes(g, nc, en)
+    end
 
     drules[(func, index)][sig] = (g, ss) 
 end
@@ -59,7 +68,7 @@ end
 
 function typeequiv(typ::DataType, n::Int)
     g = tograph( n==1 ? 0. : Expr(:vcat, zeros(n)...) )
-    trules[typ] = ( g, Symbol[] )
+    trules[(typ,)] = ( g, Symbol[] )
 end 
 
 #### Type tuple matching  (naive multiple dispatch)
