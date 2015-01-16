@@ -32,7 +32,7 @@ getsym( m::NSMap, n::ExNode) = m.kv[n]
 
 
 function show(io::IO, g::ExGraph)
-  tn = fill("", length(g.nodes), 8)
+  tn = fill(UTF8String(""), length(g.nodes), 8)
 
   for (i,n) in enumerate(g.nodes)
     tn[i,1] = "$i"
@@ -53,8 +53,8 @@ function show(io::IO, g::ExGraph)
     tn[i,5] = join( map( x -> "$x", indexin(n.parents,    Any[g.nodes...])), ", ")
     tn[i,6] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
 
-    tn[i,7] = "$(repr(main))"
-    tn[i,8] = "$(typeof(n.val)) $(repr(n.val)[1:min(40, end)])"
+    tn[i,7] = repr(main)
+    tn[i,8] = "($(typeof(n.val))) $(repr(n.val)[1:min(40, end)])"
   end
 
   tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"], 

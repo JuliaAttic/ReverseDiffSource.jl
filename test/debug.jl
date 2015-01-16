@@ -10,6 +10,87 @@
 
     m.rdiff( :(sin(x)) , order=3, x=2.)
 
+
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    using Distributions
+
+    function zeronode(n)  
+        # n = m.NConst(:abcd, [], [], LogNormal(4,5), false)
+        n = m.NConst(:abcd, [], [], [1., [1., [1., 3.]]] , false)
+        v = n.val
+
+        isa(v, Real)   && return m.tograph( :(0.) )
+        isa(v, Symbol) && return m.tograph( :(0.) )
+        isa(v, Range)  && return m.tograph( :( zeros(2) ) )
+
+        if isa(v, Array) && (eltype(v) <: Real)  # is it an array of Reals ?
+            g        = m.ExGraph()
+            exitnode = m.addnode!(g, m.NCall(zeros, [n]))
+            g.seti[exitnode] = nothing
+            return g
+
+        ## TODO : add Array{Any}  (needs to find size() trick for arrays containing arrays)
+        else # composite type
+            g        = m.ExGraph()
+            g.exto[n]                            = :tv
+            g.exti[ m.addnode!(g, m.NExt(:tv)) ] = :tv
+
+            exitnode = m.addnode!(g, m.NCall(vcat))
+            g.seti[exitnode] = nothing
+
+            for n2 in names(typeof(v))  # n2 = :nrmd
+                nf      = m.addnode!(g, m.NConst( 10, [n]) )  # create node for this field
+                nf.val  = getfield(v, n2)
+                ng      = zeronode( nf )
+                nn      = m.addgraph!( ng, g, Dict( :tv => nf ))
+                # g.nodes = vcat(g.nodes, ng.nodes)
+                push!(exitnode.parents, nn)
+            end
+
+            return m.prune!(g)
+
+        end
+    end
+
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], 12      , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2    , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2-4im, false) ))
+
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], 5:6        , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], 5:0.2:10   , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], Beta(4,5)  , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], Normal(4,5), false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], LogNormal(4,5), false) ))
+
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], [1,2 ]        , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], [Beta(4,5), Beta(2,3)], false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], [1., 3.] , false) ))
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], Any[1., Any[1., [1., 3.]]] , false) ))
+
+
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2-4im, false) ))
+
+    m.tocode(equivzeronode(  5:6 ))
+
+    m.tocode(equivzeronode(  Beta(2,3) ))
+
+    m.tocode(equivzeronode(  Bernoulli(0.5) ))
+
+    m.tocode(equivzeronode(  Bernoulli(0.5) ))
+    m.tocode(equivzeronode(  TDist(0.5) ))
+    m.tocode(equivzeronode(  Exponential(0.5) ))
+    m.tocode(equivzeronode(  Poisson(0.5) ))
+
+    m.tocode(equivzeronode( Normal(0.5,0.3) ) )
+    m.tocode(equivzeronode( Uniform(0.5,0.87) ) )
+    m.tocode(equivzeronode( Weibull(0.5,0.3) ) )
+    m.tocode(equivzeronode( Gamma(0.5,0.3) ) )
+    m.tocode(equivzeronode( Cauchy(0.5,0.3) ) )
+    m.tocode(equivzeronode( LogNormal(0.5,0.3) ) )
+    m.tocode(equivzeronode( Binomial(5,0.3) ) )  
+    m.tocode(equivzeronode( Beta(0.5,0.3) ) )
+    m.tocode(equivzeronode( Laplace(0.5,0.3) ) )
+
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
