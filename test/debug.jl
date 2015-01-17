@@ -4,50 +4,82 @@
     cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
     include("runtests.jl")
 
+    m.rdiff( :( x[2]) , x=zeros(3))
+
 ###################### rules rewrite   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
     @deriv_rule reverse(x)   x     0.
 
     m.rdiff( :(sin(x)) , order=3, x=2.)
 
-
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
+###################### rules rewrite   ######################################
     using Distributions
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     function zeronode(n)  
         # n = m.NConst(:abcd, [], [], LogNormal(4,5), false)
-        n = m.NConst(:abcd, [], [], [1., [1., [1., 3.]]] , false)
+        # n = m.NConst(:abcd, [], [], Any[1., [1., [1., 3.]]] , false)
         v = n.val
 
-        isa(v, Real)   && return m.tograph( :(0.) )
-        isa(v, Symbol) && return m.tograph( :(0.) )
-        isa(v, Range)  && return m.tograph( :( zeros(2) ) )
+        if isa(v, Real) || isa(v, Symbol)
+            return m.tograph( :(0.) )
 
-        if isa(v, Array) && (eltype(v) <: Real)  # is it an array of Reals ?
-            g        = m.ExGraph()
-            exitnode = m.addnode!(g, m.NCall(zeros, [n]))
+        elseif isa(v, Range)
+            return m.tograph( :( zeros(2) ) )
+
+        elseif isa(v, Array) && (eltype(v) <: Real)  # is it an array of Reals ?
+            g          = m.ExGraph()
+            v1         = m.addnode!(g, m.NExt(:tv))
+            g.exti[v1] = :tv
+
+            exitnode = m.addnode!(g, m.NCall(zeros, [v1]))
             g.seti[exitnode] = nothing
             return g
 
-        ## TODO : add Array{Any}  (needs to find size() trick for arrays containing arrays)
-        else # composite type
-            g        = m.ExGraph()
-            g.exto[n]                            = :tv
-            g.exti[ m.addnode!(g, m.NExt(:tv)) ] = :tv
+        elseif isa(v, Array) && isleaftype(eltype(v)) # homogenous array
+            g          = m.ExGraph()
+            g.exto[n]  = :tv
+            v1         = m.addnode!(g, m.NExt(:tv))
+            g.exti[v1] = :tv
+
+            nf      = m.addnode!(g, m.NConst( :plug, [n]) )  # create node for this field
+            nf.val  = getfield(v, n2)
+            ng      = zeronode( nf )
+            nn      = m.addgraph!( ng, g, Dict( :tv => nf ))
 
             exitnode = m.addnode!(g, m.NCall(vcat))
             g.seti[exitnode] = nothing
 
-            for n2 in names(typeof(v))  # n2 = :nrmd
                 nf      = m.addnode!(g, m.NConst( 10, [n]) )  # create node for this field
                 nf.val  = getfield(v, n2)
                 ng      = zeronode( nf )
-                nn      = m.addgraph!( ng, g, Dict( :tv => nf ))
-                # g.nodes = vcat(g.nodes, ng.nodes)
-                push!(exitnode.parents, nn)
+                ge = 
+            return m.tograph( quote 
+                d = Array(Array{Float64}, size(n)))
+                for i in 1:size(n)
+                    nv = $
+                    d[i]
+
+
+        elseif isleaftype(typeof(v)) # composite type
+            g  = m.tograph( :( cell(length(names(tv))) ) )
+            # TODO : optimize to an array{Float64} instead of array{Any} if all fields are Reals
+
+            for (i, n2) in enumerate(names(typeof(v)))  # i, n2 = 1, :nrmd
+                # create node for holding field value
+                nf      = m.addnode!(g, m.NDot(QuoteNode(n2), [ m.getnode(g.exti, :tv) ], [], getfield(v, n2), false) ) 
+
+                ng      = zeronode( nf )
+                nn      = m.addgraph!(ng, g, Dict( :tv => nf ))
+                ni      = m.addnode!(g, m.NConst(i))
+                ns      = m.addnode!(g, m.NSRef(:setidx, [m.getnode(g.seti, nothing), nn, ni]))
+                g.seti[ns] = nothing
             end
 
             return m.prune!(g)
+
+        else
+            error("[reversegraph] Unable to build diff accumulator for node $(repr(n)[1:min(40, end)])")
 
         end
     end
@@ -62,11 +94,38 @@
     m.tocode( zeronode(  m.NConst(:abcd, [], [], Normal(4,5), false) ))
     m.tocode( zeronode(  m.NConst(:abcd, [], [], LogNormal(4,5), false) ))
 
+    type Abcd
+        a::Float64
+        b
+        c::Vector{Float64}
+    end
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], Abcd(2., 3., [1,2 ])        , false) ))
+
+    type Abcd2
+        a::Float64
+        b
+    end
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], Abcd2(2., 3.)        , false) ))
+
+
     m.tocode( zeronode(  m.NConst(:abcd, [], [], [1,2 ]        , false) ))
     m.tocode( zeronode(  m.NConst(:abcd, [], [], [Beta(4,5), Beta(2,3)], false) ))
     m.tocode( zeronode(  m.NConst(:abcd, [], [], [1., 3.] , false) ))
     m.tocode( zeronode(  m.NConst(:abcd, [], [], Any[1., Any[1., [1., 3.]]] , false) ))
 
+    Any[ 1, 3, [1, 2]]
+    dump( :(Any[ 1, 3, [1, 2]]))
+
+    Expr( :ref )
+    vcat(1, 2)
+
+
+    ta = [Beta(4,5), Beta(2,3)]
+    isleaftype(eltype(ta))
+    ta = [Beta(4,5), Normal(2,3)]
+    isleaftype(eltype(ta))
+
+    m.tocode( zeronode(  m.NConst(:abcd, [], [], ta , false) ))
 
     m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2-4im, false) ))
 

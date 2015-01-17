@@ -55,7 +55,7 @@ end
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	# TODO : have a generic treatment of mutating nodes (NSRef / NSDot / NFor ...)
 
-	rev(n::ExNode) = nothing  # do nothing
+	rev(n::ExNode) = nothing  # do nothing by default
 
 	function rev(n::NCall)
 		vargs = [ x.val for x in n.parents ]
@@ -73,8 +73,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
             	exitnode = addgraph!(dg, g2, smap)
 
-        		v2 = addnode!(g2, NCall(+, [dnodes[arg], exitnode]) )
-        		dnodes[arg] = v2
+        		dnodes[arg] = addnode!(g2, NCall(+, [dnodes[arg], exitnode]) )
             end
         end
 	end		 
@@ -82,6 +81,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	function rev(n::NRef)
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
         v3 = addnode!(g2, NCall(+, [v2, dnodes[n]]) )
+
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
 		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
@@ -107,7 +107,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
 			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
 			dnodes[n.parents[1]] = v4
-		else   # scalar assignment
+		else   # simple assignment
 			v3 = addnode!(g2, NCall(+, [ dnodes[n.parents[2]], dnodes[n] ]) )
 			dnodes[n.parents[2]] = v3
 
@@ -118,7 +118,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			dnodes[n.parents[1]] = v4
 		end
 	end
-
 
 	function rev(n::NDot)
         v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
