@@ -48,11 +48,11 @@ function deriv_rule{T<:Type}(func::Union(Function, Type), args::Vector{(Symbol, 
     push!(ss, :ds)
 
     # Force resolution of external references that are not in ss (Types notably)
-    for en in filter(n -> isa(n, NExt) & !in(n.main, ss) , keys(g.exti))
-        delete!(g.exti, en)
-        nc = addnode!(g, NConst( emod.eval(en.main) ))
-        fusenodes(g, nc, en)
-    end
+    # for en in filter(n -> isa(n, NExt) & !in(n.main, ss) , keys(g.exti))
+    #     delete!(g.exti, en)
+    #     nc = addnode!(g, NConst( emod.eval(en.main) ))
+    #     fusenodes(g, nc, en)
+    # end
 
     drules[(func, index)][sig] = (g, ss) 
 end

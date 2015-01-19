@@ -74,6 +74,14 @@ function tograph(s, evalmod=Main, svars=Any[])
 
 	function explore(ex::Symbol)
 		ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
+
+		# transform types into constants
+		if isdefined(Base, ex)  # is it defined in Base (Main too risky)
+			tv = Base.eval(ex)
+			isa(tv, TypeConstructor) && error("[tograph] TypeConstructors not supported: $ex $(tv), use DataTypes")
+			isa(tv, DataType)        && return addnode!(g, NConst(tv))
+		end
+
 		hassym(g.seti, ex)       && return getnode(g.seti, ex)
 		hassym(g.exti, ex)       && return getnode(g.exti, ex)
 

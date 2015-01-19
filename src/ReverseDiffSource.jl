@@ -44,6 +44,7 @@ module ReverseDiffSource
   include("simplify.jl")
   include("tograph.jl")
   include("tocode.jl")
+  include("zeronode.jl")
   include("reversegraph.jl")
   include("deriv_rule.jl")
   include("base_rules.jl")

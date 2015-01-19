@@ -79,6 +79,7 @@ end
 
 ## fusion of identical nodes
 function identical(n,n2,g)
+	typeof(n.main) != typeof(n2.main)  && return false
 	n.main != n2.main       && return false
 	n.parents != n2.parents && return false
 	n.alloc	                && return false

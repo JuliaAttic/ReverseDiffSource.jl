@@ -14,7 +14,8 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 		if n == exitnode
 			dnodes[n] = addnode!(g2, NConst(1.0))
 		else
-			dnodes[n] = createzeronode!(g2, n)
+			dnodes[n] = addgraph!( zeronode(n), g2, Dict( :tv => n) )
+			# dnodes[n] = createzeronode!(g2, n)
 		end
 	end
 
@@ -120,11 +121,23 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	end
 
 	function rev(n::NDot)
-        v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
+		fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
+		idx = findfirst( names(typeof(n.parents[1].val)) .== fsym )
+		(idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
+
+		v1 = addnode!(g2, NConst(idx) )
+        v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], v1 ]) )
         v3 = addnode!(g2, NCall(+, [v2, dnodes[n]]) )
-		v4 = addnode!(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
+
+		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, v1 ]) )
 		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
+
+  #       v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
+  #       v3 = addnode!(g2, NCall(+, [v2, dnodes[n]]) )
+		# v4 = addnode!(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
+		# # TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
+		# dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NIn)
@@ -190,7 +203,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		# create regular zeronodes for the remaining fg nodes
 		for n2 in filter(n-> !isa(n,NFor) & !haskey(fdnodes, n), fg.nodes)
-			nn = createzeronode!(fg2, n2)
+			nn = addgraph!( zeronode(n2), fg2, Dict( :tv => n2) )
+			# nn = createzeronode!(fg2, n2)
 			fdnodes[n2] = nn
 		end
 
