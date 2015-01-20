@@ -10,6 +10,9 @@ module ReverseDiffSource
   
   import Base.show, Base.copy
 
+  # Julia v0.3, v0.4 syntax compatibility issues
+  using Compat
+
   # naming conventions
   const TEMP_NAME = "_tmp"   # prefix of new variables
   const DERIV_PREFIX = "d"   # prefix of gradient variables
