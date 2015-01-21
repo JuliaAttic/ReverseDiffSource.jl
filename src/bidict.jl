@@ -12,7 +12,6 @@ import Base: setindex!, getindex, haskey, delete!,
   keys, values, start, next, done
 
 
-
 type BiDict{K,V}
   kv::Dict{K,V}
   vk::Dict{V,K}

@@ -1,7 +1,6 @@
 ReverseDiffSource.jl
 ====================
 
-
 Julia release (0.3)  | Julia nightly (0.4)|
 ---------------|:-----------:|
 [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_release.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=release)           |  [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_nightly.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=nightly) |
@@ -16,4 +15,9 @@ This package provides a function `rdiff()` that generates valid Julia code for t
 
 Installation : `Pkg.add("ReverseDiffSource")`
 
+<<<<<<< HEAD
 Package documentation and examples can be found [here](http://reversediffsourcejl.readthedocs.org/en/devl/index.html).
+=======
+
+Package documentation and examples can be found [here](http://reversediffsourcejl.readthedocs.org/en/master/index.html).
+>>>>>>> master
