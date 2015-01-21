@@ -95,7 +95,6 @@ end
 #  only if they reduce to a real (zeros(..), etc. should not be converted)
 function evalconstants(n, g, emod)
 	!isa(n, NCall)                       && return false
-	# any(m -> !isa(m, NConst), n.parents) && return false
 	vals = similar(n.parents, Any)
 	for (i,p) in enumerate(n.parents)
 		vals[i] = constequiv(p,g)
@@ -105,12 +104,9 @@ function evalconstants(n, g, emod)
 	# calculate value
 	res = 0.
 	try
-		# res = apply(emod.eval(n.main), [ x.main for x in n.parents]...)
-		# res = apply(emod.eval(n.main), vals...)
-		# res = (emod.eval(n.main))(vals...)
 		res = vals[1](vals[2:end]...)
 	catch e
-		println("error $e \n while evaluating $(n.main) on $([ x.main for x in n.parents]')")
+		println("error $e while evaluating $(vals[1])($(vals[2:end]...))")
 		rethrow(e)
 	end
 
@@ -273,7 +269,8 @@ function rule8(n, g)
 	!isa(n.parents[2], NConst) && return false
 	(n.parents[2].main != -1)  && return false
 
-	nn = addnode!(g, NCall(-, [n.parents[3]]) )
+	nm = addnode!(g, NConst(-))
+	nn = addnode!(g, NCall(:call, [nm, n.parents[3]]) )
 	fusenodes(g, nn, n)
 	true
 end
@@ -288,7 +285,8 @@ function rule9(n, g)
 	!isa(n.parents[3], NConst) && return false
 	(n.parents[3].main != -1)  && return false
 
-	nn = addnode!(g, NCall(-, [n.parents[2]]) )
+	nm = addnode!(g, NConst(-))
+	nn = addnode!(g, NCall(:call, [nm, n.parents[2]]) )
 	fusenodes(g, nn, n)
 	true
 end

@@ -61,7 +61,8 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
     if order == 1
         dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
-        nn = addnode!( g, NCall(tuple, [ getnode(dg.seti, dprefix(p)) for p in paramsym] ) )
+        nf = addnode!( g, NConst(tuple))
+        nn = addnode!( g, NCall(:call, vcat(nf, [ getnode(dg.seti, dprefix(p)) for p in paramsym]...) ) )
         ns = newvar("_dv")
         g.seti[nn] = ns
         push!(voi, ns)
@@ -215,7 +216,8 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
     end
 
     voin = map( s -> getnode(g.seti, s), voi )
-    ex = addnode!(g, NCall(tuple, voin))
+    nf = addnode!(g, NConst(tuple))
+    ex = addnode!(g, NCall(:call, [nf, voin...]))
     g.seti = NSMap( [ex], [nothing])
 
     g |> splitnary! |> prune! |> simplify!
