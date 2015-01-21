@@ -6,6 +6,10 @@
 
 function tocode(g::ExGraph)
 
+	#### creates expression for names qualified by a module
+	mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
+
+
 	valueof(n::ExNode, child::ExNode) = n.val
 	valueof(n::NFor,   child::ExNode) = valueof(n.val[child], n)
 
@@ -25,18 +29,28 @@ function tocode(g::ExGraph)
 
 	function translate(n::NCall)
 	  	# special translation cases
-	  	if n.main == vcat
-	  		return Expr(      :vcat, Any[ valueof(x,n) for x in n.parents ]...)
-	  	elseif n.main == colon
-	  		return Expr(       :(:), Any[ valueof(x,n) for x in n.parents ]...)
-	  	elseif n.main == transpose
-	  		return Expr(symbol("'"),                 valueof(n.parents[1], n) )
-	  	elseif n.main == tuple
-	  		return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents ]...)
+	  	op = n.parents[1].main
+	  	if op == vcat
+	  		return Expr(      :vcat, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+	  	elseif op == colon
+	  		return Expr(       :(:), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+	  	elseif op == transpose
+	  		return Expr(symbol("'"),                 valueof(n.parents[2], n) )
+	  	elseif op == tuple
+	  		return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
 		end
 
 		# default translation
-		Expr(:call, symbol(string(n.main)), Any[ valueof(x,n) for x in n.parents ]...)
+		fex = :()
+		try
+		    fs = methods(op)   # FIXME should be looking for corresponding signature
+			fm = fs.defs.func.code.module
+			fex = mexpr( tuple([fullname(fm)..., symbol(string(op))]...) )
+		catch e
+			error("[tocode] cannot spell function $op")
+		end
+
+		Expr(:call, fex, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
 	end
 
 	function translate(n::NExt)

@@ -31,26 +31,26 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
 end
 
 # creates the starting points for derivatives accumulation variables
-function createzeronode!(g2::ExGraph, n)
-	if (isa(n.val, AbstractArray) || isa(n.val, Tuple))
-		targs = ( eltype(n.val), )
-		sk = tmatch( targs, collect(keys(trules)) )
-		(sk == nothing) && error("[reversegraph] Unknown element type $targs for node $(repr(n)[1:min(40, end)])")
+# function createzeronode!(g2::ExGraph, n)
+# 	if (isa(n.val, AbstractArray) || isa(n.val, Tuple))
+# 		targs = ( eltype(n.val), )
+# 		sk = tmatch( targs, collect(keys(trules)) )
+# 		(sk == nothing) && error("[reversegraph] Unknown element type $targs for node $(repr(n)[1:min(40, end)])")
 
-    	dg, dd = trules[ sk ]
-    	v1 = addgraph!(dg, g2, Dict())
-    	v2 = addnode!(g2, NCall(size, [n]))
-		return addnode!(g2, NCall(fill, [v1, v2]))
+#     	dg, dd = trules[ sk ]
+#     	v1 = addgraph!(dg, g2, Dict())
+#     	v2 = addnode!(g2, NCall(size, [n]))
+# 		return addnode!(g2, NCall(fill, [v1, v2]))
 
-	else
-		targs = ( typeof(n.val), )
-		sk = tmatch( targs, collect(keys(trules)) )
-		(sk == nothing) && error("[reversegraph] Unknown type $targs for node $(repr(n)[1:min(40, end)])")
+# 	else
+# 		targs = ( typeof(n.val), )
+# 		sk = tmatch( targs, collect(keys(trules)) )
+# 		(sk == nothing) && error("[reversegraph] Unknown type $targs for node $(repr(n)[1:min(40, end)])")
 
-    	dg, dd = trules[ sk ]
-    	return addgraph!(dg, g2, Dict())
-	end
-end
+#     	dg, dd = trules[ sk ]
+#     	return addgraph!(dg, g2, Dict())
+# 	end
+# end
 
 #  climbs the reversed evaluation tree
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
@@ -59,29 +59,31 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	rev(n::ExNode) = nothing  # do nothing by default
 
 	function rev(n::NCall)
-		vargs = [ x.val for x in n.parents ]
+		op = n.parents[1].main
 		for (index, arg) in enumerate(n.parents)
 			if !isa(arg, Union(NConst, NComp))
-				haskey(drules, (n.main, index)) || error("no derivation rule for $(n.main) at arg #$index")
-				ddict = drules[(n.main, index)]
+				haskey(drules, (op, index)) || error("no derivation rule for $(op) at arg #$index")
+				ddict = drules[(op, index)]
 
-				targs = tuple( Type[ typeof(x) for x in vargs]... )
+				targs = tuple( Type[ typeof(x.val) for x in n.parents[2:end]]... )
 				sk = tmatch( targs, collect(keys(ddict)) )
-				(sk == nothing) && error("no derivation rule for $(n.main) at arg #$index for signature $targs")
+				(sk == nothing) && error("no derivation rule for $(op) at arg #$index for signature $targs")
 
-				dg, dd = drules[(n.main, index)][sk]
-            	smap = Dict( zip(dd, [n.parents, dnodes[n]]) )
+				dg, dd = drules[(op, index)][sk]
+            	smap = Dict( zip(dd, [n.parents[2:end], dnodes[n]]) )
 
             	exitnode = addgraph!(dg, g2, smap)
 
-        		dnodes[arg] = addnode!(g2, NCall(+, [dnodes[arg], exitnode]) )
+            	vp = addnode!(g2, NConst(+))
+        		dnodes[arg] = addnode!(g2, NCall(:call, [vp, dnodes[arg], exitnode]) )
             end
         end
 	end		 
 
 	function rev(n::NRef)
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
-        v3 = addnode!(g2, NCall(+, [v2, dnodes[n]]) )
+       	vp = addnode!(g2, NConst(+))
+        v3 = addnode!(g2, NCall(:call, [vp, v2, dnodes[n]]) )
 
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
 		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
@@ -100,7 +102,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 				end
 			end
 
-			v3 = addnode!(g2, NCall(+, [ dnodes[n.parents[2]], v2 ]) )
+	       	vp = addnode!(g2, NConst(+))
+			v3 = addnode!(g2, NCall(:call, [ vp, dnodes[n.parents[2]], v2 ]) )
 			dnodes[n.parents[2]] = v3
 
 			# shut down the influence of these indices
@@ -109,7 +112,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
 			dnodes[n.parents[1]] = v4
 		else   # simple assignment
-			v3 = addnode!(g2, NCall(+, [ dnodes[n.parents[2]], dnodes[n] ]) )
+	       	vp = addnode!(g2, NConst(+))
+			v3 = addnode!(g2, NCall(:call, [ vp, dnodes[n.parents[2]], dnodes[n] ]) )
 			dnodes[n.parents[2]] = v3
 
 			# shut down the influence of the variable
@@ -127,23 +131,19 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 		v1 = addnode!(g2, NConst(idx) )
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], v1 ]) )
-        v3 = addnode!(g2, NCall(+, [v2, dnodes[n]]) )
+       	vp = addnode!(g2, NConst(+))
+        v3 = addnode!(g2, NCall(:call, [vp, v2, dnodes[n]]) )
 
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, v1 ]) )
 		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
-
-  #       v2 = addnode!(g2, NDot( n.main, [dnodes[n.parents[1]]]) )
-  #       v3 = addnode!(g2, NCall(+, [v2, dnodes[n]]) )
-		# v4 = addnode!(g2, NSDot(n.main, [dnodes[n.parents[1]], v3]) )
-		# # TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
-		# dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NIn)
 		isa(n.parents[1], NFor) && return nothing  # do nothing in the case of for loops
 
-        v2 = addnode!(g2, NCall(+, [dnodes[n], dnodes[n.parents[1]]]) )
+       	vp = addnode!(g2, NConst(+))
+        v2 = addnode!(g2, NCall(:call, [vp, dnodes[n], dnodes[n.parents[1]]]) )
 		dnodes[n.parents[1]] = v2
 	end
 

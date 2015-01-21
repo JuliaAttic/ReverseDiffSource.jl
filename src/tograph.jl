@@ -47,6 +47,7 @@ function tograph(s, evalmod=Main, svars=Any[])
 	explore(ex::ExLine)         = nothing     # remove line info
 	explore(ex::LineNumberNode) = nothing     # remove line info
 	explore(ex::QuoteNode)      = addnode!(g, NConst(ex.value))  # consider as constant
+	# explore(ex::QuoteNode)      = explore(ex.value)  # consider as constant
 
 	explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
 
@@ -66,6 +67,7 @@ function tograph(s, evalmod=Main, svars=Any[])
 	explore(ex::ExBody)    = map( explore, ex.args )[end]
 
 	explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
+	# explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2], map(explore, ex.args) ) )
 
 	explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
@@ -76,11 +78,11 @@ function tograph(s, evalmod=Main, svars=Any[])
 		ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
 
 		# transform types into constants
-		if isdefined(Base, ex)  # is it defined in Base (Main too risky)
-			tv = Base.eval(ex)
-			isa(tv, TypeConstructor) && error("[tograph] TypeConstructors not supported: $ex $(tv), use DataTypes")
-			isa(tv, DataType)        && return addnode!(g, NConst(tv))
-		end
+		# if isdefined(Base, ex)  # is it defined in Base (Main too risky)
+		# 	tv = Base.eval(ex)
+		# 	isa(tv, TypeConstructor) && error("[tograph] TypeConstructors not supported: $ex $(tv), use DataTypes")
+		# 	isa(tv, DataType)        && return addnode!(g, NConst(tv))
+		# end
 
 		hassym(g.seti, ex)       && return getnode(g.seti, ex)
 		hassym(g.exti, ex)       && return getnode(g.exti, ex)
@@ -112,8 +114,10 @@ function tograph(s, evalmod=Main, svars=Any[])
 
 		else #TODO : add setfield!
 
-			return  addnode!(g, NCall( 	evalmod.eval(ex.args[1]), 
-										map(explore, ex.args[2:end]) ))
+			# return  addnode!(g, NCall( 	evalmod.eval(ex.args[1]), 
+			# 							map(explore, ex.args[2:end]) ))
+			return  addnode!(g, NCall( 	:call, 
+										map(explore, ex.args[1:end]) ))
 		end
 	end
 
@@ -216,6 +220,20 @@ function tograph(s, evalmod=Main, svars=Any[])
 
 	# id is 'nothing' for unnassigned last statement
 	exitnode!=nothing && ( g.seti[exitnode] = nothing ) 
+
+	# Resolve external symbols that are Functions, DataTypes or Modules
+	# and turn them into constants
+    for en in filter(n -> isa(n, NExt) & !in(n.main, svars) , keys(g.exti))
+		if isdefined(evalmod, en.main)  # is it defined
+			tv = evalmod.eval(en.main)
+			isa(tv, TypeConstructor) && error("[tograph] TypeConstructors not supported: $ex $(tv), use DataTypes")
+			if isa(tv, DataType) || isa(tv, Module) || isa(tv, Function)
+		        delete!(g.exti, en)
+		        nc = addnode!(g, NConst( tv ))
+		        fusenodes(g, nc, en)
+			end
+		end
+    end
 
 	g
 end
