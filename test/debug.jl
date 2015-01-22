@@ -6,6 +6,53 @@
     include("firstorder_tests.jl")
     include("index_tests.jl")
 
+############## external symbols resolution  #########################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    m.tograph( :( sin(x) ))
+    g = m.tograph( :( Base.sin(x) ))
+    m.simplify!( g )
+
+    g = m.tograph( :( Base.sin(4.) ))
+    m.simplify!( g )
+
+    ###################### modules ########################################
+        module Abcd
+            module Abcd2
+                type Argf ; end
+                function probe()
+                    println(current_module())
+                    eval( :( a = 1 ))
+                    current_module().eval( :( a = 2 ) )
+                end
+                function probe2()
+                    println(repr(Argf))
+                end
+            end
+        end
+
+        Abcd.Abcd2.probe()
+
+
+        Abcd.Abcd2.probe2()
+        a
+
+        t = Abcd.Abcd2.Argf
+        tn = t.name
+        tn.module
+        fullname(tn.module)
+
+        t = Abcd.Abcd2
+        names(t)
+        typeof(t)
+
+        tn = t.name
+        tn.module
+        fullname(tn.module)
+
+
+        t = Abcd.Abcd2.probe2
+    t.module
 
     ex
     g = m.tograph(ex)
