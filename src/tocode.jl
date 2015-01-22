@@ -40,7 +40,6 @@ function tocode(g::ExGraph)
 	  		return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
 		end
 
-
 		# default translation
 		# op = max
 		mt = 	try
@@ -50,9 +49,17 @@ function tocode(g::ExGraph)
 					error("[tocode] cannot spell function $op")
 				end
 
-		(mt == (:Base,)) && ( mt = () ) 
+		(mt == (:Base,)) && ( mt = () ) # strip Main for brevity
 
-		Expr(:call, mexpr( tuple(mt..., symbol(string(op))) ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+		if isa(op, DataType)
+			mt = tuple( mt..., op.name.name )
+		elseif isa(op, Function)
+			mt = tuple( mt..., symbol(string(op)) )
+		else
+			error("[tocode] call using neither a DataType or Function : $op")
+		end
+
+		Expr(:call, mexpr( mt ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
 	end
 
 	function translate(n::NExt)

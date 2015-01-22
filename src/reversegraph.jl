@@ -30,27 +30,6 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
     g2
 end
 
-# creates the starting points for derivatives accumulation variables
-# function createzeronode!(g2::ExGraph, n)
-#   if (isa(n.val, AbstractArray) || isa(n.val, Tuple))
-#       targs = ( eltype(n.val), )
-#       sk = tmatch( targs, collect(keys(trules)) )
-#       (sk == nothing) && error("[reversegraph] Unknown element type $targs for node $(repr(n)[1:min(40, end)])")
-
-#       dg, dd = trules[ sk ]
-#       v1 = addgraph!(dg, g2, Dict())
-#       v2 = addnode!(g2, NCall(size, [n]))
-#       return addnode!(g2, NCall(fill, [v1, v2]))
-
-#   else
-#       targs = ( typeof(n.val), )
-#       sk = tmatch( targs, collect(keys(trules)) )
-#       (sk == nothing) && error("[reversegraph] Unknown type $targs for node $(repr(n)[1:min(40, end)])")
-
-#       dg, dd = trules[ sk ]
-#       return addgraph!(dg, g2, Dict())
-#   end
-# end
 
 #  climbs the reversed evaluation tree
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
@@ -58,33 +37,19 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
     rev(n::ExNode) = nothing  # do nothing by default
 
-<<<<<<< HEAD
-    function rev(n::NCall)
-        op = n.parents[1].main
-        for (index, arg) in enumerate(n.parents)
-            if !isa(arg, Union(NConst, NComp))
-                haskey(drules, (op, index)) || error("no derivation rule for $(op) at arg #$index")
-                ddict = drules[(op, index)]
-=======
 	function rev(n::NCall)
 		op = n.parents[1].main
 		for (index, arg) in enumerate(n.parents)
 			if !isa(arg, Union(NConst, NComp))
 				haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$index")
 				ddict = drules[(op, index-1)]
->>>>>>> f41a849bdfb16a6ea5797dce576178ef0771b7ec
 
                 targs = tuple( Type[ typeof(x.val) for x in n.parents[2:end]]... )
                 sk = tmatch( targs, collect(keys(ddict)) )
                 (sk == nothing) && error("no derivation rule for $(op) at arg #$index for signature $targs")
 
-<<<<<<< HEAD
-                dg, dd = drules[(op, index)][sk]
-                smap = Dict( zip(dd, [n.parents[2:end], dnodes[n]]) )
-=======
 				dg, dd = drules[(op, index-1)][sk]
             	smap = Dict( zip(dd, [n.parents[2:end], dnodes[n]]) )
->>>>>>> f41a849bdfb16a6ea5797dce576178ef0771b7ec
 
                 exitnode = addgraph!(dg, g2, smap)
 
@@ -99,53 +64,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         vp = addnode!(g2, NConst(+))
         v3 = addnode!(g2, NCall(:call, [vp, v2, dnodes[n]]) )
 
-<<<<<<< HEAD
-        v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
-        # TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
-        dnodes[n.parents[1]] = v4
-    end
-
-    function rev(n::NSRef)
-        if length(n.parents) >= 3   # regular setindex
-            v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
-
-            # treat case where a single value is allocated to several array elements
-            if length(n.parents[2].val) == 1 
-                sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
-                if sz > 1
-                    v2 = addnode!(g2, NCall(sum, [ v2]))
-                end
-            end
-
-            vp = addnode!(g2, NConst(+))
-            v3 = addnode!(g2, NCall(:call, [ vp, dnodes[n.parents[2]], v2 ]) )
-            dnodes[n.parents[2]] = v3
-
-            # shut down the influence of these indices
-            zn = addnode!(g2, NConst(0.))
-            v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
-            v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
-            dnodes[n.parents[1]] = v4
-        else   # simple assignment
-            vp = addnode!(g2, NConst(+))
-            v3 = addnode!(g2, NCall(:call, [ vp, dnodes[n.parents[2]], dnodes[n] ]) )
-            dnodes[n.parents[2]] = v3
-
-            # shut down the influence of the variable
-            zn = addnode!(g2, NConst(0.))
-            v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn ]) )
-            v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
-            dnodes[n.parents[1]] = v4
-        end
-    end
-
-    function rev(n::NDot)
-        fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
-        idx = findfirst( names(typeof(n.parents[1].val)) .== fsym )
-        (idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
-
-        v1 = addnode!(g2, NConst(idx) )
-=======
 		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
 		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
@@ -192,7 +110,6 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		(idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
 
 		v1 = addnode!(g2, NConst(idx) )
->>>>>>> f41a849bdfb16a6ea5797dce576178ef0771b7ec
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], v1 ]) )
         vp = addnode!(g2, NConst(+))
         v3 = addnode!(g2, NCall(:call, [vp, v2, dnodes[n]]) )
