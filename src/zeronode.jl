@@ -9,11 +9,9 @@
 #########################################################################
 
 function zeronode(n)  
-    # n = m.NConst(:abcd, [], [], LogNormal(4,5), false)
-    # n = m.NConst(:abcd, [], [], Any[1., [1., [1., 3.]]] , false)
     v = n.val
 
-    if isa(v, Real) || isa(v, Symbol) || isa(v, DataType) || isa(v, TypeConstructor)
+    if isa(v, Union(Real, Symbol, DataType, TypeConstructor, Function))
         return tograph( :(0.) )
 
     elseif isa(v, Range)
@@ -29,9 +27,6 @@ function zeronode(n)
         return tograph( :( zeros(length(tv)) ) )
 
     elseif isa(v, Array) && isleaftype(eltype(v)) # array of concrete type ?
-        # n = NConst(:abcd, [], [], [Beta(4,5), Beta(2,3)], false)
-        # v = n.val
-
         # build element constructor
         n2 = NConst(:abcd, [], [], v[1], false)
         ge = zeronode(n2)
@@ -88,47 +83,3 @@ function zeronode(n)
 
     end
 end
-
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 12      , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2    , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2-4im, false) ))
-
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 5:6        , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 5:0.2:10   , false) ))
-
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Bernoulli(0.5)               , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Bernoulli(0.5)               , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , TDist(0.5)                   , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Exponential(0.5)             , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Poisson(0.5)                 , false) ))
-
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Beta(2           , 3)        , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Normal(0.5       , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Uniform(0.5      , 0.87)     , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Weibull(0.5      , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Gamma(0.5        , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Cauchy(0.5       , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , LogNormal(0.5    , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Binomial(5       , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Beta(0.5         , 0.3)      , false) ) )
-    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Laplace(0.5      , 0.3)      , false) ) )
-
-
-    # type Abcd
-    #     a::Float64
-    #     b
-    #     c::Vector{Float64}
-    # end
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], Abcd(2., 3., [1,2 ])        , false) ))
-
-    # type Abcd2
-    #     a::Float64
-    #     b
-    # end
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], Abcd2(2., 3.)        , false) ))
-
-
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], [1 , 2 ]        , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], [1., 3.] , false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], [Beta(4,5), Beta(2,3)], false) ))
-    # m.tocode( zeronode(  m.NConst(:abcd, [], [], Any[1., Any[1., [1., 3.]]] , false) ))  # fails

@@ -34,6 +34,117 @@
 @test m.dprefix("coucou")            == :dcoucou
 @test m.dprefix(:tr)                 == :dtr
 
+
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 12      , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2    , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 12.2-4im, false) ))
+
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 5:6        , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], 5:0.2:10   , false) ))
+
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Bernoulli(0.5)               , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Bernoulli(0.5)               , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , TDist(0.5)                   , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Exponential(0.5)             , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Poisson(0.5)                 , false) ))
+
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Beta(2           , 3)        , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Normal(0.5       , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Uniform(0.5      , 0.87)     , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Weibull(0.5      , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Gamma(0.5        , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Cauchy(0.5       , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , LogNormal(0.5    , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Binomial(5       , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Beta(0.5         , 0.3)      , false) ) )
+    # m.tocode( zeronode(  m.NConst(:abcd , [] , [] , Laplace(0.5      , 0.3)      , false) ) )
+
+
+    # type Abcd
+    #     a::Float64
+    #     b
+    #     c::Vector{Float64}
+    # end
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], Abcd(2., 3., [1,2 ])        , false) ))
+
+    # type Abcd2
+    #     a::Float64
+    #     b
+    # end
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], Abcd2(2., 3.)        , false) ))
+
+
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], [1 , 2 ]        , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], [1., 3.] , false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], [Beta(4,5), Beta(2,3)], false) ))
+    # m.tocode( zeronode(  m.NConst(:abcd, [], [], Any[1., Any[1., [1., 3.]]] , false) ))  # fails
+
+
+    # isa((1.2, 1), (Real, Int))
+
+
+    # (Float64, Float64) <: (Float64, Real)
+    # (Float64, ) <: (Float64, Real)
+    # (Float64, Float64) <: (Float64, Real)
+
+    # tts = Any[ (Float64, Float64), (Float64, Int), (Float64, Int64), (Float64,), (Int64,), (String,) ]
+    # tts = Any[ (Float64, Float64), (Float64, Real), (Float64,), (Int64,), (Float64, Int), (Float64, Number), (Real,) ]
+
+    # methods(isless)
+    # isless(a::Type, b::Type) = a <: b
+    # isless{T1, T2}(a::T1, b::T2) = T1 <: T2
+    # sort(tts)
+    # methods(sort)
+
+    # fcp(a,b) = (length(a) < length(b)) || ( (a <: b)  & (a != b ))
+
+    # tts2 = sort(tts, lt=fcp)
+
+    # searchsorted(tts2, (Float32,), lt=fcp ) # 1:2
+    # searchsorted(tts2, (Float64,), lt=fcp ) # 1:2
+    # searchsorted(tts2, (Int,), lt=fcp )  # 1:2
+
+    # searchsorted(tts2, (Float64, Float64), lt=fcp )  # 4:5
+    # searchsorted(tts2, (Float64, Int), lt=fcp )  # 4:5
+    # searchsorted(tts2, (Float64, Real), lt=fcp )  # 6:6
+
+    # (Float64, Int) <: (Real, Real)
+    # (Float64, Int) <: (Real, Array)
+
+    # subtypes(Number)
+
+    # length( (Float64, Float64) )
+
+
+
+    # function tmatch(sig, keys)
+    #     keys2 = filter(k -> length(k) == length(sig), keys)
+    #     tcp(a,b) = a <: b
+    #     sort!(keys2, lt=tcp)
+    #     for k in keys2
+    #         all( t -> t[1] <: t[2], zip(sig, k)) && return k
+    #     end
+    #     return nothing
+    # end
+
+    # tts
+    # tmatch( (String,), tts)
+    # tmatch( (Float64,), tts)
+    # tmatch( (Float32,), tts)
+    # tmatch( (Float64,Real), tts)
+    # tmatch( (Float64,Float64), tts)
+    # tmatch( (Float64,Vector), tts)
+    # tmatch( (Real,Float64), tts)
+
+    # tts = Any[ (Array,), (Array{Float64},), (Array{Int},) ]
+    # tmatch( (Vector,), tts)
+    # tmatch( (Vector{Float64},), tts)
+    # tmatch( (Vector{String},), tts)
+    # tmatch( (Vector{Int32},), tts)
+    # tmatch( (Vector{Int64},), tts)
+
+
+
 #################################################################
 ## expression to graph testing
 #################################################################

@@ -40,17 +40,19 @@ function tocode(g::ExGraph)
 	  		return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
 		end
 
-		# default translation
-		fex = :()
-		try
-		    fs = methods(op)   # FIXME should be looking for corresponding signature
-			fm = fs.defs.func.code.module
-			fex = mexpr( tuple([fullname(fm)..., symbol(string(op))]...) )
-		catch e
-			error("[tocode] cannot spell function $op")
-		end
 
-		Expr(:call, fex, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+		# default translation
+		# op = max
+		mt = 	try
+					mod = fullname(Base.function_module(op))
+				catch e
+					println(g)
+					error("[tocode] cannot spell function $op")
+				end
+
+		(mt == (:Base,)) && ( mt = () ) 
+
+		Expr(:call, mexpr( tuple(mt..., symbol(string(op))) ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
 	end
 
 	function translate(n::NExt)

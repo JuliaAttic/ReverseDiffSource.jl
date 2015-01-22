@@ -17,7 +17,7 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
-	# print("testing $ex with size(x) = $(size(x0))")
+	# ex = :(sum(x)) ; x0 = v0ref 
 	nx = length(x0)  
 
 	ex2 = m.rdiff( ex, x=x0 )
