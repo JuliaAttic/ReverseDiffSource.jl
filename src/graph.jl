@@ -313,16 +313,25 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   function myeval(thing)
     local ret   
-    if haskey(params, thing)
-      return params[thing]
-    else
-      try
-        ret = emod.eval(thing)
-      catch e
-        println("[calc!] can't evaluate $thing in \n $g \n with") ; display(params)
-        rethrow(e)
+
+    try
+      if haskey(params, thing)
+        return params[thing]
+      else
+        try
+          ret = emod.eval(thing)
+        catch e
+          println("[calc!] can't evaluate $thing in \n $g \n with") ; display(params)
+          rethrow(e)
+        end
+        return ret
       end
-      return ret
+    catch e
+      println("hee ya!")
+      println(e)
+      println(g)
+      println(thing)
+
     end
   end
 
@@ -356,9 +365,9 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end
 
   evaluate(n::NConst) = n.main
-  # evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
-  #                                    map(a->myeval(a), n.main)... ) )
-  evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
+
+  evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...)) 
+
   evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
   evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
@@ -370,12 +379,10 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   function evaluate(n::NFor)
     g2 = n.main[2]
-    is = n.main[1]                          # symbol of loop index
-    iter = evaluate(n.parents[1])           #  myeval(n.main[1].args[2])
-    # is0 = next(iter, start(iter))[2]        # first value of index
-    is0 = first(iter)                       # first value of index
+    is = n.main[1]                              # symbol of loop index
+    iter = evaluate(n.parents[1])               #  myeval(n.main[1].args[2])
+    is0 = first(iter)                           # first value of index
     params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
-    # println("params2 : $(params2)")
     calc!(g2, params=params2)
     
     valdict = Dict()

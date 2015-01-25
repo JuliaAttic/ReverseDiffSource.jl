@@ -61,11 +61,18 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
     if order == 1
         dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
-        nf = addnode!( g, NConst(tuple))
-        nn = addnode!( g, NCall(:call, vcat(nf, [ getnode(dg.seti, dprefix(p)) for p in paramsym]...) ) )
-        ns = newvar("_dv")
-        g.seti[nn] = ns
-        push!(voi, ns)
+
+        for p in paramsym
+            nn = getnode(dg.seti, dprefix(p))  # find the exit node of deriv of p
+            ns = newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+        end
+        # nf = addnode!( g, NConst(tuple))
+        # nn = addnode!( g, NCall(:call, vcat(nf, [ getnode(dg.seti, dprefix(p)) for p in paramsym]...) ) )
+        # ns = newvar("_dv")
+        # g.seti[nn] = ns
+        # push!(voi, ns)
 
         g |> splitnary! |> prune! |> simplify!
 
@@ -215,10 +222,14 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
     end
 
-    voin = map( s -> getnode(g.seti, s), voi )
-    nf = addnode!(g, NConst(tuple))
-    ex = addnode!(g, NCall(:call, [nf, voin...]))
-    g.seti = NSMap( [ex], [nothing])
+    if length(voi) > 1  # create tuple if multiple variables
+        voin = map( s -> getnode(g.seti, s), voi )
+        nf = addnode!(g, NConst(tuple))
+        exitnode = addnode!(g, NCall(:call, [nf, voin...]))
+    else
+        exitnode = getnode(g.seti, voi[1])
+    end
+    g.seti = NSMap( [exitnode], [nothing])  # make this the only exitnode of interest
 
     g |> splitnary! |> prune! |> simplify!
 
