@@ -6,6 +6,7 @@ Julia release (0.3)  | Julia nightly (0.4)|
 [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_release.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=release)           |  [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_nightly.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=nightly) |
 
 [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=master)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl)  (with Julia nightly)
+
 [![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=master)
   
 
