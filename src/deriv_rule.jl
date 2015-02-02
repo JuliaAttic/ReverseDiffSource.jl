@@ -47,29 +47,10 @@ function deriv_rule{T<:Type}(func::Union(Function, Type), args::Vector{(Symbol, 
     g = tograph(diff, emod)  # make the graph
     push!(ss, :ds)
 
-    # Force resolution of external references that are not in ss (Types notably)
-    # for en in filter(n -> isa(n, NExt) & !in(n.main, ss) , keys(g.exti))
-    #     delete!(g.exti, en)
-    #     nc = addnode!(g, NConst( emod.eval(en.main) ))
-    #     fusenodes(g, nc, en)
-    # end
-
     drules[(func, index)][sig] = (g, ss) 
+    nothing
 end
 
-
-#### composite type - vector equivalence declaration function ######
-# TODO : implement type hierarchy (only leaf types work)
-
-macro typeequiv(typ::Union(Symbol, Expr), n::Int)
-    emod = current_module()
-    typeequiv( emod.eval(typ), n)
-end
-
-function typeequiv(typ::DataType, n::Int)
-    g = tograph( n==1 ? 0. : Expr(:vcat, zeros(n)...) )
-    trules[(typ,)] = ( g, Symbol[] )
-end 
 
 #### Type tuple matching  (naive multiple dispatch)
 

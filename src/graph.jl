@@ -138,7 +138,7 @@ addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 function splitnary!(g::ExGraph)
   for n in g.nodes
       if isa(n, NCall) &&
-          in(n.parents[1].main, [+, *, sum, min, max, vcat]) && 
+          in(n.parents[1].main, [+, *, sum, min, max]) && 
           ( length(n.parents) > 3 )
 
           nn = addnode!(g, NCall(:call, [n.parents[1], n.parents[3:end]] ) )
@@ -327,11 +327,9 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
         return ret
       end
     catch e
-      println("hee ya!")
       println(e)
       println(g)
       println(thing)
-
     end
   end
 
@@ -369,7 +367,17 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...)) 
 
   evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
-  evaluate(n::NSRef)  = n.parents[1].val
+
+  function evaluate(n::NSRef)
+    if length(n.parents) >= 3   # regular setindex 
+      setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
+      return n.parents[1].val
+    else
+      return n.parents[2].val
+    end
+  end
+
+  # evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
 
   function evaluate(n::NIn)
@@ -381,9 +389,16 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     g2 = n.main[2]
     is = n.main[1]                              # symbol of loop index
     iter = evaluate(n.parents[1])               #  myeval(n.main[1].args[2])
-    is0 = first(iter)                           # first value of index
-    params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
-    calc!(g2, params=params2)
+
+    # is0 = first(iter)                           # first value of index
+    # params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
+    # calc!(g2, params=params2)
+
+    params2 = copy(params)
+    for is0 in iter
+      params2[is] = is0
+      calc!(g2, params=params2)
+    end
     
     valdict = Dict()
     for (k, sym) in g2.seto
@@ -394,9 +409,11 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end
 
   evalsort!(g)
-  for n in g.nodes
+  for (i,n) in enumerate(g.nodes)
+    print("$i ")
     n.val = evaluate(n)
   end
+  println()
 
   g
 end

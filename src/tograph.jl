@@ -147,7 +147,7 @@ function tograph(s, evalmod=Main, svars=Any[])
 			lhss = lhs.args[1]
 			vn = explore(lhss) # node whose subpart is assigned
 			rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
-				                                explore(ex.args[2]), # value affected in pos #2
+				                                explore(ex.args[2]), # value in pos #2
 				                                map(explore, lhs.args[2:end])] ))  # indexing starting at #3
 			rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
 

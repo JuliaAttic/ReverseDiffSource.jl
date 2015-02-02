@@ -48,7 +48,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
         error("can't find output var $( outsym==nothing ? "" : outsym)")
 
     # reduce to variable of interest
-    g.seti = BiDict{ExNode,Any}([getnode(g.seti, outsym)], [ outsym ])    
+    g.seti = NSMap([getnode(g.seti, outsym)], [ outsym ])    
 
     g |> splitnary! |> prune! |> simplify!
     calc!(g, params=parval, emod=evalmod)
@@ -68,11 +68,6 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             g.seti[nn] = ns
             push!(voi, ns)
         end
-        # nf = addnode!( g, NConst(tuple))
-        # nn = addnode!( g, NCall(:call, vcat(nf, [ getnode(dg.seti, dprefix(p)) for p in paramsym]...) ) )
-        # ns = newvar("_dv")
-        # g.seti[nn] = ns
-        # push!(voi, ns)
 
         g |> splitnary! |> prune! |> simplify!
 

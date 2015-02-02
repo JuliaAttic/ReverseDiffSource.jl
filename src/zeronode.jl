@@ -30,34 +30,45 @@ function zeronode(n)
         # build element constructor
         n2 = NConst(:abcd, [], [], v[1], false)
         ge = zeronode(n2)
-        # tocode(ge)
 
         # build loop sub-graph
         fg = ExGraph()
-        ni = addnode!(fg, NExt(:i)) ; fg.exti[ni] = :i
-        nv = addnode!(fg, NExt(:v)) ; fg.exti[nv] = :v
-        nr = addgraph!(ge, fg, Dict( :tv => nv))
+        ni  = addnode!(fg, NExt(:i))  ; fg.exti[ni] = :i    # loop index
+        nv  = addnode!(fg, NExt(:v))  ; fg.exti[nv] = :v    # array to fill
+        nt  = addnode!(fg, NExt(:tv)) ; fg.exti[nt] = :tv   # ref node
+        nt2 = addnode!(fg, NRef(:getidx, [nt, ni]))         # ref node[i]
+
+        nr = addgraph!(ge, fg, Dict( :tv => nt2))
         ns = addnode!(fg, NSRef(:setidx, [nv, nr, ni]) )
         fg.seti[ns] = :v
-        # fg
-        # tocode(fg)
 
         # build final graph
-        g  = tograph( :( cell( $(length(v)) ) ) )
+        g  = tograph( :( cell( size(tv)) ) )
         nv = getnode(g.seti, nothing) ; fg.exto[nv] = :v
-        nt = addnode!(g, NExt(:tv)) ; g.exti[nv] = :tv
-        nr = addgraph!( :( 1:length(tv) ), g, Dict( :tv => nt) )
-        nf = addnode!(g, NFor( Any[:i, fg], [ nr, nv ]) )
+        nt = addnode!(g, NExt(:tv))   ; fg.exto[nt] = :tv ; g.exti[nt] = :tv 
+        nr = addgraph!( :( 1:length(nv) ), g, Dict( :nv => nv) )
+        nf = addnode!(g, NFor( Any[:i, fg], [ nr, nv, nt ]) )
         ns = addnode!(g, NIn( :v, [ nf ]) ) ; fg.seto[ns] = :v
         g.seti[ns] = nothing
 
         return g
     
-    elseif isa(v, Array) && (eltype(v) == Any) # general Array
-        error("[zeronode] to be implemented !")
+    elseif (isa(v, Array) && (eltype(v) == Any)) || isa(v, Tuple) # cell Array or general tuple
+        g  = tograph( :( cell( $(length(v)) ) ) )
+        nv = addnode!(g, NExt(:tv)) ; g.exti[nv] = :tv
+        # TODO : optimize to an array{Float64} instead of array{Any} if all fields are Reals
 
-    elseif isa(v, Tuple)  # general Tuple
-        error("[zeronode] to be implemented !")
+        for i in 1:length(v)
+            ni      = addnode!(g, NConst(i))
+            nf      = addnode!(g, NRef(:getidx, [ getnode(g.exti, :tv), ni ], [], v[i], false) ) 
+
+            ng      = zeronode( nf )
+            nn      = addgraph!(ng, g, Dict( :tv => nf ))
+            ns      = addnode!(g, NSRef(:setidx, [getnode(g.seti, nothing), nn, ni]))
+            g.seti[ns] = nothing
+        end
+
+        return prune!(g)
 
     elseif isleaftype(typeof(v)) # composite type
         g  = tograph( :( cell( $(length(names(v))) ) ) )

@@ -121,10 +121,176 @@
 
     Base.MPFR.max(2., 3.)
 
-methods(methods)
-    f(1.+3im)
-    f2(1.+3.im)
 
+############### undef error  ###########################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    module Sandbox
+        type Abcd
+            a::Float64
+            b::Vector{Float64}
+        end
+        foo(t::Abcd) = t.a + t.b[2]
+    end
+    m.@deriv_rule Sandbox.Abcd(a,b) a ds[1]
+    m.@deriv_rule Sandbox.Abcd(a,b) b ds[2]
+    m.@deriv_rule Sandbox.foo(t)    t Any[ ds, [0., ds]]
+
+    tex = quote
+        z = Sandbox.Abcd(1., [x, x])
+        Sandbox.foo(z)
+    end
+    x = 3.
+    eval(tex)
+
+    dtex = m.rdiff(tex, x=1.)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=2)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=3)
+    eval(dtex)
+
+    tex = quote
+        z = [ Sandbox.Abcd(1., [x, x]), Sandbox.Abcd(x*x, [1, x]) ]
+        Sandbox.foo(z[1]) + Sandbox.foo(z[2])
+    end
+    dtex = m.rdiff(tex, x=1.)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=2)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=3)
+    eval(dtex)
+
+
+    g = m.tograph(tex)
+    g.seti = m.NSMap([m.getnode(g.seti, nothing)], [ nothing ])    
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+    m.calc!(g, params=Dict(:x => 1.))
+    voi = Any[ nothing ]
+
+        i = 1
+            dg = m.reversegraph(g, m.getnode(g.seti, voi[i]), [:x])
+            append!(g.nodes, dg.nodes)
+            nn = collect(m.nodes(dg.seti))[1]  # only a single node produced
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+            m.tocode(g)
+
+            m.splitnary!(g)
+            m.tocode(g)
+            m.prune!(g)
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
+
+            m.calc!(g, params=Dict(:x => 1.))
+
+            m.zeronode(g.nodes[15])
+
+
+        i = 2
+            dg = m.reversegraph(g, m.getnode(g.seti, voi[i]), [:x])
+            append!(g.nodes, dg.nodes)
+            nn = collect(m.nodes(dg.seti))[1]  # only a single node produced
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+            m.tocode(g)
+
+            m.splitnary!(g)
+            m.tocode(g)
+            m.prune!(g)
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
+
+            m.calc!(g, params=Dict(:x => 1.))
+
+
+
+    dg = m.reversegraph(g, m.getnode(g.seti, nothing), [:x])
+
+    m.drules[(Sandbox.Abcd,1)]
+        append!(g.nodes, dg.nodes)
+
+
+##########################
+
+    tex = quote  # D:\frtestar\.julia\v0.4\ReverseDiffSource\test\indexing.jl, line 128:
+        a = zeros(4) # line 129:
+        b = zeros(2) # line 131:
+        b += x # line 132:
+        a[1:2] = b # line 133:
+    end
+    g = m.tograph(tex)
+
+    x0 = [1., 1.]
+    x = x0
+    eval(tex)
+
+    dtex = m.rdiff(tex, x=x)
+    x = rand(2,2)
+    eval(dtex)
+
+    v2ref
+
+
+    dtex = m.rdiff(tex, x=1., order=2)
+
+    g = m.tograph(tex)
+    g.seti = m.NSMap([m.getnode(g.seti, nothing)], [ nothing ])    
+
+    g |> m.splitnary!
+    g |> m.prune!
+    g |> m.simplify!
+
+    m.tocode(g)
+
+quote 
+    _tmp14 = zeros(4)
+    _tmp15 = zeros(2)
+    _tmp15 = _tmp15 + x
+    _tmp14[1:2] = _tmp15
+    _tmp15[1] = _tmp15[1] + x[1]
+    _tmp14[3:4] = _tmp15
+    _tmp14[_idx2]
+end
+
+_idx2
+
+    n = g.nodes[16]
+
+    setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
+    n.parents[1].val
+
+
+    m.calc!(g, params=Dict(:x => x0))
+    g
+
+
+    voi = Any[ nothing ]
+
+        i = 1
+            dg = m.reversegraph(g, m.getnode(g.seti, voi[i]), [:x])
+            append!(g.nodes, dg.nodes)
+            nn = collect(m.nodes(dg.seti))[1]  # only a single node produced
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+            m.tocode(g)
+
+            m.splitnary!(g)
+            m.tocode(g)
+            m.prune!(g)
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
+
+            m.calc!(g, params=Dict(:x => 1.))
+
+            m.zeronode(g.nodes[15])
 
 
 ###################### rules rewrite   ######################################

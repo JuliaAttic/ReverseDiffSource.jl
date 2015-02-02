@@ -17,14 +17,15 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
-	# ex = :(sum(x)) ; x0 = v0ref 
+	# ex = :(sum(x)) ; x0 = v2ref 
+	#  x0 = [1., 1.]
 	nx = length(x0)  
 
 	ex2 = m.rdiff( ex, x=x0 )
 	dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
 	# @eval dfunc(x) = $ex2 
 
-	l0, (grad0,) = dfunc(x0)  
+	l0, grad0 = dfunc(x0)  
 	if ndims(x0) == 0  # scalar
 		grad1 = ( dfunc( x0 + DIFF_DELTA)[1] - l0 ) / DIFF_DELTA
 	else # vector and matrices
@@ -32,7 +33,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 		for i in 1:nx  # i=1
 			x1 = copy(x0)
 			x1[i] += DIFF_DELTA
-			grad1[i] = ( dfunc(x1)[1][1] - l0 ) / DIFF_DELTA
+			grad1[i] = ( dfunc(x1)[1] - l0 ) / DIFF_DELTA
 		end
 	end
 
