@@ -68,7 +68,7 @@ function zeronode(n)
             g.seti[ns] = nothing
         end
 
-        return prune!(g)
+        return g
 
     elseif isleaftype(typeof(v)) # composite type
         g  = tograph( :( cell( $(length(names(v))) ) ) )
@@ -86,7 +86,7 @@ function zeronode(n)
             g.seti[ns] = nothing
         end
 
-        return prune!(g)
+        return g
 
     else
         error("[zeronode] Unable to build diff accumulator for node $(repr(n)[1:min(40, end)])")

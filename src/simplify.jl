@@ -80,8 +80,9 @@ end
 
 ## fusion of identical nodes
 function identical(n,n2,g)
-	typeof(n.main) != typeof(n2.main)  && return false
-	n.main != n2.main       && return false
+	# typeof(n.main) != typeof(n2.main)  && return false  # to avoid fusing 1.0 and 1
+	# n.main != n2.main       && return false
+	!is(n.main, n2.main)    && return false
 	n.parents != n2.parents && return false
 	n.alloc	                && return false
 	n2.alloc	            && return false

@@ -212,7 +212,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
             g |> splitnary! |> prune! |> simplify!
             
-            calc!(g, params=Dict(zip(paramsym, paramvalues)), emod=evalmod)
+            # calc!(g, params=Dict(zip(paramsym, paramvalues)), emod=evalmod)
         end
 
     end

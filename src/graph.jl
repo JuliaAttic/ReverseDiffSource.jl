@@ -262,7 +262,8 @@ function prune!(g::ExGraph, exitnodes)
       n.parents = [n.parents[1], intersect(n.parents, collect(nodes(g2.exto)) ) ]
     end
 
-    ns2 = union(ns2, n.parents)
+    # ns2 = union(ns2, n.parents)
+    ns2 = vcat(ns2, n.parents)
   end
 
   # remove unused external inodes in map and corresponding onodes (if they exist)
@@ -314,22 +315,17 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   function myeval(thing)
     local ret   
 
-    try
-      if haskey(params, thing)
-        return params[thing]
-      else
-        try
-          ret = emod.eval(thing)
-        catch e
-          println("[calc!] can't evaluate $thing in \n $g \n with") ; display(params)
-          rethrow(e)
-        end
-        return ret
+    if haskey(params, thing)
+      return params[thing]
+    else
+      try
+        ret = emod.eval(thing)
+      catch e
+        println("[calc!] can't evaluate $thing in \n $g \n with")
+        display(params)
+        rethrow(e)
       end
-    catch e
-      println(e)
-      println(g)
-      println(thing)
+      return ret
     end
   end
 
@@ -410,11 +406,8 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   evalsort!(g)
   for (i,n) in enumerate(g.nodes)
-    print("$i ")
     n.val = evaluate(n)
   end
-  println()
-
   g
 end
 

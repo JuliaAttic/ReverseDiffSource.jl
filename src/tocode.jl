@@ -216,11 +216,12 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph)
 		return (true, nosym)
 
 	# it is used in a setfield/index or getfield/index 
+	# TODO: lot of CPU time spent here
 	any(x -> isa(x, Union(NSRef, NSDot, NRef, NDot)) && n == x.parents[1], g.nodes) &&
 		return (true, nosym)
 
 	# it is used more than once
-	# (sum(x -> sum([ p == n for p in x.parents ]), g.nodes) > 1) &&
+	# TODO: lot of CPU time spent here
 	(sum(x -> sum(n .== x.parents), g.nodes) > 1) && return (true, nosym)
 
 	# it is in the precedence of another node and is (by another path) a parent of an exitnode
