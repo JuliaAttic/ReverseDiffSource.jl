@@ -289,15 +289,35 @@ function prune!(g::ExGraph, exitnodes)
 end
 
 ####### sort graph to an evaluable order ###########
+# function evalsort!(g::ExGraph)
+#   ns = ExNode[]
+#   while length(ns) < length(g.nodes)
+#     canary = length(ns)
+#     nl = setdiff(g.nodes, ns)
+#     for n in nl
+#       any(x -> x in nl, n.parents) && continue
+#       any(x -> x in nl, n.precedence) && continue
+#       push!(ns,n)
+#     end
+#     (canary == length(ns)) && error("[evalsort!] cycle in graph")
+#   end
+#   g.nodes = ns
+
+#   # separate pass on subgraphs
+#   map( n -> evalsort!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
+
+#   g
+# end
 function evalsort!(g::ExGraph)
+  nr = Set{ExNode}(g.nodes)
   ns = ExNode[]
-  while length(ns) < length(g.nodes)
+
+  while length(nr) > 0
     canary = length(ns)
-    nl = setdiff(g.nodes, ns)
-    for n in nl
-      any(x -> x in nl, n.parents) && continue
-      any(x -> x in nl, n.precedence) && continue
-      push!(ns,n)
+    for n in nr
+      any(x -> x in nr, n.parents) && continue
+      any(x -> x in nr, n.precedence) && continue
+      push!(ns,n) ; delete!(nr,n)
     end
     (canary == length(ns)) && error("[evalsort!] cycle in graph")
   end
@@ -308,6 +328,7 @@ function evalsort!(g::ExGraph)
 
   g
 end
+
 
 ####### calculate the value of each node  ###########
 function calc!(g::ExGraph; params=Dict(), emod = Main)
@@ -334,8 +355,10 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     try
       # ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
       ret = (n.parents[1].main)([ x.val for x in n.parents[2:end]]...) 
-    catch
-      error("[calc!] can't evaluate $(n.main) \n $g \n $params")
+    catch e
+      eex = Expr(:call, n.parents[1].main, [ x.val for x in n.parents[2:end]]...)
+      error("$e when calling $eex in \n$g")
+      # error("[calc!] can't evaluate $(n.parents[1].main) \n $g \n $params")
     end
     return ret
   end 
@@ -383,8 +406,8 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   function evaluate(n::NFor)
     g2 = n.main[2]
-    is = n.main[1]                              # symbol of loop index
-    iter = evaluate(n.parents[1])               #  myeval(n.main[1].args[2])
+    is = n.main[1]                    # symbol of loop index
+    iter = evaluate(n.parents[1])     #  myeval(n.main[1].args[2])
 
     # is0 = first(iter)                           # first value of index
     # params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
@@ -423,10 +446,10 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   length(src.seto.kv)>0 && warn("[addgraph] adding graph with set onodes")
   # TODO : this control should be done at the deriv_rules.jl level
 
-  ig = copy(src) # make a copy, update references
+  ig = copy(src) # make a copy, update references, sort
   exitnode = getnode(ig.seti, nothing) # result of added subgraph
 
-  evalsort!(ig)
+  # evalsort!(ig)
 
   nmap = Dict()
   for n in ig.nodes  #  n = src[1]  
