@@ -229,8 +229,6 @@ function prune!(g::ExGraph, exitnodes)
       fg = n.parents[1].main[2]
       sym = fg.seto[n]
       delete!(fg.seto, n)
-      #= ni = fg.seti.vk[sym]
-      delete!(fg.seti, ni) =#
     end
 
     n in ns2 || continue
@@ -253,9 +251,6 @@ function prune!(g::ExGraph, exitnodes)
         push!(exitnodes2, n2)
       end
       exitnodes2 = unique(exitnodes2)
-      #=println(exitnodes2)
-      println("before\n", g2)
-      println("after\n", g2)=#
       prune!(g2, exitnodes2)
 
       # update parents
@@ -284,7 +279,8 @@ function prune!(g::ExGraph, exitnodes)
     n.precedence = intersect(n.precedence, ns2)
   end
 
-  g.nodes = intersect(g.nodes, ns2)
+  # g.nodes = intersect(g.nodes, ns2)
+  g.nodes = unique(ns2)
   g
 end
 

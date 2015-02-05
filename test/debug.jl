@@ -226,6 +226,156 @@
     end
     g = m.tograph(tex)
 
+################  new bug   ##################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    ex = quote
+        a=zeros(3)
+        b=zeros(3)
+        b[2]=x
+        a[1]=x
+        sum(a)+sum(b)
+    end
+    m.rdiff(ex, x=2)
+
+    g = m.tograph(ex)
+    outsym = nothing
+    g.seti = m.NSMap([m.getnode(g.seti, outsym)], [ outsym ])    
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+    g |> m.splitnary! |> m.prune!
+
+    g |> m.prune! |> m.simplify!
+    m.tocode(g)
+
+    g |> m.prune! |> m.evalsort! |> m.simplify!
+    m.tocode(g)
+
+    g |> m.splitnary!
+    m.tocode(g)
+    g |> m.prune!
+    m.tocode(g)
+    g |> m.simplify!
+    m.tocode(g)
+
+    m.calc!(g, params=Dict(:x => 2))
+    m.tocode(g)
+
+    ov = m.getnode(g.seti, outsym).val 
+    isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+    voi = Any[ outsym ]
+
+    dg = m.reversegraph(g, m.getnode(g.seti, outsym), [:x])
+    append!(g.nodes, dg.nodes)
+    m.tocode(g)
+    g
+
+    for p in [:x]
+        nn = m.getnode(dg.seti, m.dprefix(p))  # find the exit node of deriv of p
+        ns = m.newvar("_dv")
+        g.seti[nn] = ns
+        push!(voi, ns)
+    end
+
+    m.tocode(g)
+    g |> m.splitnary!
+    m.tocode(g)
+    g |> m.prune!
+    m.tocode(g)
+    g |> m.simplify!
+    m.tocode(g)
+
+    voin = map( s -> m.getnode(g.seti, s), voi )
+    nf = m.addnode!(g, m.NConst(tuple))
+    exitnode = m.addnode!(g, m.NCall(:call, [nf, voin...]))
+    g.seti = m.NSMap( [exitnode], [nothing])  # make this the only exitnode of interest
+
+    m.tocode(g)
+    g |> m.splitnary!
+    m.tocode(g)
+    g |> m.prune!
+    m.tocode(g)
+    g |> m.simplify!
+    m.tocode(g)
+
+
+
+################ evalsort optim  #######################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    tex = quote  # D:\frtestar\.julia\v0.4\ReverseDiffSource\test\indexing.jl, line 128:
+        a = zeros(4) # line 129:
+        b = zeros(2) # line 131:
+        b += x # line 132:
+        a[1:2] = b # line 133:
+    end
+    g = m.tograph(tex)
+
+    m.markalloc!(g)
+    m.evalsort!(g)
+
+    ns = filter(n -> !n.alloc, g.nodes)
+    fl = Tuple[]
+    for i
+    nl = collect( zip(ns, map(n -> (n.main, vcat(n.parents, n.precedence)), ns)) )
+
+    help(sort)
+    comp(a,b) = (hash(a[1].main) < hash(b[1].main)) #&& (a[2] < b[2])
+    sort!(nl, lt=comp)
+    sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+    hash( nl[1][1])
+
+
+    ns = collect( zip(g.nodes, map(n -> vcat(n.parents, n.precedence), g.nodes)) )
+    help(sort)
+    sort!(ns, lt= (a,b) -> length(a[2]) < length(b[2]))
+    sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+    g.nodes = [ n[1] for n in ns ]
+    g
+
+
+    function evalsort!(g)
+      ns = m.ExNode[]
+      while length(ns) < length(g.nodes)
+        canary = length(ns)
+        nl = setdiff(g.nodes, ns)
+        for n in nl
+          any(x -> x in nl, n.parents) && continue
+          any(x -> x in nl, n.precedence) && continue
+          push!(ns,n)
+        end
+        (canary == length(ns)) && error("[evalsort!] cycle in graph")
+      end
+      g.nodes = ns
+
+      g
+    end
+    function evalsort2!(g)
+      nr = Set(g.nodes)
+      ns = m.ExNode[]
+
+      while length(nr) > 0
+        canary = length(ns)
+        for n in nr
+          any(x -> x in nr, n.parents) && continue
+          any(x -> x in nr, n.precedence) && continue
+          push!(ns,n) ; delete!(nr,n)
+        end
+        (canary == length(ns)) && error("[evalsort!] cycle in graph")
+      end
+      g.nodes = ns
+
+      g
+    end
+
+    evalsort!(g)    
+    evalsort2!(g)    
+
+    @time for i in 1:10000; evalsort!(g); end  # 1.10s
+    @time for i in 1:10000; evalsort2!(g); end  # 0.14s
+
+
+#########################################################
     x0 = [1., 1.]
     x = x0
     eval(tex)

@@ -10,13 +10,19 @@
 function simplify!(g::ExGraph, emod = Main)
 
 	i = 1
+	evalsort!(g)
 	markalloc!(g)
+	# fuseidentical!(g)
 	while i <= length(g.nodes)
 		restart = false
 		n = g.nodes[i]
 
-		restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
-			evalmoduleref(n, g, emod) ||
+		for n2 in g.nodes[i+1:end]
+			restart = identical(n, n2, g)
+			restart && break
+		end
+
+		restart = restart || evalmoduleref(n, g, emod) ||
 			evalconstants(n, g, emod) ||
 			rule1(n, g) ||
 			rule2(n, g) ||
@@ -31,6 +37,7 @@ function simplify!(g::ExGraph, emod = Main)
 		
 		if restart
 			markalloc!(g)
+			# fuseidentical!(g)
 			i = 1
 		else
 			i += 1
@@ -38,10 +45,28 @@ function simplify!(g::ExGraph, emod = Main)
 	end
 
 	# separate pass on subgraphs
-	map( n -> simplify!(n.main[2], emod), 
-		filter(n->isa(n, NFor), g.nodes))
-	
+	for n in filter(n->isa(n, NFor), g.nodes)
+		simplify!(n.main[2], emod)
+	end
+
 	g
+end
+
+## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
+function fuseidentical!(g::ExGraph)
+
+	ns = filter(n -> !n.alloc, g.nodes)
+	nl = collect( zip(ns, map(n -> (n.main, vcat(n.parents, n.precedence)), ns)) )
+
+    help(sort)
+    comp(a,b) = 
+    sort!(nl, lt= (a,b) -> length(a[2]) < length(b[2]))
+    sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+
+
+	for n in g.nodes
+		any(n2 -> identical(n, n2, g), g.nodes[i+1:end])
+	end
 end
 
 ## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
@@ -62,7 +87,6 @@ function markalloc!(g::ExGraph)
 	end
 end
 
-
 # TODO : propagate to grand-parent graph etc...
 function constequiv(n, g)
 	isa(n, NConst)          && return n.main
@@ -80,8 +104,7 @@ end
 
 ## fusion of identical nodes
 function identical(n,n2,g)
-	# typeof(n.main) != typeof(n2.main)  && return false  # to avoid fusing 1.0 and 1
-	# n.main != n2.main       && return false
+	n.main != n2.main       && return false
 	!is(n.main, n2.main)    && return false
 	n.parents != n2.parents && return false
 	n.alloc	                && return false
