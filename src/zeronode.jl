@@ -26,7 +26,11 @@ function zeronode(n)
     elseif isa(v, Tuple) && all( map( x -> typeof(x) <: Real, v ) ) # is it a Tuple of Reals ?
         return tograph( :( zeros(length(tv)) ) )
 
-    elseif isa(v, Array) && isleaftype(eltype(v)) # array of concrete type ?
+    elseif (isa(v, Array) && isleaftype(eltype(v))) ||  # array of concrete type ?
+           (isa(v, Array) && (eltype(v) == Any)) && (length(v) > 20) # large cell Array
+           # IMPORTANT : if longer than 20, we will presume that elements 
+           #  of cell arrays are identical in structure
+
         # build element constructor
         n2 = NConst(:abcd, [], [], v[1], false)
         ge = zeronode(n2)
@@ -53,7 +57,8 @@ function zeronode(n)
 
         return g
     
-    elseif (isa(v, Array) && (eltype(v) == Any)) || isa(v, Tuple) # cell Array or general tuple
+    elseif (isa(v, Array) && (eltype(v) == Any)) ||  # small cell array (presumably coming from a type)
+            isa(v, Tuple) # or tuple
         g  = tograph( :( cell( $(length(v)) ) ) )
         nv = addnode!(g, NExt(:tv)) ; g.exti[nv] = :tv
         # TODO : optimize to an array{Float64} instead of array{Any} if all fields are Reals

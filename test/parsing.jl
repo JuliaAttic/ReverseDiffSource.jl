@@ -41,7 +41,8 @@ m.resetvar()
 
 ### for loop #2
 ex = quote
-    a=zeros(10) ; z = 12 
+    a=zeros(10)
+    z = 12 
     for i in 1:10
         t = x+z
         for j in 1:10

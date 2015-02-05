@@ -6,7 +6,7 @@
 
 ##########  function version   ##############
 
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false)
+function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false, allorders=true)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -27,7 +27,7 @@ end
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, params...)
+function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allorders=true, params...)
 
     length(params) >= 1 || error("There should be at least one parameter specified, none found")
     
@@ -215,6 +215,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             # calc!(g, params=Dict(zip(paramsym, paramvalues)), emod=evalmod)
         end
 
+    end
+
+    if !allorders  # only keep the last derivative
+        voi = [voi[end]]
     end
 
     if length(voi) > 1  # create tuple if multiple variables
