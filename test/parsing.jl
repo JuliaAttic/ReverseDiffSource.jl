@@ -164,11 +164,11 @@ end
 @test fullcycle(:( a = x ; a[1:2,3] = a[1:2,3] )) == Expr(:block, :( a = x ) )
 @test fullcycle(:( a = x ; a[1:2,3] = a[1:2,4] )) == :( _tmp1 = 1:2 ; x[_tmp1,3] = x[_tmp1,4])
 
-#  'end' and ':' not fully supported
-# @test fullcycle(:( a[1:end] ))                   == Expr(:block, :( out = a[1:end]) )            
-# @test fullcycle(:( a[1:end-1] ))                 == Expr(:block, :( out = a[1:end-1]) )         
-# @test fullcycle(:( a[1:end, 3, 10:15] ))         == Expr(:block, :( out = a[1:end, 3, 10:15]) )
-# @test fullcycle(:( a[1:end, :, 10:15] ))         == Expr(:block, :( out = a[1:end, :, 10:15]) )
+@test fullcycle(:( x[:] ))               == Expr(:block, :( x[1:length(x)] ) )
+@test fullcycle(:( x[a+b, c:d] ))        == Expr(:block, :( x[a + b,c:d] ) )
+@test fullcycle(:( x[1:4] ))             == Expr(:block, :( x[1:4] ) )
+@test fullcycle(:( x[1:end] ))           == Expr(:block, :( x[1:length(x)]) )
+@test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
 
 @test fullcycle(:( a.x ))                     == Expr(:block, :( a.x) )
 @test fullcycle(:( y = a.x ))                 == Expr(:block, :(y = a.x) )

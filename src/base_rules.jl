@@ -7,16 +7,27 @@
 # derivation neutral functions
 @deriv_rule colon(x,y)   x     0.
 @deriv_rule colon(x,y)   y     0.
+
 @deriv_rule length(x)    x     0.
+
+@deriv_rule size(x)      x     0.
+@deriv_rule size(x,y)    x     0.
+@deriv_rule size(x,y)    y     0.
+
 @deriv_rule fill(x,y)    x     0.
 @deriv_rule fill(x,y)    y     0.
+
 @deriv_rule similar(x,y) x     0.
 @deriv_rule similar(x,y) y     0.
+
 @deriv_rule zeros(x)     x     0.
+
 @deriv_rule ones(x)      x     0.
+
 @deriv_rule cell(x)      x     0.
-@deriv_rule size(x)      x     0.
+
 @deriv_rule sign(x)      x     0.
+
 @deriv_rule reverse(x)   x     0.
 
 

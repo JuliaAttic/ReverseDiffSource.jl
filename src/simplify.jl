@@ -12,7 +12,6 @@ function simplify!(g::ExGraph, emod = Main)
 	i = 1
 	evalsort!(g)
 	markalloc!(g)
-	# fuseidentical!(g)
 	while i <= length(g.nodes)
 		restart = false
 		n = g.nodes[i]
@@ -37,7 +36,6 @@ function simplify!(g::ExGraph, emod = Main)
 		
 		if restart
 			markalloc!(g)
-			# fuseidentical!(g)
 			i = 1
 		else
 			i += 1
@@ -52,22 +50,15 @@ function simplify!(g::ExGraph, emod = Main)
 	g
 end
 
-## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
-function fuseidentical!(g::ExGraph)
-
-	ns = filter(n -> !n.alloc, g.nodes)
-	nl = collect( zip(ns, map(n -> (n.main, vcat(n.parents, n.precedence)), ns)) )
-
-    help(sort)
-    comp(a,b) = 
-    sort!(nl, lt= (a,b) -> length(a[2]) < length(b[2]))
-    sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
-
-
-	for n in g.nodes
-		any(n2 -> identical(n, n2, g), g.nodes[i+1:end])
-	end
-end
+# function fuseidentical!(g::ExGraph)
+# 	ns = filter(n -> !n.alloc, g.nodes)
+# 	nl = collect( zip(ns, map(n -> (n.main, vcat(n.parents, n.precedence)), ns)) )
+#     sort!(nl, lt= (a,b) -> length(a[2]) < length(b[2]))
+#     sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+# 	for n in g.nodes
+# 		any(n2 -> identical(n, n2, g), g.nodes[i+1:end])
+# 	end
+# end
 
 ## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
 function markalloc!(g::ExGraph)
@@ -104,12 +95,10 @@ end
 
 ## fusion of identical nodes
 function identical(n,n2,g)
-	n.main != n2.main       && return false
 	!is(n.main, n2.main)    && return false
 	n.parents != n2.parents && return false
 	n.alloc	                && return false
 	n2.alloc	            && return false
-	# isa(n, NConst) && isa(n.main, Real) && return false # no need for small constants
 
 	fusenodes(g, n, n2)
 	true
@@ -314,7 +303,6 @@ function rule9(n, g)
 	fusenodes(g, nn, n)
 	true
 end
-
 
 ## getindex on fill()
 function rule10(n, g)

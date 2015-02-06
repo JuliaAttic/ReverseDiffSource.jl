@@ -329,6 +329,7 @@ end
 ####### calculate the value of each node  ###########
 function calc!(g::ExGraph; params=Dict(), emod = Main)
 
+  # evaluate a symbol
   function myeval(thing)
     local ret   
 
@@ -349,12 +350,10 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   function evaluate(n::NCall)
     local ret
     try
-      # ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
       ret = (n.parents[1].main)([ x.val for x in n.parents[2:end]]...) 
     catch e
       eex = Expr(:call, n.parents[1].main, [ x.val for x in n.parents[2:end]]...)
       error("$e when calling $eex in \n$g")
-      # error("[calc!] can't evaluate $(n.parents[1].main) \n $g \n $params")
     end
     return ret
   end 
@@ -363,8 +362,10 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     local ret
     try
       ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
+      #TODO: improve speed with smth like ret = (n.main)([ x.val for x in n.parents]...) 
     catch
-      error("[calc!] can't evaluate $(n.main) \n $g \n $params")
+      eex = Expr(:call, n.main, Any[ x.val for x in n.parents]...)
+      error("$e when calling $eex in \n$g")
     end
     return ret
   end 
@@ -379,9 +380,14 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   evaluate(n::NConst) = n.main
 
-  evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...)) 
+  # evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...)) 
+  evaluate(n::NRef)   = getindex(n.parents[1].val, [n2.val for n2 in n.parents[2:end]]...) 
 
-  evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
+  # evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
+  function evaluate(n::NDot)
+    fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value
+    getfield(n.parents[1].val, fsym) 
+  end
 
   function evaluate(n::NSRef)
     if length(n.parents) >= 3   # regular setindex 

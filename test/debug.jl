@@ -6,6 +6,22 @@
     include("firstorder_tests.jl")
     include("index_tests.jl")
 
+############## adding end and : for ref  #########################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    g = m.tograph(:( x[:] ))
+    m.tocode(g)
+    g = m.tograph(:( x[1:4] ))
+    m.tocode(g)
+
+    g = m.tograph(:( x[1:end] ))
+    m.tocode(g)
+
+    g = m.tograph(:( x[1:end-1] ))
+    m.tocode(g)
+    g = m.tograph(:( x[1:end, end-3:end-1,:] ))
+    m.tocode(g)
+
 ############## external symbols resolution  #########################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
