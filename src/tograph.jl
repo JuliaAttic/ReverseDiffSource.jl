@@ -100,8 +100,6 @@ function tograph(s, evalmod=Main, svars=Any[])
 
 
     function explore(ex::Symbol)
-        # ex in [:(:), symbol("end")] && return addnode!(g, NConst(ex))  # plain symbols (used in x[1,:] or y[1:end])
-
         hassym(g.seti, ex)       && return getnode(g.seti, ex)
         hassym(g.exti, ex)       && return getnode(g.exti, ex)
 
@@ -112,10 +110,10 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     function explore(ex::ExCall)
         sf = ex.args[1]
-        if sf == :getindex  # needs a special treatment
+        if sf == :getindex  
             return addnode!(g, NRef(:getidx, map(explore, ex.args[2:end])))
 
-        elseif sf == :getfield  # needs a special treatment
+        elseif sf == :getfield
             return addnode!(g, NDot(ex.args[3], [ explore(ex.args[2]) ]))
 
         elseif sf == :setindex! # needs a special treatment
