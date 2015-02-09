@@ -2,10 +2,6 @@
 #  Syntax testing  (uses examples in the doc)
 ##################################################
 
-# using Base.Test
-# reload("ReverseDiffSource")
-# m = ReverseDiffSource
-
 #########  rdiff ###########
 
 m.rdiff( :(x^3) , x=2.)             # first order

@@ -9,6 +9,16 @@
 ############## adding end and : for ref  #########################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
+    tex = quote
+        a = zeros(5,5)
+        a[1:4,2] = x
+        a[3,1:5] = x
+        sum(a)
+    end
+
+    dex = m.rdiff(tex, x=1.)
+    @eval let x=3.; $dex ; end
+
     g = m.tograph(:( x[:] ))
     m.tocode(g)
     g = m.tograph(:( x[1:4] ))

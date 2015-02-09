@@ -65,39 +65,11 @@ function tograph(s, evalmod=Main, svars=Any[])
     explore(ex::ExBlock)   = map( explore, ex.args )[end]
     explore(ex::ExBody)    = map( explore, ex.args )[end]
 
-    explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
-
     explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
-    # explore(ex::ExRef)     = addnode!(g, NRef(ex.args[2:end], [ explore(ex.args[1]) ]))
-    function explore(ex::ExRef)
-        nv = explore(ex.args[1])
-        p  = ExNode[ nv ]
-        for (i,na) in enumerate(ex.args[2:end])
-            if length(ex.args)==2 # single dimension
-                ns = addgraph!(:( length(x) ), g, Dict(:x => nv) )
-            else # several dimensions
-                ns = addgraph!(:( size(x, $i) ), g, Dict(:x => nv) )
-            end
-
-            na==:(:) && (na = Expr(:(:), 1, :end) )  # replace (:) with (1:end)
-
-            # explore the dimension expression
-            nsvars = union(svars, collect(syms(g.seti)))
-            ng = tograph(na, evalmod, nsvars)
-
-            # find mappings for onodes, including :end
-            vmap = Dict()
-            for (k, sym) in ng.exti.kv
-                vmap[sym] = sym == :end ? ns : explore(sym)
-            end
-
-            nd = addgraph!(ng, g, vmap)
-            push!(p, nd)
-        end
-        addnode!(g, NRef(:getidx, p))
-    end
-
+    # explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
+    explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...))
+    explore(ex::ExRef)     = explore(Expr(:call, :getindex, ex.args...))
 
     function explore(ex::Symbol)
         hassym(g.seti, ex)       && return getnode(g.seti, ex)
@@ -111,12 +83,14 @@ function tograph(s, evalmod=Main, svars=Any[])
     function explore(ex::ExCall)
         sf = ex.args[1]
         if sf == :getindex  
-            return addnode!(g, NRef(:getidx, map(explore, ex.args[2:end])))
+            nv = explore(ex.args[2])
+            ps = indexspec(nv, ex.args[3:end])
+            return addnode!(g, NRef(:getidx, vcat([nv], ps)))
 
         elseif sf == :getfield
             return addnode!(g, NDot(ex.args[3], [ explore(ex.args[2]) ]))
 
-        elseif sf == :setindex! # needs a special treatment
+        elseif sf == :setindex!
             isa(ex.args[2], Symbol) && error("[tograph] setindex! only allowed on variables")
 
             vn  = explore(ex.args[2]) # node whose subpart is assigned
@@ -127,6 +101,17 @@ function tograph(s, evalmod=Main, svars=Any[])
             g.seti[rhn] = ex.args[2]
 
             return nothing
+
+            # lhss = lhs.args[1]
+
+            # vn = explore(lhss) # node whose subpart is assigned
+            # rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
+            #                                     explore(ex.args[2]), # value in pos #2
+            #                                     map(explore, lhs.args[2:end])] ))  # indexing starting at #3
+            # rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+
+
+
 
         else #TODO : add setfield!
 
@@ -227,6 +212,34 @@ function tograph(s, evalmod=Main, svars=Any[])
         end
     end
 
+    #### translates ':' and 'end' special symbols in getindex / setindex!
+    function indexspec(nv, as)
+        p  = ExNode[]
+        for (i,na) in enumerate(as)
+            if length(as)==1 # single dimension
+                ns = addgraph!(:( length(x) ), g, Dict(:x => nv) )
+            else # several dimensions
+                ns = addgraph!(:( size(x, $i) ), g, Dict(:x => nv) )
+            end
+
+            na==:(:) && (na = Expr(:(:), 1, :end) )  # replace (:) with (1:end)
+
+            # explore the dimension expression
+            nsvars = union(svars, collect(syms(g.seti)))
+            ng = tograph(na, evalmod, nsvars)
+
+            # find mappings for onodes, including :end
+            vmap = Dict()
+            for (k, sym) in ng.exti.kv
+                vmap[sym] = sym == :end ? ns : explore(sym)
+            end
+
+            nd = addgraph!(ng, g, vmap)
+            push!(p, nd)
+        end
+        p
+    end
+
     #  top level graph
     g = ExGraph()
 
@@ -253,3 +266,7 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     g
 end
+
+
+
+
