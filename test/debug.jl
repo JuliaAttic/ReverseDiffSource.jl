@@ -6,6 +6,102 @@
     include("firstorder_tests.jl")
     include("index_tests.jl")
 
+############## adding end and : for ref  #########################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    g = m.tograph(:( x[:] ))
+    m.tocode(g)
+    g = m.tograph(:( x[1:4] ))
+    m.tocode(g)
+
+    g = m.tograph(:( x[1:end] ))
+    m.tocode(g)
+
+    g = m.tograph(:( x[1:end-1] ))
+    m.tocode(g)
+    g = m.tograph(:( x[1:end, end-3:end-1,:] ))
+    m.tocode(g)
+
+############## external symbols resolution  #########################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    m.tograph( :( sin(x) ))
+    g = m.tograph( :( Base.sin(x) ))
+    m.simplify!( g )
+
+    g = m.tograph( :( Base.sin(4.) ))
+    m.simplify!( g )
+
+    ###################### modules ########################################
+        module Abcd
+            module Abcd2
+                type Argf ; end
+                function probe()
+                    println(current_module())
+                    eval( :( a = 1 ))
+                    current_module().eval( :( a = 2 ) )
+                end
+                function probe2()
+                    println(repr(Argf))
+                end
+            end
+        end
+
+        Abcd.Abcd2.probe()
+
+
+        Abcd.Abcd2.probe2()
+        a
+
+        t = Abcd.Abcd2.Argf
+        tn = t.name
+        tn.module
+        fullname(tn.module)
+
+        t = Abcd.Abcd2
+        names(t)
+        typeof(t)
+
+        tn = t.name
+        tn.module
+        fullname(tn.module)
+
+
+        t = Abcd.Abcd2.probe2
+    t.module
+
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    g = m.tograph( :(  max(1.,  x) ) )
+    m.simplify!(g)
+    m.calc!(g, params=Dict( :x => [1,2,3,4]))
+    g
+
+    m.zeronode(g.nodes[1])
+    m.zeronode(g.nodes[2])
+
+    dg = m.reversegraph(g, m.getnode(g.seti, nothing), [:x] )
+    append!(g.nodes, dg.nodes)
+    nn = m.getnode(dg.seti, m.dprefix(:x))   # nn in g.nodes
+    ns = m.newvar("_dv")
+    g.seti[nn] = ns
+    m.tocode(g)
+    push!(voi, ns)
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+
+    m.rdiff( :( sum(x)), x=ones(5) )
+
+    collect(keys(m.drules))
+
+
+        append!(g.nodes, dg.nodes)
+        nn = addnode!( g, NCall(tuple, [ getnode(dg.seti, dprefix(p)) for p in paramsym] ) )
+        ns = newvar("_dv")
+        g.seti[nn] = ns
+        push!(voi, ns)
+
+        g |> splitnary! |> prune! |> simplify!
 
     ex
     g = m.tograph(ex)
@@ -22,6 +118,346 @@
 
 
     m.rdiff( :( x[2]) , x=zeros(3))
+
+    f = sin
+    typeof(f)
+    f2 = methods(f).defs
+    typeof(f2)
+
+    Base.function_module(sin) 
+    methods(sin)
+    Base.function_module(sin, ) 
+    methods(max)
+    Base.function_module(max)
+    Base.function_module(max, (Real, Real))
+    Base.function_module(max, (FloatingPoint, FloatingPoint))
+
+    fullname( Base.function_module(Bar) )
+    fullname( Base.function_module(sin) )
+
+    Base.MPFR.max(2., 3.)
+
+
+############### undef error  ###########################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    module Sandbox
+        type Abcd
+            a::Float64
+            b::Vector{Float64}
+        end
+        foo(t::Abcd) = t.a + t.b[2]
+    end
+    m.@deriv_rule Sandbox.Abcd(a,b) a ds[1]
+    m.@deriv_rule Sandbox.Abcd(a,b) b ds[2]
+    m.@deriv_rule Sandbox.foo(t)    t Any[ ds, [0., ds]]
+
+    tex = quote
+        z = Sandbox.Abcd(1., [x, x])
+        Sandbox.foo(z)
+    end
+    x = 3.
+    eval(tex)
+
+    dtex = m.rdiff(tex, x=1.)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=2)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=3)
+    eval(dtex)
+
+    tex = quote
+        z = [ Sandbox.Abcd(1., [x, x]), Sandbox.Abcd(x*x, [1, x]) ]
+        Sandbox.foo(z[1]) + Sandbox.foo(z[2])
+    end
+    dtex = m.rdiff(tex, x=1.)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=2)
+    eval(dtex)
+    dtex = m.rdiff(tex, x=1., order=3)
+    eval(dtex)
+
+
+    g = m.tograph(tex)
+    g.seti = m.NSMap([m.getnode(g.seti, nothing)], [ nothing ])    
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+    m.calc!(g, params=Dict(:x => 1.))
+    voi = Any[ nothing ]
+
+        i = 1
+            dg = m.reversegraph(g, m.getnode(g.seti, voi[i]), [:x])
+            append!(g.nodes, dg.nodes)
+            nn = collect(m.nodes(dg.seti))[1]  # only a single node produced
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+            m.tocode(g)
+
+            m.splitnary!(g)
+            m.tocode(g)
+            m.prune!(g)
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
+
+            m.calc!(g, params=Dict(:x => 1.))
+
+            m.zeronode(g.nodes[15])
+
+
+        i = 2
+            dg = m.reversegraph(g, m.getnode(g.seti, voi[i]), [:x])
+            append!(g.nodes, dg.nodes)
+            nn = collect(m.nodes(dg.seti))[1]  # only a single node produced
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+            m.tocode(g)
+
+            m.splitnary!(g)
+            m.tocode(g)
+            m.prune!(g)
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
+
+            m.calc!(g, params=Dict(:x => 1.))
+
+
+
+    dg = m.reversegraph(g, m.getnode(g.seti, nothing), [:x])
+
+    m.drules[(Sandbox.Abcd,1)]
+        append!(g.nodes, dg.nodes)
+
+
+##########################
+
+    tex = quote  # D:\frtestar\.julia\v0.4\ReverseDiffSource\test\indexing.jl, line 128:
+        a = zeros(4) # line 129:
+        b = zeros(2) # line 131:
+        b += x # line 132:
+        a[1:2] = b # line 133:
+    end
+    g = m.tograph(tex)
+
+################  new bug   ##################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+    ex = quote
+        a=zeros(3)
+        b=zeros(3)
+        b[2]=x
+        a[1]=x
+        sum(a)+sum(b)
+    end
+    m.rdiff(ex, x=2)
+
+    g = m.tograph(ex)
+    outsym = nothing
+    g.seti = m.NSMap([m.getnode(g.seti, outsym)], [ outsym ])    
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+    g |> m.splitnary! |> m.prune!
+
+    g |> m.prune! |> m.simplify!
+    m.tocode(g)
+
+    g |> m.prune! |> m.evalsort! |> m.simplify!
+    m.tocode(g)
+
+    g |> m.splitnary!
+    m.tocode(g)
+    g |> m.prune!
+    m.tocode(g)
+    g |> m.simplify!
+    m.tocode(g)
+
+    m.calc!(g, params=Dict(:x => 2))
+    m.tocode(g)
+
+    ov = m.getnode(g.seti, outsym).val 
+    isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+    voi = Any[ outsym ]
+
+    dg = m.reversegraph(g, m.getnode(g.seti, outsym), [:x])
+    append!(g.nodes, dg.nodes)
+    m.tocode(g)
+    g
+
+    for p in [:x]
+        nn = m.getnode(dg.seti, m.dprefix(p))  # find the exit node of deriv of p
+        ns = m.newvar("_dv")
+        g.seti[nn] = ns
+        push!(voi, ns)
+    end
+
+    m.tocode(g)
+    g |> m.splitnary!
+    m.tocode(g)
+    g |> m.prune!
+    m.tocode(g)
+    g |> m.simplify!
+    m.tocode(g)
+
+    voin = map( s -> m.getnode(g.seti, s), voi )
+    nf = m.addnode!(g, m.NConst(tuple))
+    exitnode = m.addnode!(g, m.NCall(:call, [nf, voin...]))
+    g.seti = m.NSMap( [exitnode], [nothing])  # make this the only exitnode of interest
+
+    m.tocode(g)
+    g |> m.splitnary!
+    m.tocode(g)
+    g |> m.prune!
+    m.tocode(g)
+    g |> m.simplify!
+    m.tocode(g)
+
+
+
+################ evalsort optim  #######################
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
+
+    tex = quote  # D:\frtestar\.julia\v0.4\ReverseDiffSource\test\indexing.jl, line 128:
+        a = zeros(4) # line 129:
+        b = zeros(2) # line 131:
+        b += x # line 132:
+        a[1:2] = b # line 133:
+    end
+    g = m.tograph(tex)
+
+    m.markalloc!(g)
+    m.evalsort!(g)
+
+    ns = filter(n -> !n.alloc, g.nodes)
+    fl = Tuple[]
+    for i
+    nl = collect( zip(ns, map(n -> (n.main, vcat(n.parents, n.precedence)), ns)) )
+
+    help(sort)
+    comp(a,b) = (hash(a[1].main) < hash(b[1].main)) #&& (a[2] < b[2])
+    sort!(nl, lt=comp)
+    sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+    hash( nl[1][1])
+
+
+    ns = collect( zip(g.nodes, map(n -> vcat(n.parents, n.precedence), g.nodes)) )
+    help(sort)
+    sort!(ns, lt= (a,b) -> length(a[2]) < length(b[2]))
+    sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+    g.nodes = [ n[1] for n in ns ]
+    g
+
+
+    function evalsort!(g)
+      ns = m.ExNode[]
+      while length(ns) < length(g.nodes)
+        canary = length(ns)
+        nl = setdiff(g.nodes, ns)
+        for n in nl
+          any(x -> x in nl, n.parents) && continue
+          any(x -> x in nl, n.precedence) && continue
+          push!(ns,n)
+        end
+        (canary == length(ns)) && error("[evalsort!] cycle in graph")
+      end
+      g.nodes = ns
+
+      g
+    end
+    function evalsort2!(g)
+      nr = Set(g.nodes)
+      ns = m.ExNode[]
+
+      while length(nr) > 0
+        canary = length(ns)
+        for n in nr
+          any(x -> x in nr, n.parents) && continue
+          any(x -> x in nr, n.precedence) && continue
+          push!(ns,n) ; delete!(nr,n)
+        end
+        (canary == length(ns)) && error("[evalsort!] cycle in graph")
+      end
+      g.nodes = ns
+
+      g
+    end
+
+    evalsort!(g)    
+    evalsort2!(g)    
+
+    @time for i in 1:10000; evalsort!(g); end  # 1.10s
+    @time for i in 1:10000; evalsort2!(g); end  # 0.14s
+
+
+#########################################################
+    x0 = [1., 1.]
+    x = x0
+    eval(tex)
+
+    dtex = m.rdiff(tex, x=x)
+    x = rand(2,2)
+    eval(dtex)
+
+    v2ref
+
+
+    dtex = m.rdiff(tex, x=1., order=2)
+
+    g = m.tograph(tex)
+    g.seti = m.NSMap([m.getnode(g.seti, nothing)], [ nothing ])    
+
+    g |> m.splitnary!
+    g |> m.prune!
+    g |> m.simplify!
+
+    m.tocode(g)
+
+quote 
+    _tmp14 = zeros(4)
+    _tmp15 = zeros(2)
+    _tmp15 = _tmp15 + x
+    _tmp14[1:2] = _tmp15
+    _tmp15[1] = _tmp15[1] + x[1]
+    _tmp14[3:4] = _tmp15
+    _tmp14[_idx2]
+end
+
+_idx2
+
+    n = g.nodes[16]
+
+    setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
+    n.parents[1].val
+
+
+    m.calc!(g, params=Dict(:x => x0))
+    g
+
+
+    voi = Any[ nothing ]
+
+        i = 1
+            dg = m.reversegraph(g, m.getnode(g.seti, voi[i]), [:x])
+            append!(g.nodes, dg.nodes)
+            nn = collect(m.nodes(dg.seti))[1]  # only a single node produced
+            ns = m.newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+            m.tocode(g)
+
+            m.splitnary!(g)
+            m.tocode(g)
+            m.prune!(g)
+            m.tocode(g)
+            m.simplify!(g)
+            m.tocode(g)
+
+            m.calc!(g, params=Dict(:x => 1.))
+
+            m.zeronode(g.nodes[15])
+
 
 ###################### rules rewrite   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -217,683 +653,3 @@
     # 2x2 Array{Float64,2}:
     #  0.0  0.0
     #  0.0  6.0
-
-#################   debug  ###################
-    ex = :( a = x ; b = a )
-    ex = :( a = x ; b = a ; a + b)
-    ex = :( a = x ; b = a ; c = b ; b)
-    ex = :( b = 0 ; a=x ; b = 3a ; b*x ) 
-
-    res = m.rdiff(ex, x=1.)
-    g = m.tograph(ex)
-    m.tocode(g)
-
-    @eval foo(x) = $res
-    foo(1)
-    foo(1.01)
-
-
-    #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
-    begin
-        order = 1
-        paramsym    = Symbol[ :x ]
-        paramvalues = Any[ 1. ]
-        parval      = Dict(paramsym, paramvalues)
-        g = m.tograph(ex)
-        # reduce to variable of interest
-        g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
-
-        g |> m.splitnary! |> m.prune! |> m.simplify!
-        m.calc!(g, params=parval, emod=Main)
-
-        voi = Any[ nothing ]
-
-        dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-        append!(g.nodes, dg.nodes)
-        nn = m.addnode!( g, m.NCall(:tuple, [ dg.seti.vk[m.dprefix(p)] for p in paramsym] ) )
-        ns = m.newvar("_dv")
-        g.seti[nn] = ns
-        push!(voi, ns)
-    end
-
-    # g |> m.splitnary! |> m.prune! |> m.simplify!
-
-    m.tocode(g)
-    m.prune!(g) 
-
-    g2 = g.nodes[8].main[2]
-    m.tocode(g2)  
-
-    m.ispivot(g2.nodes[5], g2)
-
-    g3 = m.copy(g2)
-    g2 =m.copy(g3)
-
-    m.fusenodes(g2, g2.nodes[4], g2.nodes[5])
-    g2
-    m.fusenodes(g2, g2.nodes[2], g2.nodes[5])
-
-    m.simplify!(g2)
-    m.tocode(g2)
-
-    # initial
-        node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
-        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
-        1    |           |       | [constant] |         |            | 4       | Int64 4        | 
-        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN    | 
-        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN    | 
-        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
-        5    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
-        6    |           |       | [call]     | 4, 2    |            | :+      | Symbol :_tmp4  | 
-        7    | _dtmp1 << |       | [subref]   | 2, 5    | 6          | :setidx | Float64 NaN    | 
-        8    |           |       | [call]     | 1, 6    |            | :*      | Expr :(4_tmp4) | 
-        9    | _dtmp2 << | +     | [call]     | 3, 8    |            | :+      | Float64 NaN    | 
-
-    # identical
-        node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
-        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
-        1    |           |       | [constant] |         |            | 4       | Int64 4        | 
-        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN    | 
-        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN    | 
-        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
-        5    |           |       | [call]     | 4, 2    |            | :+      | Symbol :_tmp4  | 
-        6    | _dtmp1 << |       | [subref]   | 2, 4    | 5          | :setidx | Float64 NaN    | 
-        7    |           |       | [call]     | 1, 5    |            | :*      | Expr :(4_tmp4) | 
-        8    | _dtmp2 << | +     | [call]     | 3, 7    |            | :+      | Float64 NaN    | 
-
-
-        m.evalconstants(g2.nodes[1], g2, Main)
-        m.evalconstants(g2.nodes[2], g2, Main)
-        m.evalconstants(g2.nodes[3], g2, Main)
-        m.evalconstants(g2.nodes[4], g2, Main)
-        m.evalconstants(g2.nodes[5], g2, Main)  # true
-            node | symbol    | ext ? | type       | parents | precedence | main    | value          | 
-            ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | -------------- | 
-            1    |           |       | [constant] |         |            | 4       | Int64 4        | 
-            2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Symbol :_tmp3  | 
-            3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Symbol :_tmp2  | 
-            4    |           |       | [constant] |         |            | 0.0     | Float64 0.0    | 
-            5    | _dtmp1 << |       | [subref]   | 2, 4    | 8          | :setidx | Symbol :_tmp3  | 
-            6    |           |       | [call]     | 1, 8    |            | :*      | Expr :(4_tmp5) | 
-            7    | _dtmp2 << | +     | [call]     | 3, 6    |            | :+      | Symbol :_tmp2  | 
-            8    |           |       | [constant] |         |            | 1.0     | Float64 NaN    | 
-
-
-    # identical + evalconstants
-        node | symbol    | ext ? | type       | parents | precedence | main    | value       | 
-        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | ----------- | 
-        1    |           |       | [constant] |         |            | 4       | Int64 4     | 
-        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN | 
-        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN | 
-        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0 | 
-        5    | _dtmp1 << |       | [subref]   | 2, 4    | 7          | :setidx | Float64 NaN | 
-        6    | _dtmp2 << | +     | [call]     | 3, 1    |            | :+      | Float64 NaN | 
-        7    |           |       | [constant] |         |            | 1.0     | Float64 NaN | 
-
-    # sans rules
-        node | symbol    | ext ? | type       | parents | precedence | main    | value       | 
-        ---- | --------- | ----- | ---------- | ------- | ---------- | ------- | ----------- | 
-        1    |           |       | [constant] |         |            | 4       | Int64 4     | 
-        2    | _dtmp1 >> | +     | [external] |         |            | :_dtmp1 | Float64 NaN | 
-        3    | _dtmp2 >> | +     | [external] |         |            | :_dtmp2 | Float64 NaN | 
-        4    |           |       | [constant] |         |            | 0.0     | Float64 0.0 | 
-        5    |           |       | [constant] |         |            | 1.0     | Float64 1.0 | 
-        6    | _dtmp1 << |       | [subref]   | 2, 4    | 5          | :setidx | Float64 NaN | 
-        7    | _dtmp2 << | +     | [call]     | 3, 1    |            | :+      | Float64 NaN | 
-
-
-    ########## simplify  ############
-    m.eval(quote 
-        function simplify!(g::ExGraph, emod = Main)
-            i = 1
-            markalloc!(g)
-            while i <= length(g.nodes)
-                restart = false
-                n = g.nodes[i]
-
-                restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
-                    evalconstants(n, g, emod) ||
-                    rule1(n, g) ||
-                    rule2(n, g) ||
-                    rule3(n, g) #||
-                    #rule4(n, g) ||
-                    #rule5(n, g) ||
-                    #rule6(n, g) ||
-                    #rule7(n, g) ||
-                    #rule8(n, g) ||
-                    #rule9(n, g) ||
-                    #rule10(n, g)
-                
-                if restart
-                    markalloc!(g)
-                    i = 1
-                else
-                    i += 1
-                end
-            end
-            g
-        end
-    end )
-
-    ##### rule 3  ###################
-    n = g2.nodes[6]
-    function rule3(n, g)
-        !isa(n, m.NCall)             && return false
-        (length(n.parents) != 2)   && return false # restricted to binary ops
-        val = m.constequiv(n.parents[1], g2)
-        (val == nothing)           && return false
-        # !isa(n.parents[1], NConst) && return false
-
-        if val == 0 && in(n.main, [:+, :.+])
-            m.fusenodes(g2, n.parents[2], n)
-            return true
-
-        elseif val == 1 && in(n.main, [:*, :.*])
-            fusenodes(g, n.parents[2], n)
-            return true
-
-        else
-            return false
-        end
-    end
-
-############## debug 2   ##################
-    ex = :( x[1]^3 + x[1]*x[2] )
-    res = m.rdiff(ex, x=zeros(2), order=3)   
-
-    ex = :( a = x ; b = a * 3 ; b * x )
-
-
-    #### function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, params...)
-    reload("ReverseDiffSource") ; m = ReverseDiffSource
-    begin
-        order = 3
-        paramsym    = Symbol[ :x ]
-        paramvalues = Any[ [1., 0] ]
-        parval      = Dict(paramsym, paramvalues)
-        g = m.tograph(ex)
-        # reduce to variable of interest
-        g.seti = m.BiDict{m.ExNode,Any}([g.seti.vk[nothing]], [ nothing ])    
-
-        g |> m.splitnary! |> m.prune! |> m.simplify!
-        m.calc!(g, params=parval, emod=Main)
-
-        voi = Any[ nothing ]
-    end
-
-
-    #### pass 1 
-        begin
-            dg = m.reversegraph(g, g.seti.vk[nothing], paramsym)
-            append!(g.nodes, dg.nodes)
-            ns = m.newvar(:_dv)
-            g.seti[ collect(keys(dg.seti))[1] ] = ns
-            push!(voi, ns)
-
-            g |> m.splitnary! |> m.prune! |> m.simplify!
-        end
-    #### pass 2 
-        i = 2
-        # now order 2 to n
-        begin  
-            # launch derivation on a single value of the preceding
-            #   derivation vector
-            no = g.seti.vk[voi[i]]
-            si = m.newvar(:_idx)
-            ni = m.addnode!(g, m.NExt(si))
-            ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
-
-            m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=Main)
-            dg = m.reversegraph(g, ns, paramsym)
-
-            #### We will now wrap dg in a loop scanning all the elements of 'no'
-            # first create ext nodes to make dg a complete subgraph
-            dg2 = m.ExNode[]
-            nmap = Dict()
-            for n in dg.nodes  # n = dg.nodes[2]
-                for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
-                    if haskey(nmap, np) # already remapped
-                        n.parents[j] = nmap[np]
-
-                    elseif np == ni # it's the loop index
-                        nn = m.NExt(si)
-                        push!(dg2, nn)
-                        dg.exti[nn] = si
-                        n.parents[j] = nn
-                        nmap[np] = nn
-
-                    elseif np == ns # it's the selected element of the deriv vector
-                        # create 'no' ref if needed
-                        if !haskey(nmap, no)
-                            sn = m.newvar()
-                            nn = m.NExt(sn)
-                            push!(dg2, nn)
-                            dg.exti[nn] = sn
-                            dg.exto[no] = sn
-                            nmap[no] = nn
-                        end
-
-                        nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
-                        push!(dg2, nn)
-                        nmap[ns] = nn                            
-
-                    elseif !(np in dg.nodes) # it's not in dg (but in g)
-                        sn = m.newvar()
-                        nn = m.NExt(sn)
-                        push!(dg2, nn)
-                        dg.exti[nn] = sn
-                        dg.exto[np] = sn
-                        n.parents[j] = nn
-                        nmap[np] = nn
-
-                    end    
-                end
-
-                # update onodes in for loops
-                if isa(n, m.NFor)
-                    g2 = n.main[2]
-                    for (o,s) in g2.exto
-                        if haskey(nmap, o)
-                            g2.exto[ nmap[o] ] = s  # replace
-                        end
-                    end
-                end
-            end
-            append!(dg.nodes, dg2)    
-            # dg |> prune! |> simplify!
-
-            # create for loop node
-            nf = m.addnode!(g, m.NFor(Any[ si, dg ] ) )
-
-            # create param size node
-            nsz = m.addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
-
-            # create (n-1)th derivative size node
-            ndsz = m.addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
-
-            # create index range node
-            nid = m.addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
-            push!(nf.parents, nid)
-
-            # pass size node inside subgraph
-            sst = m.newvar()
-            inst = m.addnode!(dg, m.NExt(sst))
-            dg.exti[inst] = sst
-            dg.exto[nsz]  = sst
-            push!(nf.parents, nsz)
-
-            # create result node (alloc in parent graph)
-            nsa = m.addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
-            ssa = m.newvar()
-            insa = m.addnode!(dg, m.NExt(ssa))
-            dg.exti[insa] = ssa
-            dg.exto[nsa]  = ssa
-            push!(nf.parents, nsa)
-
-            # create result node update (in subgraph)
-            nres = m.addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                [ :res  => insa,
-                                  :sidx => nmap[ni],
-                                  :st   => inst,
-                                  :dx   => collect(dg.seti)[1][1] ] )
-            dg.seti = m.NSMap(Dict([nres], [ssa]))
-
-            # create exit node for result
-            nex = m.addnode!(g, m.NIn(ssa, [nf]))
-            dg.seto = m.NSMap(Dict([nex], [ssa]))
-
-            # update parents of for loop
-            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
-
-            ns = m.newvar(:_dv)
-            g.seti[nex] = ns
-            push!(voi, ns)
-
-            g |> m.splitnary! |> m.prune! |> m.simplify!
-            
-            m.calc!(g, params=Dict(paramsym, paramvalues), emod=Main)
-        end
-
-    #### pass 3 
-        # now order 2 to n
-        begin  
-            i = 3
-            # launch derivation on a single value of the preceding
-            #   derivation vector
-            no = g.seti.vk[voi[i]]
-            si = m.newvar(:_idx)
-            ni = m.addnode!(g, m.NExt(si))
-            ns = m.addnode!(g, m.NRef(:getidx, [ no, ni ]))
-
-            m.calc!(g, params=Dict([paramsym, si], [paramvalues, 1.]), emod=Main)
-            dg = m.reversegraph(g, ns, paramsym)
-
-            #### We will now wrap dg in a loop scanning all the elements of 'no'
-            # first create ext nodes to make dg a complete subgraph
-            dg2 = m.ExNode[]
-            nmap = Dict()
-            for n in dg.nodes  # n = dg.nodes[2]
-                for (j, np) in enumerate(n.parents)  # j,np = 1, n.parents[1]
-                    if haskey(nmap, np) # already remapped
-                        n.parents[j] = nmap[np]
-
-                    elseif np == ni # it's the loop index
-                        nn = m.NExt(si)
-                        push!(dg2, nn)
-                        dg.exti[nn] = si
-                        n.parents[j] = nn
-                        nmap[np] = nn
-
-                    elseif np == ns # it's the selected element of the deriv vector
-                        # create 'no' ref if needed
-                        if !haskey(nmap, no)
-                            sn = m.newvar()
-                            nn = m.NExt(sn)
-                            push!(dg2, nn)
-                            dg.exti[nn] = sn
-                            dg.exto[no] = sn
-                            nmap[no] = nn
-                        end
-
-                        nn = m.NRef(:getidx, [ nmap[no], nmap[ni] ])
-                        push!(dg2, nn)
-                        nmap[ns] = nn                            
-
-                    elseif !(np in dg.nodes) # it's not in dg (but in g)
-                        sn = m.newvar()
-                        nn = m.NExt(sn)
-                        push!(dg2, nn)
-                        dg.exti[nn] = sn
-                        dg.exto[np] = sn
-                        n.parents[j] = nn
-                        nmap[np] = nn
-
-                    end    
-                end
-
-                # update onodes in for loops
-                if isa(n, m.NFor)
-                    g2 = n.main[2]
-                    for (o,s) in g2.exto
-                        if haskey(nmap, o)
-                            g2.exto[ nmap[o] ] = s  # replace
-                        end
-                    end
-                end
-            end
-            append!(dg.nodes, dg2)    
-            # dg |> prune! |> simplify!
-
-            # create for loop node
-            nf = m.addnode!(g, m.NFor(Any[ si, dg ] ) )
-
-            # create param size node
-            nsz = m.addgraph!( :( length( x ) ), g, [ :x => g.exti.vk[paramsym[1]] ] )
-
-            # create (n-1)th derivative size node
-            ndsz = m.addgraph!( :( sz ^ $(i-1) ), g, [ :sz => nsz ] )
-
-            # create index range node
-            nid = m.addgraph!( :( 1:dsz ),  g, [ :dsz => ndsz ] )
-            push!(nf.parents, nid)
-
-            # pass size node inside subgraph
-            sst = m.newvar()
-            inst = m.addnode!(dg, m.NExt(sst))
-            dg.exti[inst] = sst
-            dg.exto[nsz]  = sst
-            push!(nf.parents, nsz)
-
-            # create result node (alloc in parent graph)
-            nsa = m.addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, [ :sz => nsz ] )
-            ssa = m.newvar()
-            insa = m.addnode!(dg, m.NExt(ssa))
-            dg.exti[insa] = ssa
-            dg.exto[nsa]  = ssa
-            push!(nf.parents, nsa)
-
-            # create result node update (in subgraph)
-            nres = m.addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                [ :res  => insa,
-                                  :sidx => nmap[ni],
-                                  :st   => inst,
-                                  :dx   => collect(dg.seti)[1][1] ] )
-            dg.seti = m.NSMap(Dict([nres], [ssa]))
-
-            # create exit node for result
-            nex = m.addnode!(g, m.NIn(ssa, [nf]))
-            dg.seto = m.NSMap(Dict([nex], [ssa]))
-
-            # update parents of for loop
-            append!( nf.parents, setdiff(collect( keys(dg.exto)), nf.parents[2:end]) )
-
-            ns = m.newvar(:_dv)
-            g.seti[nex] = ns
-            push!(voi, ns)
-        end
-            gggggg = m.copy(g)
-            # g = m.copy(gggggg)
-            m.splitnary!(g)
-            m.prune!(g)
-            m.simplify!(g)  #  ERROR: key not found: :_tmp25
-
-    voin = map( s -> g.seti.vk[s], voi)
-    ex = m.addnode!(g, m.NCall(:tuple, voin))
-    g.seti = m.BiDict(Dict{m.ExNode,Any}( [ex], [nothing]) )
-
-    m.splitnary!(g)
-    m.prune!(g)
-    m.simplify!(g)  #  ERROR: key not found: :_tmp55
-
-    m.resetvar()
-    res = m.tocode(g)
-
-    ex = :( x[1]^3 + x[1]*x[2] )
-    res = m.rdiff(ex, x=zeros(2), order=3)   
-
-    @eval foo(x) = $res
-    foo([1., 2.])
-    (3.0,[5.0,1.0],
-    2x2 Array{Float64,2}:
-     6.0  1.0
-     1.0  0.0,
-
-    2x2x2 Array{Float64,3}:
-    [:, :, 1] =
-     6.0  0.0
-     0.0  0.0
-
-    [:, :, 2] =
-     0.0  0.0
-     0.0  0.0)
-
-
-##############   tests for composite types    #####################
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
-    type Test1
-        x
-        y
-    end
-
-    a = Test1(1,2)
-
-    x = 1.5
-
-    tm.type_decl(Test1, 2)
-    tm.@type_decl Main.Test1 2 
-    tm.@deriv_rule    Test1(x,y)   x  ds[1]
-    tm.@deriv_rule    Test1(x,y)   y  ds[2]
-
-    tm.reversediff(:( x * a.x), x=1)
-
-    tm.reversediff(:( x ^ a.x), x=1)
-    tm.reversediff(:( x ^ c.x), c=Test1(2,2))  # doesn't throw error but incorrect
-
-    norm(t::Test1) = t.x*t.x + t.y*t.y
-    tm.@deriv_rule    norm(t::Test1)  t  { 2t.x*ds , 2t.y*ds }
-
-    ex = :( c = Test1(x, 2x) ; norm(c) )
-    res = tm.reversediff(ex, x=1.)
-    @eval exref(x) = ($ex )
-    @eval exrds(x) = ($res ; (out, dx))
-
-    exref(1.)
-    exref(1.001)  # dx = 10
-    exrds(1.)     # (5.0, 10.0)   ok
-
-    using Distributions
-    reload("ReverseDiffSource") ; tm = ReverseDiffSource
-
-    tm.type_decl(Normal, 2)    
-    tm.@deriv_rule    Normal(mu, sigma)     mu     ds[1]
-    tm.@deriv_rule    Normal(mu, sigma)     sigma  ds[2]
-    tm.@deriv_rule    mean(d::Normal)       d      { ds , 0. }
-
-    ex = :( d = Normal( x, sin(x)) ; mean(d) )
-    res = tm.reversediff(ex, x=1.)
-    @eval exref(x) = ($ex )
-    @eval exrds(x) = ($res ; (out, dx))
-
-    exref(2.)
-    exref(2.001)
-    exrds(2.)
-
-    foo( d::Array{Normal} ) = [ mean(de) for de in d ]
-    tm.@deriv_rule    foo(d::Array{Normal})   d      (nds=zeros(2); 
-                                                        for i in 1:length(d) ;
-                                                            nds[i] = ds[i] ;
-                                                        end ; { nds , zeros(2) } )
-    # tm.@deriv_rule    foo(d::Array{Normal})   d      { copy(ds) , zeros(size(d)) } 
-    tm.@deriv_rule    vcat(a,b)               a      ds[1]
-    tm.@deriv_rule    vcat(a,b)               b      ds[2]
-    tm.@deriv_rule    vcat(a::Normal,b::Normal)  a   { ds[1][1], ds[2][1] }
-    tm.@deriv_rule    vcat(a::Normal,b::Normal)  b   { ds[1][2], ds[2][2] }
-
-    foo([Normal(1,1), Normal(2,1)])
-
-    foo([Normal(1,1), Normal(2,1)])
-
-    ex = :( ns = [Normal(x,1.), Normal(2x,1)] ; z = sum(foo(ns)) )
-    res = tm.reversediff(ex, :z, x=1.)
-
-
-##############   tests for composite types 2   #####################
-
-    include("src/ReverseDiffSource.jl")
-
-    type Foo
-        x::Float64
-        y::Float64
-    end
-    bar(t::Foo) = t.x*t.x + t.y*t.y
-    bar(ta::Array{Foo}) = Float64[ t.x*t.x + t.y*t.y for t in ta]
-
-
-    x = Foo(1.,2.)
-    bar(x)
-    bar([x,x])
-
-    tm.@type_decl    Foo             2   
-    tm.@deriv_rule   Foo(x,y)        x      ds[1]
-    tm.@deriv_rule   Foo(x,y)        y      ds[2]
-    ReverseDiffSource.@deriv_rule   vcat(x,y)                          x      ds[1]
-    ReverseDiffSource.@deriv_rule   vcat(x,y)                          y      ds[2]
-
-    # ReverseDiffSource.@deriv_rule   Main.Sandbox.Foo(x,y)              x      ds[1]
-    # ReverseDiffSource.@deriv_rule   Main.Sandbox.Foo(x,y)              y      ds[2]
-
-    tm.@deriv_rule   bar(t::Foo)           t      [ 2*t.x*ds , 2*t.y*ds ]
-    tm.@deriv_rule   bar(ta::Array{Foo})   ta   [(na=length(ta);res=zeros(na);for i in 1:na;res[i]=2ta[i].x*ds[i];end;res) ,
-                                                 (na=length(ta);res=zeros(na);for i in 1:na;res[i]=2ta[i].y*ds[i];end;res) ]
-
-
-
-    
-
-    import Base.getfield
-
-    getfield(af::Array{Foo}, f::Symbol) = [ getfield(t, f) for t in af]
-
-    t = [ Foo(1.,2.), Foo(3.,4.)]
-    Foo.names
-    fieldoffsets(Foo)
-    x[1]
-    x.data
-
-
-
-    t2 = reinterpret(Float64,t)
-
-
-    ex = quote
-        v = [ Foo(1., y), Foo(0.,1.)]
-        res = sum( bar(v) )
-    end
-
-
-
-#############  naive multiple dispatch   #########################
-    isa((1.2, 1), (Real, Int))
-
-
-    (Float64, Float64) <: (Float64, Real)
-    (Float64, ) <: (Float64, Real)
-    (Float64, Float64) <: (Float64, Real)
-
-    tts = Any[ (Float64, Float64), (Float64, Int), (Float64, Int64), (Float64,), (Int64,), (String,) ]
-    tts = Any[ (Float64, Float64), (Float64, Real), (Float64,), (Int64,), (Float64, Int), (Float64, Number), (Real,) ]
-
-    methods(isless)
-    isless(a::Type, b::Type) = a <: b
-    isless{T1, T2}(a::T1, b::T2) = T1 <: T2
-    sort(tts)
-    methods(sort)
-
-    fcp(a,b) = (length(a) < length(b)) || ( (a <: b)  & (a != b ))
-
-    tts2 = sort(tts, lt=fcp)
-
-    searchsorted(tts2, (Float32,), lt=fcp ) # 1:2
-    searchsorted(tts2, (Float64,), lt=fcp ) # 1:2
-    searchsorted(tts2, (Int,), lt=fcp )  # 1:2
-
-    searchsorted(tts2, (Float64, Float64), lt=fcp )  # 4:5
-    searchsorted(tts2, (Float64, Int), lt=fcp )  # 4:5
-    searchsorted(tts2, (Float64, Real), lt=fcp )  # 6:6
-
-    (Float64, Int) <: (Real, Real)
-    (Float64, Int) <: (Real, Array)
-
-    subtypes(Number)
-
-    length( (Float64, Float64) )
-
-
-
-    function tmatch(sig, keys)
-        keys2 = filter(k -> length(k) == length(sig), keys)
-        tcp(a,b) = a <: b
-        sort!(keys2, lt=tcp)
-        for k in keys2
-            all( t -> t[1] <: t[2], zip(sig, k)) && return k
-        end
-        return nothing
-    end
-
-    tts
-    tmatch( (String,), tts)
-    tmatch( (Float64,), tts)
-    tmatch( (Float32,), tts)
-    tmatch( (Float64,Real), tts)
-    tmatch( (Float64,Float64), tts)
-    tmatch( (Float64,Vector), tts)
-    tmatch( (Real,Float64), tts)
-
-    tts = Any[ (Array,), (Array{Float64},), (Array{Int},) ]
-    tmatch( (Vector,), tts)
-    tmatch( (Vector{Float64},), tts)
-    tmatch( (Vector{String},), tts)
-    tmatch( (Vector{Int32},), tts)
-    tmatch( (Vector{Int64},), tts)
-

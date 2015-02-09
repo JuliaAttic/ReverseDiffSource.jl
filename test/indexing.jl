@@ -7,14 +7,15 @@
 ##  ref  testing
 @compare x[2]                v1ref
 @compare sum(x[2:3])         v1ref
-# @compare sum(x[2:end])       v1ref  # TODO : implement 'end'
-
-@compare x[2]                v2ref
 @compare sum(x[2:4])         v2ref
-# @compare sum(x[:,2])         v2ref  # TODO : implement ':'
-# @compare x[1,:]              v2ref
-# @compare x[2:end,:]          v2ref
-# @compare x[:,2:end]          v2ref
+
+@compare sum(x[:,2])         v2ref 
+@compare sum(x[1,:])         v2ref
+@compare sum(x[2:end,:])     v2ref
+@compare sum(x[:,2:end])     v2ref
+@compare sum(x[1:end-1,:])   v2ref
+@compare sum(x[v0ref:end,:]) v2ref
+
 
 @compare x[2]+x[1]           v2ref
 @compare log(x[2]^2+x[1]^2)  v2ref

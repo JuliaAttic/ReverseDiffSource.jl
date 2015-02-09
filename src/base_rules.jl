@@ -4,24 +4,30 @@
 #
 #########################################################################
 
-typeequiv( Real, 1)    # derivatives of scalars are scalars
-# typeequiv(   Int64 , 1)    # derivatives of scalars are scalars
-# typeequiv(  Bool , 1)    # derivatives of scalars are scalars
-typeequiv(  Range  , 2)    # usualy not derived against but useful for reversegraph anyway
-typeequiv( Symbol  , 1)    # usualy not derived against but useful for reversegraph anyway
-# typeequiv( UnitRange{Int64}, 2)
-# typeequiv( FloatRange{Float64}, 2)
-
 # derivation neutral functions
 @deriv_rule colon(x,y)   x     0.
 @deriv_rule colon(x,y)   y     0.
+
 @deriv_rule length(x)    x     0.
+
+@deriv_rule size(x)      x     0.
+@deriv_rule size(x,y)    x     0.
+@deriv_rule size(x,y)    y     0.
+
 @deriv_rule fill(x,y)    x     0.
 @deriv_rule fill(x,y)    y     0.
+
+@deriv_rule similar(x,y) x     0.
+@deriv_rule similar(x,y) y     0.
+
 @deriv_rule zeros(x)     x     0.
+
 @deriv_rule ones(x)      x     0.
-@deriv_rule size(x)      x     0.
+
+@deriv_rule cell(x)      x     0.
+
 @deriv_rule sign(x)      x     0.
+
 @deriv_rule reverse(x)   x     0.
 
 
@@ -37,10 +43,17 @@ typeequiv( Symbol  , 1)    # usualy not derived against but useful for reversegr
 @deriv_rule tuple(x,y,z,t)  x     ds[3]
 @deriv_rule tuple(x,y,z,t)  t     ds[4]
 
-
-
 #  vcat
-# @deriv_rule vcat(x,y)       x     ds[1]
+@deriv_rule vcat(x)        x     ds[1]
+@deriv_rule vcat(x,y)      x     ds[1]
+@deriv_rule vcat(x,y)      y     ds[2]
+@deriv_rule vcat(x,y,z)    x     ds[1]
+@deriv_rule vcat(x,y,z)    y     ds[2]
+@deriv_rule vcat(x,y,z)    z     ds[3]
+@deriv_rule vcat(x,y,z,t)  x     ds[1]
+@deriv_rule vcat(x,y,z,t)  y     ds[2]
+@deriv_rule vcat(x,y,z,t)  x     ds[3]
+@deriv_rule vcat(x,y,z,t)  t     ds[4]
 
 # square root
 @deriv_rule sqrt(x::Real)              x     0.5 * x ^ (-0.5) * ds
@@ -51,6 +64,11 @@ typeequiv( Symbol  , 1)    # usualy not derived against but useful for reversegr
 @deriv_rule +(x::AbstractArray, y::AbstractArray)    x     ds
 @deriv_rule +(x::Real         , y::Real )            y     ds
 @deriv_rule +(x::AbstractArray, y::AbstractArray)    y     ds
+
+@deriv_rule +(x::Real         , y::AbstractArray)    x     sum(ds)
+@deriv_rule +(x::AbstractArray, y       )            x     ds
+@deriv_rule +(x::AbstractArray, y::Real )            y     sum(ds)
+@deriv_rule +(x               , y::AbstractArray)    y     ds
 
 # dot addition
 @deriv_rule .+(x::Real         , y::Real )            x     ds
