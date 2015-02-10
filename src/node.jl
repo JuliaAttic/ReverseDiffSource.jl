@@ -19,16 +19,18 @@ type ExNode{T}
   ExNode(main,parents, prec, val, alloc) = new(   main, parents,  prec, val, alloc)
 end
 
-copy{T}(x::ExNode{T}) = ExNode{T}(copy(x.main), 
+copy{T}(x::ExNode{T}) = ExNode{T}( x.main, # copy(x.main), 
                                   copy(x.parents), 
                                   copy(x.precedence), 
-                                  copy(x.val), 
+                                  # copy(x.val), 
+                                  x.val, 
                                   x.alloc)
 
 copy(x::ExNode{:for}) = ExNode{:for}(Any[ x.main[1], copy(x.main[2]) ],    # make a copy of subgraph
                               copy(x.parents), 
                               copy(x.precedence), 
-                              copy(x.val), 
+                              # copy(x.val), 
+                              x.val, 
                               x.alloc)
 
 typealias NConst     ExNode{:constant}  # for constant 

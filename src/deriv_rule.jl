@@ -4,94 +4,63 @@
 #
 #########################################################################
 
-rdict = Dict() # holds the derivation expressions
-tdict = Dict() # holds the type equivalence expressions
+drules = Dict() # holds the derivation expressions
+trules = Dict() # holds the type equivalence expressions
 
 #### function derivation rules declaration functions/macros
 
-function dfuncname(nam::Union(Expr, Symbol), ind::Int)
-    if isa(nam, Symbol)
-        return symbol("d_$(nam)_$(ind)")
-    elseif nam.head == :. 
-        st = "$nam"[3:end-1]
-        return symbol("d_$(st)_$(ind)")
-    else
-        error("[dfuncname] cannot parse expr $nam")
-    end
-end
+# macro version
+macro deriv_rule(func::Expr, dv::Symbol, diff)
+    # func = :(  float(x, y::Real, z::Array{String}, t::Union(Float64,Int)))
+    emod = current_module()
 
-function deriv_rule(func::Expr, dv::Symbol, diff::Union(Expr, Symbol, Real))
-    #### list variable symbols and annotate type names with "Main." 
-    argsn = Symbol[]
-    sig = Any[]
+    ss = Symbol[]
+    ts = Type[]
     for e in func.args[2:end]
         if isa(e, Symbol)
-            push!(argsn, e)
-            push!(sig, e)
+            push!(ss, e)
+            push!(ts, Any)
 
-        elseif isa(e, Expr) && e.head== :(::)  # FIXME : will fail for complex definitions
-            push!(argsn, e.args[1])
-            e2 = e.args[2]
-            # if isa(e2, Symbol)  # type without qualifying module
-            #     ne = Expr(:., :Main, Expr(:quote, e2))
-            # elseif isa(e2, Expr) && e2.head == :.  # type with module
-            #     ne = e2
-            if isa(e2, Symbol) || isa(e2, Expr) && e2.head == :.
-                ne = Expr(:., :Main, Expr(:quote, e2))
-            elseif isa(e2, Expr) && e2.head == :curly
-                ne = Expr(:curly, [ Expr(:., :Main, Expr(:quote, ei)) for ei in e2.args]...)
-            elseif isa(e2, Expr) && e2.head == :call && e2.args[1] == :Union
-                ne = Expr(:call, :Union, [ Expr(:., :Main, Expr(:quote, ei)) for ei in e2.args[2:end]]...)
-            
-            else
-                error("[deriv_rule] cannot parse $e")
-            end
-
-            push!(sig, Expr(:(::), e.args[1], ne))
+        elseif isa(e, Expr) && e.head== :(::)  
+            push!(ss, e.args[1])
+            push!(ts, emod.eval(e.args[2]))
 
         else
             error("[deriv_rule] cannot parse $e")
         end
     end
-    # argsn = map(e-> isa(e, Symbol) ? e : e.args[1], func.args[2:end])
-    push!(argsn, :ds)  # add special symbol ds
 
-    index = find(dv .== argsn)[1] # TODO : add error message if not found
-
-    #### make the graph
-    g = tograph( diff )
-
-    #### store graph, build proxy function
-    rn = gensym("rule")
-    rdict[rn] = ( g, argsn, getnode(g.seti, nothing) )
-
-    # diff function name
-    fn = dfuncname(func.args[1], index)
-
-    # create function returning applicable rule # for this signature
-    eval( :( $(Expr(:call, fn, sig...)) = $(Expr(:quote, rn)) ) )
+    deriv_rule(emod.eval(func.args[1]), collect(zip(ss, ts)), dv, diff)
 end
 
-# macro version
-macro deriv_rule(func::Expr, dv::Symbol, diff)
-    deriv_rule(func, dv, diff)
+function deriv_rule{T<:Type}(func::Union(Function, Type), args::Vector{(Symbol, T)}, dv::Symbol, diff::Union(Expr, Symbol, Real))
+    emod = current_module()
+
+    sig = tuple( Type[ e[2] for e in args ]... )
+    ss  = Symbol[ e[1] for e in args ]
+
+    index = findfirst(dv .== ss)
+    (index == 0) && error("[deriv_rule] cannot find $dv in function arguments")
+
+    haskey(drules, (func, index)) || (drules[(func, index)] = Dict())
+
+    g = tograph(diff, emod)  # make the graph
+    push!(ss, :ds)
+
+    drules[(func, index)][sig] = (g, ss) 
+    nothing
 end
 
-#### composite type - vector equivalence declaration function ######
 
-# macro typeequiv(typ::Union(Symbol, Expr), n::Int)
-#     ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
-#     deriv_rule(:( equivnode(x::$(typ))) , :x, ie)
-# end
+#### Type tuple matching  (naive multiple dispatch)
 
-# TODO : implement type hierarchy (only leaf types work)
-function typeequiv(typ::DataType, n::Int)
-    ie = n==1 ? 0. : Expr(:vcat, zeros(n)...)
-
-    ### make the graph
-    g = tograph( ie )
-
-    #### store graph, build proxy function
-    tdict[typ] = ( g, Symbol[:x], getnode(g.seti, nothing) )
-end 
+function tmatch(sig, keys)
+    keys2 = filter(k -> length(k) == length(sig), keys)
+    tcp(a,b) = a <: b
+    sort!(keys2, lt=tcp)
+    for k in keys2
+        all( t -> t[1] <: t[2], zip(sig, k)) && return k
+    end
+    return nothing
+end
 

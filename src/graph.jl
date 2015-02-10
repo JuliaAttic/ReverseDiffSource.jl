@@ -53,8 +53,8 @@ function show(io::IO, g::ExGraph)
     tn[i,5] = join( map( x -> "$x", indexin(n.parents,    Any[g.nodes...])), ", ")
     tn[i,6] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
 
-    tn[i,7] = "$(repr(main))"
-    tn[i,8] = "$(typeof(n.val)) $(repr(n.val)[1:min(40, end)])"
+    tn[i,7] = repr(main)
+    tn[i,8] = "($(typeof(n.val))) $(repr(n.val)[1:min(40, end)])"
   end
 
   tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"], 
@@ -138,11 +138,11 @@ addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 function splitnary!(g::ExGraph)
   for n in g.nodes
       if isa(n, NCall) &&
-          in(n.main, [:+, :*, :sum, :min, :max, :vcat]) && 
-          (length(n.parents) > 2 )
+          in(n.parents[1].main, [+, *, sum, min, max]) && 
+          ( length(n.parents) > 3 )
 
-          nn = addnode!(g, NCall( n.main, n.parents[2:end] ) )
-          n.parents = [n.parents[1], nn]  
+          nn = addnode!(g, NCall(:call, [n.parents[1], n.parents[3:end]] ) )
+          n.parents = [n.parents[1:2], nn]  
       
       elseif isa(n, NFor)
         splitnary!(n.main[2])
@@ -229,8 +229,6 @@ function prune!(g::ExGraph, exitnodes)
       fg = n.parents[1].main[2]
       sym = fg.seto[n]
       delete!(fg.seto, n)
-      #= ni = fg.seti.vk[sym]
-      delete!(fg.seti, ni) =#
     end
 
     n in ns2 || continue
@@ -253,16 +251,14 @@ function prune!(g::ExGraph, exitnodes)
         push!(exitnodes2, n2)
       end
       exitnodes2 = unique(exitnodes2)
-      #=println(exitnodes2)
-      println("before\n", g2)
-      println("after\n", g2)=#
       prune!(g2, exitnodes2)
 
       # update parents
       n.parents = [n.parents[1], intersect(n.parents, collect(nodes(g2.exto)) ) ]
     end
 
-    ns2 = union(ns2, n.parents)
+    # ns2 = union(ns2, n.parents)
+    ns2 = vcat(ns2, n.parents)
   end
 
   # remove unused external inodes in map and corresponding onodes (if they exist)
@@ -283,20 +279,41 @@ function prune!(g::ExGraph, exitnodes)
     n.precedence = intersect(n.precedence, ns2)
   end
 
-  g.nodes = intersect(g.nodes, ns2)
+  # g.nodes = intersect(g.nodes, ns2)
+  g.nodes = unique(ns2)
   g
 end
 
 ####### sort graph to an evaluable order ###########
+# function evalsort!(g::ExGraph)
+#   ns = ExNode[]
+#   while length(ns) < length(g.nodes)
+#     canary = length(ns)
+#     nl = setdiff(g.nodes, ns)
+#     for n in nl
+#       any(x -> x in nl, n.parents) && continue
+#       any(x -> x in nl, n.precedence) && continue
+#       push!(ns,n)
+#     end
+#     (canary == length(ns)) && error("[evalsort!] cycle in graph")
+#   end
+#   g.nodes = ns
+
+#   # separate pass on subgraphs
+#   map( n -> evalsort!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
+
+#   g
+# end
 function evalsort!(g::ExGraph)
+  nr = Set{ExNode}(g.nodes)
   ns = ExNode[]
-  while length(ns) < length(g.nodes)
+
+  while length(nr) > 0
     canary = length(ns)
-    nl = setdiff(g.nodes, ns)
-    for n in nl
-      any(x -> x in nl, n.parents) && continue
-      any(x -> x in nl, n.precedence) && continue
-      push!(ns,n)
+    for n in nr
+      any(x -> x in nr, n.parents) && continue
+      any(x -> x in nr, n.precedence) && continue
+      push!(ns,n) ; delete!(nr,n)
     end
     (canary == length(ns)) && error("[evalsort!] cycle in graph")
   end
@@ -308,30 +325,47 @@ function evalsort!(g::ExGraph)
   g
 end
 
+
 ####### calculate the value of each node  ###########
 function calc!(g::ExGraph; params=Dict(), emod = Main)
 
+  # evaluate a symbol
   function myeval(thing)
     local ret   
+
     if haskey(params, thing)
       return params[thing]
     else
       try
         ret = emod.eval(thing)
       catch e
-        println("[calc!] can't evaluate $thing in \n $g \n with") ; display(params)
+        println("[calc!] can't evaluate $thing in \n $g \n with")
+        display(params)
         rethrow(e)
       end
       return ret
     end
   end
 
-  function evaluate(n::Union(NCall, NComp))
+  function evaluate(n::NCall)
     local ret
     try
-        ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
+      ret = (n.parents[1].main)([ x.val for x in n.parents[2:end]]...) 
+    catch e
+      eex = Expr(:call, n.parents[1].main, [ x.val for x in n.parents[2:end]]...)
+      error("$e when calling $eex in \n$g")
+    end
+    return ret
+  end 
+
+  function evaluate(n::NComp)
+    local ret
+    try
+      ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
+      #TODO: improve speed with smth like ret = (n.main)([ x.val for x in n.parents]...) 
     catch
-      error("[calc!] can't evaluate $(n.main) \n $g \n $params")
+      eex = Expr(:call, n.main, Any[ x.val for x in n.parents]...)
+      error("$e when calling $eex in \n$g")
     end
     return ret
   end 
@@ -345,11 +379,26 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end
 
   evaluate(n::NConst) = n.main
-  # evaluate(n::NRef)   = myeval( Expr(:ref, n.parents[1].val, 
-  #                                    map(a->myeval(a), n.main)... ) )
-  evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
-  evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
-  evaluate(n::NSRef)  = n.parents[1].val
+
+  # evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...)) 
+  evaluate(n::NRef)   = getindex(n.parents[1].val, [n2.val for n2 in n.parents[2:end]]...) 
+
+  # evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
+  function evaluate(n::NDot)
+    fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value
+    getfield(n.parents[1].val, fsym) 
+  end
+
+  function evaluate(n::NSRef)
+    if length(n.parents) >= 3   # regular setindex 
+      setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
+      return n.parents[1].val
+    else
+      return n.parents[2].val
+    end
+  end
+
+  # evaluate(n::NSRef)  = n.parents[1].val
   evaluate(n::NSDot)  = n.parents[1].val
 
   function evaluate(n::NIn)
@@ -359,13 +408,14 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   function evaluate(n::NFor)
     g2 = n.main[2]
-    is = n.main[1]                          # symbol of loop index
-    iter = evaluate(n.parents[1])           #  myeval(n.main[1].args[2])
-    # is0 = next(iter, start(iter))[2]        # first value of index
-    is0 = first(iter)                       # first value of index
-    params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
-    # println("params2 : $(params2)")
-    calc!(g2, params=params2)
+    is = n.main[1]                    # symbol of loop index
+    iter = evaluate(n.parents[1])     #  myeval(n.main[1].args[2])
+
+    params2 = copy(params)
+    for is0 in iter
+      params2[is] = is0
+      calc!(g2, params=params2)
+    end
     
     valdict = Dict()
     for (k, sym) in g2.seto
@@ -376,27 +426,28 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   end
 
   evalsort!(g)
-  for n in g.nodes
+  for (i,n) in enumerate(g.nodes)
     n.val = evaluate(n)
   end
-
   g
 end
 
 ###### inserts graph src into dest  ######
 # TODO : inserted graph may update variables and necessitate a precedence update
 
-addgraph!(src::Expr, dest::ExGraph, smap::Dict) = addgraph!(tograph(src), dest, smap)
+function addgraph!(src::Expr, dest::ExGraph, smap::Dict)
+  addgraph!(tograph(src), dest, smap)
+end
 
 function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   length(src.exto.kv)>0 && warn("[addgraph] adding graph with external onodes")
   length(src.seto.kv)>0 && warn("[addgraph] adding graph with set onodes")
   # TODO : this control should be done at the deriv_rules.jl level
 
-  ig = copy(src) # make a copy, update references
+  ig = copy(src) # make a copy, update references, sort
   exitnode = getnode(ig.seti, nothing) # result of added subgraph
 
-  evalsort!(ig)
+  # evalsort!(ig)
 
   nmap = Dict()
   for n in ig.nodes  #  n = src[1]  

@@ -8,6 +8,13 @@
 ############## external symbols resolution  #########################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
+    m.tograph( :( sin(x) ))
+    g = m.tograph( :( Base.sin(x) ))
+    m.simplify!( g )
+
+    g = m.tograph( :( Base.sin(4.) ))
+    m.simplify!( g )
+
     ###################### modules ########################################
         module Abcd
             module Abcd2
@@ -45,15 +52,17 @@
 
         t = Abcd.Abcd2.probe2
 
-#########################################################
 
 ###################### issue #8   ######################################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
+    m.drules[(+,1)]
+
+
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-    res = m.rdiff(ex, x=zeros(2), order=2)   # 28 lines
+    res = m.rdiff(ex, x=zeros(2), order=2)   
     res = m.rdiff(ex, x=zeros(2), order=3)   # 72  lines (devl3)
-    res = m.rdiff(ex, x=zeros(2), order=4)   # 211 lines
+    res = m.rdiff(ex, x=zeros(2), order=4)   # 200 lines
 
     @eval foo(x) = $res
     foo([0.5, 2.])

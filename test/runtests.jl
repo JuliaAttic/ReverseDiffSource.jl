@@ -5,11 +5,13 @@ m = ReverseDiffSource
 
 my_tests = [
 			"unit_tests.jl",
-            "syntax_tests.jl",
-            "firstorder_tests.jl",
-            "index_tests.jl",
-            "loop_tests.jl",
-            "more_tests.jl"
+            "parsing.jl",
+            "syntax.jl",
+            "firstorder.jl",
+            "indexing.jl",
+            "types.jl",
+            "loops.jl",
+            "more.jl"
            ]
 
 println("Running tests:")

@@ -6,7 +6,7 @@
 
 ##########  function version   ##############
 
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false)
+function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false, allorders=true)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -27,7 +27,7 @@ end
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, params...)
+function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allorders=true, params...)
 
     length(params) >= 1 || error("There should be at least one parameter specified, none found")
     
@@ -42,13 +42,13 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
     paramvalues = [ e[2] for e in params]
     parval      = Dict(zip(paramsym, paramvalues))
 
-    g = tograph(ex)
+    g = tograph(ex, evalmod)
 
     hassym(g.seti, outsym) || 
         error("can't find output var $( outsym==nothing ? "" : outsym)")
 
     # reduce to variable of interest
-    g.seti = BiDict{ExNode,Any}([getnode(g.seti, outsym)], [ outsym ])    
+    g.seti = NSMap([getnode(g.seti, outsym)], [ outsym ])    
 
     g |> splitnary! |> prune! |> simplify!
     calc!(g, params=parval, emod=evalmod)
@@ -61,10 +61,13 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
     if order == 1
         dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
         append!(g.nodes, dg.nodes)
-        nn = addnode!( g, NCall(:tuple, [ getnode(dg.seti, dprefix(p)) for p in paramsym] ) )
-        ns = newvar("_dv")
-        g.seti[nn] = ns
-        push!(voi, ns)
+
+        for p in paramsym
+            nn = getnode(dg.seti, dprefix(p))  # find the exit node of deriv of p
+            ns = newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+        end
 
         g |> splitnary! |> prune! |> simplify!
 
@@ -164,13 +167,13 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create param size node
-            nsz = addgraph!( :( length( x ) ), g, Dict( :x => getnode(g.exti, paramsym[1]) ) )
+            nsz = addgraph!( :( length( x ) ), g, @compat Dict( :x => getnode(g.exti, paramsym[1]) ) )
 
             # create (n-1)th derivative size node
-            ndsz = addgraph!( :( sz ^ $(i-1) ), g, Dict( :sz => nsz ) )
+            ndsz = addgraph!( :( sz ^ $(i-1) ), g, @compat Dict( :sz => nsz ) )
 
             # create index range node
-            nid = addgraph!( :( 1:dsz ),  g, Dict( :dsz => ndsz ) )
+            nid = addgraph!( :( 1:dsz ),  g, @compat Dict( :dsz => ndsz ) )
             push!(nf.parents, nid)
 
             # pass size node inside subgraph
@@ -181,7 +184,8 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), g, Dict( :sz => nsz ) )
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), 
+                            g, @compat Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
             dg.exti[insa] = ssa
@@ -190,10 +194,10 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
 
             # create result node update (in subgraph)
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
-                                Dict(   :res  => insa,
-                                        :sidx => nmap[ni],
-                                        :st   => inst,
-                                        :dx   => collect(dg.seti)[1][1] ) )
+                              @compat Dict(:res  => insa,
+                                           :sidx => nmap[ni],
+                                           :st   => inst,
+                                           :dx   => collect(dg.seti)[1][1] ) )
             dg.seti = NSMap([nres], [ssa])
 
             # create exit node for result
@@ -208,15 +212,22 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, para
             push!(voi, ns)
 
             g |> splitnary! |> prune! |> simplify!
-            
-            calc!(g, params=Dict(zip(paramsym, paramvalues)), emod=evalmod)
         end
 
     end
 
-    voin = map( s -> getnode(g.seti, s), voi )
-    ex = addnode!(g, NCall(:tuple, voin))
-    g.seti = NSMap( [ex], [nothing])
+    if !allorders  # only keep the last derivative
+        voi = [voi[end]]
+    end
+
+    if length(voi) > 1  # create tuple if multiple variables
+        voin = map( s -> getnode(g.seti, s), voi )
+        nf = addnode!(g, NConst(tuple))
+        exitnode = addnode!(g, NCall(:call, [nf, voin...]))
+    else
+        exitnode = getnode(g.seti, voi[1])
+    end
+    g.seti = NSMap( [exitnode], [nothing])  # make this the only exitnode of interest
 
     g |> splitnary! |> prune! |> simplify!
 
