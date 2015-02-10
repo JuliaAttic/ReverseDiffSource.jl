@@ -2,9 +2,10 @@
     Pkg.status()
 
     cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
+    Pkg.test("ReverseDiffSource")
     include("runtests.jl")
     include("firstorder_tests.jl")
-    include("index_tests.jl")
+    include("indexing.jl")
 
 ############## adding end and : for ref  #########################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
@@ -31,6 +32,33 @@
     m.tocode(g)
     g = m.tograph(:( x[1:end, end-3:end-1,:] ))
     m.tocode(g)
+
+
+    tex = quote
+        a=zeros(10)
+        a[i] = b[i] + t
+        # for i in 1:10
+        #     t = x+z
+        # end
+    end
+    g = m.tograph(tex)
+
+    g = m.tograph(:(x[j] = b[i] + t))
+
+    m.isSymbol( :(a[i]) )
+
+        lhs = :(a[i])
+        if m.isSymbol(lhs)  # x = ....
+            if lhss in [:x]
+                println("2")
+            else # never set before ? assume it is created here
+                println("3")
+            end
+
+        elseif m.isRef(lhs)   # x[i] = ....
+            println("4")
+        end
+
 
 ############## external symbols resolution  #########################
     reload("ReverseDiffSource") ; m = ReverseDiffSource

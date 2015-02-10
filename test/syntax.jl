@@ -64,29 +64,30 @@ res = m.rdiff( :( 2 ^ foo(x) ) , x=1)
 
 ######### @typeequiv ############
 
-# type Bar
-#     x
-#     y
-# end
-	
-# norm(z::Bar) = z.x*z.x + z.y*z.y
+module Sandbox
+    type Bar
+        x
+        y
+    end
 
-# norm(Bar(1,1))
+    norm(z::Bar) = z.x*z.x + z.y*z.y
+end
 
-# ex = :( z = Bar(a*a, sin(a)) ; norm(z) )
-# a = 1
-# @eval $ex
 
-# m.@typeequiv   Bar    2
-# m.@deriv_rule  Bar(x,y)      x  ds[1]
-# m.@deriv_rule  Bar(x,y)      y  ds[2]
-# m.@deriv_rule  norm(z::Bar)  z  [ 2*z.x , 2*z.y ] .* ds
+ex = quote
+    z = Sandbox.Bar(2^a, sin(a))
+    Sandbox.norm(z)
+end
 
-# res = m.rdiff(ex, a=0.)
-# @eval tt(a) = $res
+m.@deriv_rule  Sandbox.Bar(x,y)      x  ds[1]   # Derivative accumulator of x is increased by ds[1]
+m.@deriv_rule  Sandbox.Bar(x,y)      y  ds[2]   # Derivative accumulator of y is increased by ds[2]
 
-# tt(1)
+m.@deriv_rule  Sandbox.norm(z::Sandbox.Bar)  z  Any[ 2*z.x*ds , 2*z.y*ds ]  # Note : produces a 2-vector since z is a Bar
 
+res = m.rdiff(ex, a=0.)
+@eval df(a) = $res
+
+df(1)
 
 ###### internals - tograph example  ######
 
