@@ -411,10 +411,6 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     is = n.main[1]                    # symbol of loop index
     iter = evaluate(n.parents[1])     #  myeval(n.main[1].args[2])
 
-    # is0 = first(iter)                           # first value of index
-    # params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
-    # calc!(g2, params=params2)
-
     params2 = copy(params)
     for is0 in iter
       params2[is] = is0

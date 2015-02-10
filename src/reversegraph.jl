@@ -14,7 +14,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
         if n == exitnode
             dnodes[n] = addnode!(g2, NConst(1.0))
         else
-            dnodes[n] = addgraph!( zeronode(n), g2, Dict( :tv => n) )
+            dnodes[n] = addgraph!( zeronode(n), g2, @compat Dict( :tv => n) )
             # dnodes[n] = createzeronode!(g2, n)
         end
     end
@@ -202,7 +202,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
         # create regular zeronodes for the remaining fg nodes
         for n2 in filter(n-> !isa(n,NFor) & !haskey(fdnodes, n), fg.nodes)
-            nn = addgraph!( zeronode(n2), fg2, Dict( :tv => n2) )
+            nn = addgraph!( zeronode(n2), fg2, @compat Dict( :tv => n2) )
             # nn = createzeronode!(fg2, n2)
             fdnodes[n2] = nn
         end
@@ -223,7 +223,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         # println("after pruning\n$fg")
 
         # create for loop
-        nr = addgraph!( :( reverse( x ) ), g2, Dict( :x => n.parents[1] ) ) # range in reverse order
+        nr = addgraph!(:( reverse( x ) ), g2, 
+                       @compat Dict( :x => n.parents[1] ) ) # range in reverse order
         v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
         v2.parents = [nr, collect( nodes( fg.exto)) ]
 
