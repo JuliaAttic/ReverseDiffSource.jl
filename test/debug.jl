@@ -8,6 +8,39 @@
     include("indexing.jl")
 
 ############## adding end and : for ref  #########################
+
+    type Bar
+        x
+        y
+    end
+
+
+    norm(z::Bar) = z.x*z.x + z.y*z.y
+
+
+    ex = :( z = Bar(2^a, sin(a)) ; norm(z) )
+
+    m.@deriv_rule  Bar(x,y)      x  ds[1]   # Derivative accumulator of x is increased by ds[1]
+    m.@deriv_rule  Bar(x,y)      y  ds[2]   # Derivative accumulator of y is increased by ds[2]
+    
+    m.@deriv_rule  norm(z::Bar)  z  Any[ 2*z.x*ds , 2*z.y*ds ]  # Note : produces a 2-vector since z is a Bar
+
+We are now ready to derive::
+
+    res = m.rdiff(ex, a=0.)
+    @eval df(a) = $res
+
+    @eval let a=0 ; $res ; end
+
+    df(1)
+    (4.708073418273571,6.454474871305244)
+    (df(1+1e-8)[1] - df(1)[1])*1e8
+
+
+        (1.708073418273571,(4.909297426825682,))
+
+
+
     reload("ReverseDiffSource") ; m = ReverseDiffSource
 
     tex = quote

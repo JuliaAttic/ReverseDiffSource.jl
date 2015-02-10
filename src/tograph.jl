@@ -226,9 +226,9 @@ function tograph(s, evalmod=Main, svars=Any[])
         p  = ExNode[]
         for (i,na) in enumerate(as)
             if length(as)==1 # single dimension
-                ns = addgraph!(:( length(x) ), g, Dict(:x => nv) )
+                ns = addgraph!(:( length(x) ), g, @compat Dict(:x => nv) )
             else # several dimensions
-                ns = addgraph!(:( size(x, $i) ), g, Dict(:x => nv) )
+                ns = addgraph!(:( size(x, $i) ), g, @compat Dict(:x => nv) )
             end
 
             na==:(:) && (na = Expr(:(:), 1, :end) )  # replace (:) with (1:end)
