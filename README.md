@@ -8,7 +8,7 @@ Julia release (0.3)  | Julia nightly (0.4)|
 
 [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=devl)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl)
 
-[![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=devl)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=devl) |
+[![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=devl)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=devl)
   
 
 Reverse automated differentiation from source
