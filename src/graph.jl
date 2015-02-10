@@ -32,7 +32,7 @@ getsym( m::NSMap, n::ExNode) = m.kv[n]
 
 
 function show(io::IO, g::ExGraph)
-  tn = fill(UTF8String(""), length(g.nodes), 8)
+  tn = fill("", length(g.nodes), 8)
 
   for (i,n) in enumerate(g.nodes)
     tn[i,1] = "$i"

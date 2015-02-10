@@ -138,7 +138,7 @@
     @test m.tmatch((Float64,Int32), tts)     == (Real,Real)
     @test m.tmatch((Any, Real), tts)         == (Any,Any)
     @test m.tmatch((Float64, Int, Int), tts) == nothing
-    @test m.tmatch((String,), tts)           == (AbstractString,)
+    @test m.tmatch((String,), tts)           == (String,)
     @test m.tmatch((Float32,), tts)          == (Real,)
     @test m.tmatch((Float64,Real), tts)      == (Real,Real)
     @test m.tmatch((Float64,Float64), tts)   == (Float64,Float64)

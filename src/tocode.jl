@@ -41,28 +41,32 @@ function tocode(g::ExGraph)
         end
 
         # default translation
-        mt =    try
-                    mod = fullname(Base.function_module(op))
-                catch e
-                    println(g)
-                    error("[tocode] cannot spell function $op")
-                end
-
-        # (mt == (:Base,)) && ( mt = () ) # strip Main for brevity
         if isa(op, DataType)
-            mt = tuple( mt..., op.name.name )
+            mods =  try
+                        fullname(op.name.module)
+                    catch e
+                        error("[tocode] cannot find module of DataType $op")
+                    end                
+            mt = tuple( mods..., op.name.name )
+
         elseif isa(op, Function)
-            mt = tuple( mt..., symbol(string(op)) )
+            mods =  try
+                        fullname(Base.function_module(op))
+                    catch e
+                        error("[tocode] cannot find module of function $op")
+                    end                
+            mt = tuple( mods..., symbol(string(op)) )
+
         else
             error("[tocode] call using neither a DataType or Function : $op")
         end
 
         # try to strip module names for brevity
         try
+            mt2 = (:Base, mt[end])
+            eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
             mt2 = (mt[end],)
-            if eval(:( $(mexpr(mt)) == $(mexpr(mt2)) ))
-                mt = mt2
-            end
+            eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
         end
 
         Expr(:call, mexpr( mt ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
