@@ -42,7 +42,7 @@ function zeronode(n)
         nt  = addnode!(fg, NExt(:tv)) ; fg.exti[nt] = :tv   # ref node
         nt2 = addnode!(fg, NRef(:getidx, [nt, ni]))         # ref node[i]
 
-        nr = addgraph!(ge, fg, Dict( :tv => nt2))
+        nr = addgraph!(ge, fg, @compat Dict( :tv => nt2))
         ns = addnode!(fg, NSRef(:setidx, [nv, nr, ni]) )
         fg.seti[ns] = :v
 
@@ -50,7 +50,7 @@ function zeronode(n)
         g  = tograph( :( cell( size(tv)) ) )
         nv = getnode(g.seti, nothing) ; fg.exto[nv] = :v
         nt = addnode!(g, NExt(:tv))   ; fg.exto[nt] = :tv ; g.exti[nt] = :tv 
-        nr = addgraph!( :( 1:length(nv) ), g, Dict( :nv => nv) )
+        nr = addgraph!( :( 1:length(nv) ), g, @compat Dict( :nv => nv) )
         nf = addnode!(g, NFor( Any[:i, fg], [ nr, nv, nt ]) )
         ns = addnode!(g, NIn( :v, [ nf ]) ) ; fg.seto[ns] = :v
         g.seti[ns] = nothing
@@ -68,7 +68,7 @@ function zeronode(n)
             nf      = addnode!(g, NRef(:getidx, [ getnode(g.exti, :tv), ni ], [], v[i], false) ) 
 
             ng      = zeronode( nf )
-            nn      = addgraph!(ng, g, Dict( :tv => nf ))
+            nn      = addgraph!(ng, g, @compat Dict( :tv => nf ))
             ns      = addnode!(g, NSRef(:setidx, [getnode(g.seti, nothing), nn, ni]))
             g.seti[ns] = nothing
         end
@@ -85,7 +85,7 @@ function zeronode(n)
             nf      = addnode!(g, NDot(QuoteNode(n2), [ getnode(g.exti, :tv) ], [], getfield(v, n2), false) ) 
 
             ng      = zeronode( nf )
-            nn      = addgraph!(ng, g, Dict( :tv => nf ))
+            nn      = addgraph!(ng, g, @compat Dict( :tv => nf ))
             ni      = addnode!(g, NConst(i))
             ns      = addnode!(g, NSRef(:setidx, [getnode(g.seti, nothing), nn, ni]))
             g.seti[ns] = nothing

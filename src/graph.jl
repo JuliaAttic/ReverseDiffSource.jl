@@ -32,7 +32,7 @@ getsym( m::NSMap, n::ExNode) = m.kv[n]
 
 
 function show(io::IO, g::ExGraph)
-  tn = fill(UTF8String(""), length(g.nodes), 8)
+  tn = fill("", length(g.nodes), 8)
 
   for (i,n) in enumerate(g.nodes)
     tn[i,1] = "$i"
@@ -410,10 +410,6 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     g2 = n.main[2]
     is = n.main[1]                    # symbol of loop index
     iter = evaluate(n.parents[1])     #  myeval(n.main[1].args[2])
-
-    # is0 = first(iter)                           # first value of index
-    # params2 = merge(params, Dict( is => is0 ))  # set loop index to first value
-    # calc!(g2, params=params2)
 
     params2 = copy(params)
     for is0 in iter
