@@ -16,7 +16,7 @@ Contents:
    maincall
    maincall2
    deriv_rule
-   typeequiv
+   types
    internals
 
 

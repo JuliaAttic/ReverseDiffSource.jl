@@ -30,13 +30,20 @@ Starting from an expression, it is possible to have a dump of the nodes composin
 
 
 	g = ReverseDiffSource.tograph(ex)
-	#1        [constant]  1         (NaN)     
-	#2  < x   [external]  :x        (NaN)     
-	#3  > a   [call]      :+        (NaN)     , parents : #1, #2
-	#4        [constant]  2         (NaN)     
-	#5        [call]      :-        (NaN)     , parents : #3
-	#6        [call]      :exp      (NaN)     , parents : #5
-	#7  > nothing[call]      :*        (NaN)     , parents : #4, #6
+	
+	node | symbol     | ext ? | type       | parents  | precedence | main  | value         | 
+	---- | ---------- | ----- | ---------- | -------- | ---------- | ----- | ------------- | 
+	1    |            |       | [constant] |          |            | 1     | (Float64) NaN | 
+	2    | x >>       |       | [external] |          |            | :x    | (Float64) NaN | 
+	3    | a <<       |       | [call]     | 11, 1, 2 |            | :call | (Float64) NaN | 
+	4    |            |       | [constant] |          |            | 2     | (Float64) NaN | 
+	5    |            |       | [call]     | 8, 3     |            | :call | (Float64) NaN | 
+	6    |            |       | [call]     | 10, 5    |            | :call | (Float64) NaN | 
+	7    | nothing << |       | [call]     | 9, 4, 6  |            | :call | (Float64) NaN | 
+	8    |            |       | [constant] |          |            | -     | (Float64) NaN | 
+	9    |            |       | [constant] |          |            | *     | (Float64) NaN | 
+	10   |            |       | [constant] |          |            | exp   | (Float64) NaN | 
+	11   |            |       | [constant] |          |            | +     | (Float64) NaN | 
 
 Additionnaly, the ``plot()`` function (also unexported) will generate a GrapViz compatible graph description :
 

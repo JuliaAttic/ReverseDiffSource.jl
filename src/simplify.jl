@@ -10,12 +10,18 @@
 function simplify!(g::ExGraph, emod = Main)
 
 	i = 1
+	evalsort!(g)
 	markalloc!(g)
 	while i <= length(g.nodes)
 		restart = false
 		n = g.nodes[i]
 
-		restart = any(n2 -> identical(n, n2, g), g.nodes[i+1:end]) ||
+		for n2 in g.nodes[i+1:end]
+			restart = identical(n, n2, g)
+			restart && break
+		end
+
+		restart = restart || evalmoduleref(n, g, emod) ||
 			evalconstants(n, g, emod) ||
 			rule1(n, g) ||
 			rule2(n, g) ||
@@ -37,11 +43,22 @@ function simplify!(g::ExGraph, emod = Main)
 	end
 
 	# separate pass on subgraphs
-	map( n -> simplify!(n.main[2], emod), 
-		filter(n->isa(n, NFor), g.nodes))
-	
+	for n in filter(n->isa(n, NFor), g.nodes)
+		simplify!(n.main[2], emod)
+	end
+
 	g
 end
+
+# function fuseidentical!(g::ExGraph)
+# 	ns = filter(n -> !n.alloc, g.nodes)
+# 	nl = collect( zip(ns, map(n -> (n.main, vcat(n.parents, n.precedence)), ns)) )
+#     sort!(nl, lt= (a,b) -> length(a[2]) < length(b[2]))
+#     sort!(ns, lt= (a,b) -> b[1] in a[2] & !(a[1] in b[2]))
+# 	for n in g.nodes
+# 		any(n2 -> identical(n, n2, g), g.nodes[i+1:end])
+# 	end
+# end
 
 ## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
 function markalloc!(g::ExGraph)
@@ -61,7 +78,6 @@ function markalloc!(g::ExGraph)
 	end
 end
 
-
 # TODO : propagate to grand-parent graph etc...
 function constequiv(n, g)
 	isa(n, NConst)          && return n.main
@@ -79,11 +95,10 @@ end
 
 ## fusion of identical nodes
 function identical(n,n2,g)
-	n.main != n2.main       && return false
+	!is(n.main, n2.main)    && return false
 	n.parents != n2.parents && return false
 	n.alloc	                && return false
 	n2.alloc	            && return false
-	# isa(n, NConst) && isa(n.main, Real) && return false # no need for small constants
 
 	fusenodes(g, n, n2)
 	true
@@ -91,10 +106,8 @@ end
 
 ### calculate constant nodes 
 #  only if they reduce to a real (zeros(..), etc. should not be converted)
-# TODO : check that externals point to a constant in upper levels ?
 function evalconstants(n, g, emod)
 	!isa(n, NCall)                       && return false
-	# any(m -> !isa(m, NConst), n.parents) && return false
 	vals = similar(n.parents, Any)
 	for (i,p) in enumerate(n.parents)
 		vals[i] = constequiv(p,g)
@@ -104,11 +117,9 @@ function evalconstants(n, g, emod)
 	# calculate value
 	res = 0.
 	try
-		# res = apply(emod.eval(n.main), [ x.main for x in n.parents]...)
-		# res = apply(emod.eval(n.main), vals...)
-		res = (emod.eval(n.main))(vals...)
+		res = vals[1](vals[2:end]...)
 	catch e
-		println("error $e \n while evaluating $(n.main) on $([ x.main for x in n.parents]')")
+		println("error $e while evaluating $(vals[1])($(vals[2:end]...))")
 		rethrow(e)
 	end
 
@@ -120,21 +131,43 @@ function evalconstants(n, g, emod)
 	true
 end
 
+### calculate Module.xxx constants nodes 
+function evalmoduleref(n, g, emod)
+	!isa(n, NDot)                    && return false
+	!isa(n.parents[1], NConst)       && return false
+	!isa(n.parents[1].main, Module)  && return false
+
+	# calculate value
+	res = 0.
+	ex  = :()
+	try
+		ex = Expr(:., n.parents[1].main, n.main )
+		res = emod.eval( ex )
+	catch e
+		println("error $e \n while evaluating $ex")
+		rethrow(e)
+	end
+
+	nn = addnode!(g, NConst( res ) )
+	fusenodes(g, nn, n) 
+	true
+end
+
 
 ## right neutral element
 function rule1(n, g)
 	!isa(n, NCall)             && return false
-	(length(n.parents) != 2)   && return false # restricted to binary ops
-	val = constequiv(n.parents[2], g)
+	(length(n.parents) != 3)   && return false # restricted to binary ops
+	val = constequiv(n.parents[3], g)
 	(val == nothing)           && return false
-	# !isa(n.parents[2], NConst) && return false
 
-	if val == 0 && in(n.main, [:+, :-, :.+, :.-])
-		fusenodes(g, n.parents[1], n)
+	op = n.parents[1].main
+	if val == 0 && in(op, [+, -, .+, .-])
+		fusenodes(g, n.parents[2], n)
 		return true
 
-	elseif val == 1 && in(n.main, [:*, :/, :^, :.*, :./, :.^])
-		fusenodes(g, n.parents[1], n)
+	elseif val == 1 && in(op, [*, /, ^, .*, ./, .^])
+		fusenodes(g, n.parents[2], n)
 		return true
 
 	else
@@ -143,14 +176,15 @@ function rule1(n, g)
 end
 
 ## right zero element
+# FIXME : incorrect if left term is an array ?
 function rule2(n, g)
 	!isa(n, NCall)             && return false
-	(length(n.parents) != 2)   && return false # restricted to binary ops
-	val = constequiv(n.parents[2], g)
+	(length(n.parents) != 3)   && return false # restricted to binary ops
+	val = constequiv(n.parents[3], g)
 	(val == nothing)           && return false
-	# !isa(n.parents[2], NConst) && return false
 
-	if val == 0 && in(n.main, [:*, :.*])
+	op = n.parents[1].main
+	if val == 0 && in(op, [*, .*])
 		nn = addnode!(g, NConst(0.0) )
 		fusenodes(g, nn, n)
 		return true
@@ -162,19 +196,19 @@ end
 
 ## left neutral element
 function rule3(n, g)
-	n.alloc	                && return false
+	# n.alloc	                   && return false
 	!isa(n, NCall)             && return false
-	(length(n.parents) != 2)   && return false # restricted to binary ops
-	val = constequiv(n.parents[1], g)
+	(length(n.parents) != 3)   && return false # restricted to binary ops
+	val = constequiv(n.parents[2], g)
 	(val == nothing)           && return false
-	# !isa(n.parents[1], NConst) && return false
 
-	if val == 0 && in(n.main, [:+, :.+])
-		fusenodes(g, n.parents[2], n)
+	op = n.parents[1].main
+	if val == 0 && in(op, [+, .+])
+		fusenodes(g, n.parents[3], n)
 		return true
 
-	elseif val == 1 && in(n.main, [:*, :.*])
-		fusenodes(g, n.parents[2], n)
+	elseif val == 1 && in(op, [*, .*])
+		fusenodes(g, n.parents[3], n)
 		return true
 
 	else
@@ -185,12 +219,12 @@ end
 ## left zero element
 function rule4(n, g)
 	!isa(n, NCall)             && return false
-	(length(n.parents) != 2)   && return false # restricted to binary ops
-	val = constequiv(n.parents[1], g)
+	(length(n.parents) != 3)   && return false # restricted to binary ops
+	val = constequiv(n.parents[2], g)
 	(val == nothing)           && return false
-	# !isa(n.parents[1], NConst) && return false
 
-	if val == 0 && in(n.main, [:*, :/, :^, :.*, :./, :.^])
+	op = n.parents[1].main
+	if val == 0 && in(op, [*, /, ^, .*, ./, .^])
 		nn = addnode!(g, NConst(0.0) )
 		fusenodes(g, nn, n) 
 		return true
@@ -241,12 +275,15 @@ end
 ## change (-1 * x)  to  (-x) 
 function rule8(n, g)
 	!isa(n, NCall)             && return false
-	(length(n.parents) != 2)   && return false # restricted to binary ops
-	!in(n.main, [:*, :.*])     && return false
-	!isa(n.parents[1], NConst) && return false
-	(n.parents[1].main != -1)  && return false
+	(length(n.parents) != 3)   && return false # restricted to binary ops
 
-	nn = addnode!(g, NCall(:-, [n.parents[2]]) )
+	op = n.parents[1].main
+	!in(op, [*, .*])     && return false
+	!isa(n.parents[2], NConst) && return false
+	(n.parents[2].main != -1)  && return false
+
+	nm = addnode!(g, NConst(-))
+	nn = addnode!(g, NCall(:call, [nm, n.parents[3]]) )
 	fusenodes(g, nn, n)
 	true
 end
@@ -254,24 +291,27 @@ end
 ## change (x * -1)  to  (-x) 
 function rule9(n, g)
 	!isa(n, NCall)             && return false
-	(length(n.parents) != 2)   && return false # restricted to binary ops
-	!in(n.main, [:*, :.*])     && return false
-	!isa(n.parents[2], NConst) && return false
-	(n.parents[2].main != -1)  && return false
+	(length(n.parents) != 3)   && return false # restricted to binary ops
 
-	nn = addnode!(g, NCall(:-, [n.parents[1]]) )
+	op = n.parents[1].main
+	!in(op, [*, .*])           && return false
+	!isa(n.parents[3], NConst) && return false
+	(n.parents[3].main != -1)  && return false
+
+	nm = addnode!(g, NConst(-))
+	nn = addnode!(g, NCall(:call, [nm, n.parents[2]]) )
 	fusenodes(g, nn, n)
 	true
 end
-
 
 ## getindex on fill()
 function rule10(n, g)
 	!isa(n, NRef)                               && return false
 	p = n.parents[1]
 	!isa(p, NCall)                              && return false
-	p.main != :fill                             && return false
-	val = constequiv(p.parents[1], g)
+
+	p.parents[1].main != :fill                  && return false
+	val = constequiv(p.parents[2], g)
 	(val == nothing)                            && return false
 
 	any(x -> !isa(x, NConst), n.parents[2:end]) && return false

@@ -6,8 +6,6 @@
 
 module ReverseDiffSource
 
-  # using GraphViz
-  
   import Base.show, Base.copy
 
   # Julia v0.3, v0.4 syntax compatibility issues
@@ -47,6 +45,7 @@ module ReverseDiffSource
   include("simplify.jl")
   include("tograph.jl")
   include("tocode.jl")
+  include("zeronode.jl")
   include("reversegraph.jl")
   include("deriv_rule.jl")
   include("base_rules.jl")

@@ -17,6 +17,12 @@ Arguments
 
 :order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce a function that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 
+:evalmod: (default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
+
+:debug: (default=false) if true ``rdiff`` dumps the graph of the generating expression, instead of the expression.
+
+:allorders: (default=true) tells rdiff whether to generate the code for all orders up to ``order`` (true) or only the last order.
+
 Output
 ^^^^^^
 
@@ -53,6 +59,6 @@ Limitations
 
 * Only a limited set of Julia semantics are supported at this stage. Some frequently used statements such as comprehensions, ``if else``, ``while`` loops cannot be used in the expression.
 
-* Mutating functions cannot be used (with the exception of ``setindex!``).
+* Mutating functions cannot be used (with the exception of ``setindex!`` and ``setfield!``).
 
 
