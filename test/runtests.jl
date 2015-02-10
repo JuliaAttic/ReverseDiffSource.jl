@@ -9,6 +9,7 @@ my_tests = [
             "syntax.jl",
             "firstorder.jl",
             "indexing.jl",
+            "types.jl",
             "loops.jl",
             "more.jl"
            ]

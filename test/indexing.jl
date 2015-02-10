@@ -17,6 +17,13 @@
 @compare sum(x[v0ref:end,:]) v2ref
 
 
+@compare getindex(x,2)          v1ref
+@compare sum(getindex(x, 2:3))  v1ref
+@compare sum(getindex(x, 2:4))  v2ref
+@compare sum(getindex(x, :,2))  v2ref 
+@compare sum(getindex(x, 1,:))  v2ref
+
+
 @compare x[2]+x[1]           v2ref
 @compare log(x[2]^2+x[1]^2)  v2ref
 
@@ -25,6 +32,13 @@
 @compare (a = zeros(5) ; a[1:2] = x[3]   ; a[1]) v1ref 
 @compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[1]) v1ref
 @compare (a = zeros(5) ; a[1:2] = x[3:4] ; a[4]) v1ref
+
+@compare (a = zeros(5) ; setindex!(a, x[3]  , 1)   ; a[3]) v1ref
+@compare (a = zeros(5) ; setindex!(a, x[3]  , 1)   ; a[1]) v1ref
+@compare (a = zeros(5) ; setindex!(a, x[3]  , 1:2) ; a[1]) v1ref 
+@compare (a = zeros(5) ; setindex!(a, x[3:4], 1:2) ; a[1]) v1ref
+@compare (a = zeros(5) ; setindex!(a, x[3:4], 1:2) ; a[4]) v1ref
+
 
 _idx2 = 1
 
@@ -149,3 +163,11 @@ ex = quote
 end
 compare(ex, [1., 1.])
 compare(ex, ones(10))
+
+ex = quote
+    a = zeros(5,5)
+    a[1:4,2] = x
+    a[3,1:5] = x
+    sum(a)
+end
+compare(ex, 1.)

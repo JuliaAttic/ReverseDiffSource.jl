@@ -119,6 +119,25 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         dnodes[n.parents[1]] = v4
     end
 
+    function rev(n::NSDot)
+        fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
+        idx = findfirst( names(typeof(n.parents[1].val)) .== fsym )
+        (idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
+
+        v1 = addnode!(g2, NConst(idx) )
+        v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , v1 ]) )
+
+        vp = addnode!(g2, NConst(+))
+        v3 = addnode!(g2, NCall(:call, [ vp, dnodes[n.parents[2]], v2 ]) )
+        dnodes[n.parents[2]] = v3
+
+        # shut down the influence of these indices
+        zn = addnode!(g2, NConst(0.))
+        v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, v1 ]) )
+        v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
+        dnodes[n.parents[1]] = v4
+    end
+
     function rev(n::NIn)
         isa(n.parents[1], NFor) && return nothing  # do nothing in the case of for loops
 

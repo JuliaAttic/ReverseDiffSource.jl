@@ -87,37 +87,41 @@ function tograph(s, evalmod=Main, svars=Any[])
             ps = indexspec(nv, ex.args[3:end])
             return addnode!(g, NRef(:getidx, vcat([nv], ps)))
 
+        elseif sf == :setindex!
+            isa(ex.args[2], Symbol) || 
+                error("[tograph] setindex! only allowed on variables, $(ex.args[2]) found")
+
+            nv  = explore(ex.args[2]) # node whose subpart is assigned
+            ps  = indexspec(nv, ex.args[4:end])
+            rhn = addnode!(g, NSRef(:setidx,
+                                    [ nv,                               # var modified in pos #1
+                                      explore(ex.args[3]),              # value affected in pos #2
+                                      ps...] ))                         # dims 
+
+            rhn.precedence = filter(n -> nv in n.parents && n != rhn, g.nodes)
+            g.seti[rhn] = ex.args[2]
+
+            return rhn
+
         elseif sf == :getfield
             return addnode!(g, NDot(ex.args[3], [ explore(ex.args[2]) ]))
 
-        elseif sf == :setindex!
-            isa(ex.args[2], Symbol) && error("[tograph] setindex! only allowed on variables")
+        elseif sf == :setfield!
+            isa(ex.args[2], Symbol) || 
+                error("[tograph] setfield! only allowed on variables, $(ex.args[2]) found")
 
-            vn  = explore(ex.args[2]) # node whose subpart is assigned
-            rhn = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
-                                               explore(ex.args[3]), # value affected in pos #2
-                                               map(explore, ex.args[4:end])] ))  # indexing starting at #3
-            rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+            nv  = explore(ex.args[2]) # node whose subpart is assigned
+            rhn = addnode!(g, NSDot(ex.args[3],
+                                    [ nv,                               # var modified in pos #1
+                                      explore(ex.args[4])]))            # value affected in pos #2
+
+            rhn.precedence = filter(n -> nv in n.parents && n != rhn, g.nodes)
             g.seti[rhn] = ex.args[2]
 
-            return nothing
+            return rhn
 
-            # lhss = lhs.args[1]
-
-            # vn = explore(lhss) # node whose subpart is assigned
-            # rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
-            #                                     explore(ex.args[2]), # value in pos #2
-            #                                     map(explore, lhs.args[2:end])] ))  # indexing starting at #3
-            # rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
-
-
-
-
-        else #TODO : add setfield!
-
-            # return  addnode!(g, NCall(    evalmod.eval(ex.args[1]), 
-            #                           map(explore, ex.args[2:end]) ))
-            return  addnode!(g, NCall(  :call, 
+        else 
+            return addnode!(g, NCall(  :call, 
                                         map(explore, ex.args[1:end]) ))
         end
     end
@@ -131,9 +135,11 @@ function tograph(s, evalmod=Main, svars=Any[])
             # set before ? call explore
             if lhss in union(svars, collect(syms(g.seti)))
                 vn = explore(lhss)
-                rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
-                                                    explore(ex.args[2]) ])) # value affected in pos #2
+                rhn  = addnode!(g, NSRef(:setidx, 
+                                         [ vn,                     # var modified in pos #1
+                                           explore(ex.args[2]) ])) # value affected in pos #2
                 rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+
             else # never set before ? assume it is created here
                 rhn = explore(ex.args[2])
 
@@ -146,17 +152,20 @@ function tograph(s, evalmod=Main, svars=Any[])
 
         elseif isRef(lhs)   # x[i] = ....
             lhss = lhs.args[1]
-            vn = explore(lhss) # node whose subpart is assigned
-            rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
-                                                explore(ex.args[2]), # value in pos #2
-                                                map(explore, lhs.args[2:end])] ))  # indexing starting at #3
-            rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+            rhn = explore( Expr(:call, :setindex!, lhss, ex.args[2], lhs.args[2:end]...) )
+            # vn = explore(lhss) # node whose subpart is assigned
+            # rhn  = addnode!(g, NSRef(:setidx, [ vn,    # var modified in pos #1
+            #                                     explore(ex.args[2]), # value in pos #2
+            #                                     map(explore, lhs.args[2:end])] ))  # indexing starting at #3
+            # rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
 
         elseif isDot(lhs)   # x.field = ....
             lhss = lhs.args[1]
-            vn = explore(lhss) # node whose subpart is assigned
-            rhn  = addnode!(g, NSDot(lhs.args[2], [ vn, explore(ex.args[2])] )) 
-            rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
+            rhn = explore( Expr(:call, :setfield!, lhss, lhs.args[2], ex.args[2]) )
+
+            # vn = explore(lhss) # node whose subpart is assigned
+            # rhn  = addnode!(g, NSDot(lhs.args[2], [ vn, explore(ex.args[2])] )) 
+            # rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
 
         else
             error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
