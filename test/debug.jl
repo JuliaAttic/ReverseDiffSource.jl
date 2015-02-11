@@ -17,7 +17,6 @@
 
 
     op = zeros
-op.name
     dump(op)
     methods(op)
     methods(methods)
@@ -114,9 +113,9 @@ op.name
 
 
     ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )
-    res = m.rdiff(ex, x=zeros(2), order=2)   
-    res = m.rdiff(ex, x=zeros(2), order=3)   # 72  lines (devl3)
-    res = m.rdiff(ex, x=zeros(2), order=4)   # 200 lines
+    res = m.rdiff(ex, x=zeros(2), order=2)   # 29 lines
+    res = m.rdiff(ex, x=zeros(2), order=3)   # 73  lines (devl)
+    res = m.rdiff(ex, x=zeros(2), order=4)   # 211 lines
 
     @eval foo(x) = $res
     foo([0.5, 2.])

@@ -32,8 +32,9 @@ function simplify!(g::ExGraph, emod = Main)
 			rule7(n, g) ||
 			rule8(n, g) ||
 			rule9(n, g) ||
-			rule10(n, g)
-		
+			rule10(n, g) ||
+			rule11(n, g)
+
 		if restart
 			markalloc!(g)
 			i = 1
@@ -217,6 +218,7 @@ function rule3(n, g)
 end
 
 ## left zero element
+# FIXME : incorrect if right term is an array ?
 function rule4(n, g)
 	!isa(n, NCall)             && return false
 	(length(n.parents) != 3)   && return false # restricted to binary ops
@@ -260,12 +262,13 @@ function rule6(n, g)
 end
 
 ## getindex on zeros()
+# FIXME : incorrect if index is a range
 function rule7(n, g)
 	!isa(n, NRef)                               && return false
 	p = n.parents[1]
 	!isa(p, NCall)                              && return false
-	p.main != :zeros                            && return false
-	any(x -> !isa(x, NConst), n.parents[2:end]) && return false
+	p.parents[1].main != zeros                  && return false
+	# any(x -> !isa(x, NConst), n.parents[2:end]) && return false
 
 	nn = addnode!(g, NConst(0.0) )
 	fusenodes(g, nn, n)
@@ -305,18 +308,34 @@ function rule9(n, g)
 end
 
 ## getindex on fill()
+# FIXME : incorrect if index is a range
 function rule10(n, g)
 	!isa(n, NRef)                               && return false
+
 	p = n.parents[1]
 	!isa(p, NCall)                              && return false
-
-	p.parents[1].main != :fill                  && return false
+	p.parents[1].main != fill                   && return false
 	val = constequiv(p.parents[2], g)
 	(val == nothing)                            && return false
 
-	any(x -> !isa(x, NConst), n.parents[2:end]) && return false
+	# any(x -> !isa(x, NConst), n.parents[3:end]) && return false
 
 	nn = addnode!(g, NConst(val) )
 	fusenodes(g, nn, n)
 	true
 end
+
+## getindex on ones()
+# FIXME : incorrect if index is a range
+function rule11(n, g)
+	!isa(n, NRef)                               && return false
+	p = n.parents[1]
+	!isa(p, NCall)                              && return false
+	p.parents[1].main != ones                   && return false
+	# any(x -> !isa(x, NConst), n.parents[2:end]) && return false
+
+	nn = addnode!(g, NConst(1.0) )
+	fusenodes(g, nn, n)
+	true
+end
+
