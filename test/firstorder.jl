@@ -17,8 +17,6 @@ good_enough(t::Tuple) = good_enough(t[1], t[2])
 #####  single gradient check  #####
 #  compares numerical gradient to automated gradient
 function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
-	# ex = :(sum(x)) ; x0 = v2ref 
-	#  x0 = [1., 1.]
 	nx = length(x0)  
 
 	ex2 = m.rdiff( ex, x=x0 )
@@ -37,7 +35,7 @@ function compare( ex::Expr, x0::Union(Float64, Vector{Float64}, Matrix{Float64})
 		end
 	end
 
-	if !all(good_enough, zip([grad0], [grad1]))
+	if !all(good_enough, zip([grad0;], [grad1;]))
 		rg0 = map(x -> round(x,5), grad0)
 		rg1 = map(x -> round(x,5), grad1)
 		println("\nGradient false for $ex at x=$x0, expected $rg1, got $rg0")

@@ -31,7 +31,8 @@ function tocode(g::ExGraph)
         # special translation cases
         op = n.parents[1].main
         if op == vcat
-            return Expr(      :vcat, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+            vs = VERSION >= v"0.4-" ? :vect : :vcat
+            return Expr(         vs, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         elseif op == colon
             return Expr(       :(:), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         elseif op == transpose
@@ -51,7 +52,7 @@ function tocode(g::ExGraph)
 
         elseif isa(op, Function)
             mods =  try
-                        fullname(Base.function_module(op))
+                        fullname(Base.function_module(op, (Any...)))
                     catch e
                         error("[tocode] cannot find module of function $op")
                     end                

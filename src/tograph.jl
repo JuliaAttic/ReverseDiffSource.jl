@@ -24,7 +24,9 @@
   typealias ExBlock    ExH{:block}
   typealias ExLine     ExH{:line}
   typealias ExVcat     ExH{:vcat}
+  typealias ExVect     ExH{:vect}
   typealias ExCell1d   ExH{:cell1d}
+  typealias ExCell     ExH{:cell1d}
   typealias ExFor      ExH{:for}
   typealias ExRef      ExH{:ref}
   typealias ExIf       ExH{:if}
@@ -51,6 +53,7 @@ function tograph(s, evalmod=Main, svars=Any[])
     explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
 
     explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
+    explore(ex::ExVect)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
     explore(ex::ExCell1d)  = explore(Expr(:call, :(Base.cell_1d), ex.args...) )  # translate to cell_1d() call, and explore
     explore(ex::ExTrans)   = explore(Expr(:call, :transpose, ex.args[1]) )  # translate to transpose() and explore
     explore(ex::ExColon)   = explore(Expr(:call, :colon, ex.args...) )  # translate to colon() and explore

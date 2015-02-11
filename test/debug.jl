@@ -4,6 +4,60 @@
 
     cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
     include("runtests.jl")
+    include("loops.jl")
+
+################ pb with latest julia  ##########################
+
+    dump(fullcycle(:(a = [1,2])))
+
+    a = fullcycle(:(a = [1,2]))
+    eval(a)
+
+    dump(:(a = [1,2]))
+
+
+    op = zeros
+op.name
+    dump(op)
+    methods(op)
+    methods(methods)
+
+    m = methods(op, (Int,))
+    isempty(m) && error("[tocode] cannot find module of function $op")
+    m[1].func.code.module
+
+        # default translation
+        if isa(op, DataType)
+            mods =  try
+                        fullname(op.name.module)
+                    catch e
+                        error("[tocode] cannot find module of DataType $op")
+                    end                
+            mt = tuple( mods..., op.name.name )
+
+        elseif isa(op, Function)
+            mods =  try
+                        fullname(Base.function_module(op, (Any...)))
+                    catch e
+                        error("[tocode] cannot find module of function $op")
+                    end                
+            mt = tuple( mods..., symbol(string(op)) )
+
+        else
+            error("[tocode] call using neither a DataType nor a Function : $op")
+        end
+
+        # try to strip module names for brevity
+        try
+            mt2 = (:Base, mt[end])
+            eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
+            mt2 = (mt[end],)
+            eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
+        end
+
+        Expr(:call, mexpr( mt ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+
+
 
 ############## external symbols resolution  #########################
     reload("ReverseDiffSource") ; m = ReverseDiffSource
