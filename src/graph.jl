@@ -141,8 +141,8 @@ function splitnary!(g::ExGraph)
           in(n.parents[1].main, [+, *, sum, min, max]) && 
           ( length(n.parents) > 3 )
 
-          nn = addnode!(g, NCall(:call, [n.parents[1], n.parents[3:end]] ) )
-          n.parents = [n.parents[1:2], nn]  
+          nn = addnode!(g, NCall(:call, [n.parents[1]; n.parents[3:end]] ) )
+          n.parents = [n.parents[1:2]; nn]  
       
       elseif isa(n, NFor)
         splitnary!(n.main[2])
@@ -254,7 +254,7 @@ function prune!(g::ExGraph, exitnodes)
       prune!(g2, exitnodes2)
 
       # update parents
-      n.parents = [n.parents[1], intersect(n.parents, collect(nodes(g2.exto)) ) ]
+      n.parents = [n.parents[1]; intersect( n.parents, collect(nodes(g2.exto)) ) ]
     end
 
     # ns2 = union(ns2, n.parents)

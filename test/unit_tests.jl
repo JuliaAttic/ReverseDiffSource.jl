@@ -55,7 +55,7 @@
     @test zerocode(5:0.2:10) == :(zeros(2); )
 
     @test zerocode( [2., 2 , 3, 0] )    == :(zeros(size(tv)); )
-    @test zerocode( [2., [1,2 ], 3.] )  == :(zeros(size(tv)); )
+    @test zerocode( [2.; [1,2 ]; 3.] )  == :(zeros(size(tv)); )
 
     @test zerocode( [false, true] )    == :(zeros(size(tv)); )
 
@@ -120,7 +120,6 @@
 
 
 ### tmatch (naive multiple dispatch) testing  ###
-
     tts = Any[ (Real,), 
                (Real, Real), 
                (Float64, Float64), 

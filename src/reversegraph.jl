@@ -1,4 +1,4 @@
-#########################################################################
+########################################################################
 #
 #    Reverse diff on graph
 #
@@ -48,7 +48,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
                 (sk == nothing) && error("no derivation rule for $(op) at arg #$(index-1) for signature $targs")
 
 				dg, dd = drules[(op, index-1)][sk]
-            	smap = Dict( zip(dd, [n.parents[2:end], dnodes[n]]) )
+            	smap = Dict( zip(dd, [n.parents[2:end]; dnodes[n]]) )
 
                 exitnode = addgraph!(dg, g2, smap)
 
@@ -59,18 +59,18 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
     end      
 
     function rev(n::NRef)
-        v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], n.parents[2:end] ]) )
+        v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]]; n.parents[2:end] ]) )
         vp = addnode!(g2, NConst(+))
         v3 = addnode!(g2, NCall(:call, [vp, v2, dnodes[n]]) )
 
-		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]], v3, n.parents[2:end] ]) )
+		v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n.parents[1]]; v3; n.parents[2:end] ]) )
 		# TODO : update precedence of v4 here ? can 'dnodes[n.parents[1]' be already a parent elsewhere ?
 		dnodes[n.parents[1]] = v4
 	end
 
 	function rev(n::NSRef)
 		if length(n.parents) >= 3   # regular setindex
-			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , n.parents[3:end] ]) )
+			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] ; n.parents[3:end] ]) )
 
 			# treat case where a single value is allocated to several array elements
 			if length(n.parents[2].val) == 1 
@@ -87,7 +87,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 			# shut down the influence of these indices
 			zn = addnode!(g2, NConst(0.))
-			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n], zn, n.parents[3:end] ]) )
+			v4 = addnode!(g2, NSRef(:setidx, [ dnodes[n]; zn; n.parents[3:end] ]) )
 			v4.precedence = filter(n2 -> dnodes[n] in n2.parents && n2 != v4, g2.nodes)
 			dnodes[n.parents[1]] = v4
 		else   # simple assignment
@@ -225,7 +225,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         nr = addgraph!(:( reverse( x ) ), g2, 
                        @compat Dict( :x => n.parents[1] ) ) # range in reverse order
         v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
-        v2.parents = [nr, collect( nodes( fg.exto)) ]
+        v2.parents = [nr; collect( nodes( fg.exto)) ]
 
         # seto = dnodes of fg's ingoing variables
         fg.seto = NSMap()

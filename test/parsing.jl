@@ -144,9 +144,9 @@ end
 @test fullcycle(:(5))                          == Expr(:block, :(5) )
 @test fullcycle(:(a = 2 ; b = 2 ; a:b))        == Expr(:block, :(2:2) )
 @test fullcycle(:(a = 2 ; a))                  == Expr(:block, :(2) )
-@test fullcycle(:( a = x ; b = a ))            == Expr(:block, :( b = x ) )
-@test fullcycle(:( a = x ; b = a ; a + b))     == Expr(:block, :( x+x ) )
-@test fullcycle(:( a = x ; b = a ; c = b ; b)) == Expr(:block, :( x ) )
+@test fullcycle(:(a = x ; b = a ))             == Expr(:block, :( b = x ) )
+@test fullcycle(:(a = x ; b = a ; a + b))      == Expr(:block, :( x+x ) )
+@test fullcycle(:(a = x ; b = a ; c = b ; b))  == Expr(:block, :( x ) )
 
 
 @test fullcycle(:( a[2] ))                        == Expr(:block, :( a[2]) )

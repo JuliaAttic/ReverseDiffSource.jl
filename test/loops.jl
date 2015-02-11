@@ -14,7 +14,7 @@
     end
     compare(ex, 1.)
 
-    b = [1:4]
+    b = [1,2,4,5]
     ex = quote
         a=zeros(1+4)
         for i in 1:4
