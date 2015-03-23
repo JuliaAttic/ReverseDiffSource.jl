@@ -17,7 +17,8 @@ function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false
     fargs = fcode.args[1]  # function parameters
 
     cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, cargs...)
+    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, 
+                allorders=allorders, cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
