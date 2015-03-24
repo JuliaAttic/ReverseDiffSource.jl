@@ -27,4 +27,30 @@ end
 m.plot( m.tograph(ex))
 
 
+########## show() for nodes and graphs  ##########
+
+g = m.tograph(ex)
+println(g.nodes[4])
+println(g)
+
+
+####### error conditions  #############
+
+@test_throws UndefVarError m.rdiff( :( x * abcd ), x=1.)    # undefined external
+@test_throws ErrorException m.rdiff( :( log(x) ), x=-1.)    # unevaluable function
+@test_throws ErrorException m.rdiff( :( [1] > [2] ), x=-1.) # unevaluable comparison
+
+@test_throws ErrorException m.addgraph!(:( y + 2), g, Dict(:z => g.nodes[4]))   # y not mapped
+
+@test_throws ErrorException m.tograph(:(log(a) = 1,2))   # incorrect LHS
+
+###### allorders rdiff flags  ################
+
+m.rdiff( :( log(x) ), x=1., allorders=false)
+
+###### BitArray type  ############
+
+m.rdiff( :( sum(x .* falses(2)) ), x=1.  )
+
+
 
