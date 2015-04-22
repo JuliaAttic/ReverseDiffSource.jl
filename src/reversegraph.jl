@@ -30,7 +30,6 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
     g2
 end
 
-
 #  climbs the reversed evaluation tree
 function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
     # TODO : have a generic treatment of mutating nodes (NSRef / NSDot / NFor ...)

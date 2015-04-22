@@ -27,7 +27,6 @@ nodes(m::NSMap)              = keys(m.kv)
 syms( m::NSMap)              = keys(m.vk)
 
 getnode(m::NSMap, k)         = m.vk[k]
-getnode(m::NSMap, k::Void)   = m.vk[nothing]
 getsym( m::NSMap, n::ExNode) = m.kv[n]
 
 
@@ -285,25 +284,6 @@ function prune!(g::ExGraph, exitnodes)
 end
 
 ####### sort graph to an evaluable order ###########
-# function evalsort!(g::ExGraph)
-#   ns = ExNode[]
-#   while length(ns) < length(g.nodes)
-#     canary = length(ns)
-#     nl = setdiff(g.nodes, ns)
-#     for n in nl
-#       any(x -> x in nl, n.parents) && continue
-#       any(x -> x in nl, n.precedence) && continue
-#       push!(ns,n)
-#     end
-#     (canary == length(ns)) && error("[evalsort!] cycle in graph")
-#   end
-#   g.nodes = ns
-
-#   # separate pass on subgraphs
-#   map( n -> evalsort!(n.main[2]), filter(n->isa(n, NFor), g.nodes))
-
-#   g
-# end
 function evalsort!(g::ExGraph)
   nr = Set{ExNode}(g.nodes)
   ns = ExNode[]
@@ -363,7 +343,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
     try
       ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
       #TODO: improve speed with smth like ret = (n.main)([ x.val for x in n.parents]...) 
-    catch
+    catch e
       eex = Expr(:call, n.main, Any[ x.val for x in n.parents]...)
       error("$e when calling $eex in \n$g")
     end

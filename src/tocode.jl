@@ -42,25 +42,40 @@ function tocode(g::ExGraph)
         end
 
         # default translation
-        if isa(op, DataType)
-            mods =  try
-                        fullname(op.name.module)
-                    catch e
-                        error("[tocode] cannot find module of DataType $op")
-                    end                
-            mt = tuple( mods..., op.name.name )
+        thing_module(op::DataType) = (fullname(op.name.module)..., op.name.name)
 
-        elseif isa(op, Function)
-            mods =  try
-                        fullname(Base.function_module(op, (Any...)))
-                    catch e
-                        error("[tocode] cannot find module of function $op")
-                    end                
-            mt = tuple( mods..., symbol(string(op)) )
-
-        else
-            error("[tocode] call using neither a DataType or Function : $op")
+        function thing_module(op::Function)
+            mods = VERSION >= v"0.4-" ?
+                    Base.function_module(op, Tuple{Vararg{Any}}) :
+                    Base.function_module(op, (Any...))
+            tuple( fullname(mods)..., symbol(string(op)) )
         end
+
+        mt = try
+                thing_module(op)
+             catch e
+                error("[tocode] cannot find module of $op ($(typeof(op)))")
+             end
+        # if isa(op, DataType)
+        #     mods =  try
+        #                 fullname(op.name.module)
+        #             catch e
+        #                 error("[tocode] cannot find module of DataType $op")
+        #             end                
+        #     mt = tuple( mods..., op.name.name )
+
+        # elseif isa(op, Function)
+        #     mods =  try
+        #                 # fullname(Base.function_module(op, (Any...)))
+        #                 fullname(Base.function_module(op, (Any,)))
+        #             catch e
+        #                 error("[tocode] cannot find module of function $op")
+        #             end                
+        #     mt = tuple( mods..., symbol(string(op)) )
+
+        # else
+        #     error("[tocode] call using neither a DataType or Function : $op")
+        # end
 
         # try to strip module names for brevity
         try

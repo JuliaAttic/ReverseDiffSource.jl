@@ -13,7 +13,6 @@ type ExNode{T}
   val                     # value
   alloc::Bool             # Allocation ? Forbids fusions
 
-  ExNode()                               = new(nothing,   Any[], Any[], NaN, false)
   ExNode(main)                           = new(   main,   Any[], Any[], NaN, false)
   ExNode(main,parents)                   = new(   main, parents, Any[], NaN, false)
   ExNode(main,parents, prec, val, alloc) = new(   main, parents,  prec, val, alloc)
