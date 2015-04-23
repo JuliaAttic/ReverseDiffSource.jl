@@ -149,3 +149,96 @@
     #  -400.0  0.0
     #     0.0  0.0
 
+##############   loops in functions  #################################
+
+function tt(x)
+    a = zeros(2)
+    for i in 1:2
+        a[i] = x
+    end
+    sum(a)
+end
+
+# (f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false, allorders=true)
+    f=tt;sig0=(1.,);order=1;evalmod=Main;debug=false;allorders=true
+
+    sig = map( typeof, sig0 )
+    fs = methods(f, sig)
+    length(fs) == 0 && error("no function '$f' found for signature $sig")
+    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
+
+    fdef  = fs[1].func.code
+    fcode = Base.uncompressed_ast(fdef)
+    fargs = fcode.args[1]  # function parameters
+    mex = fcode.args[3]
+
+    mes = repr(mex)
+    println(mes)
+
+    match(r"^\s*(?:\#|$)"sx, mes)
+    match(r"\#\ .*$"sx, mes)
+
+    function streamline(ex::Expr)
+        ex.head == :call && isa(ex.args[1], TopNode) && (ex.args[1] = ex.args[1].name)
+        args = Any[]
+        for a in ex.args
+            isa(a, LineNumberNode) && continue
+            isa(a, Expr) && a.head==:line && continue
+
+            push!(args, isa(a,Expr) ? streamline(a) : a )
+        end
+        Expr(ex.head, args...)   
+    end
+
+    mes = repr(streamline(mex))
+    dump(mex.args[5].args[2].args[1])
+
+mex
+:(begin  # In[22], line 2:
+        a = zeros(2) # line 3:
+        GenSym(0) = colon(1,2)
+        #s132 = start(GenSym(0))
+        unless !(done(GenSym(0),#s132)) goto 1
+        2: 
+        GenSym(1) = next(GenSym(0),#s132)
+        i = tupleref(GenSym(1),1)
+        #s132 = tupleref(GenSym(1),2) # line 4:
+        setindex!(a,x,i)
+        3: 
+        unless !(!(done(GenSym(0),#s132))) goto 2
+        1: 
+        0:  # line 6:
+        return sum(a)
+    end)
+
+    pr = r"""
+    (.*)\n
+    \W+ (GenSym\(\d+\))\ =\ (.*)\n
+    \W+ (.*)\ =\ start\(\g{-3}\)\n
+    \W+ unless\ \!\(done\(\g{-3},\g{-1}\)\)\ goto\ (\d+)\n
+    \W+ (\d+):
+    \W+ (GenSym\(\d+\))\ =\ next\(\g{-6},\g{-4}\)\n
+    \W+ (.*)\ =\ tupleref\(\g{-2},1\)\n
+    \W+ \g{-5}\ =\ tupleref\(\g{-2},2\) # line 4:\n
+    \W+ (.*)\n
+    \W+ unless\ !\(!\(done\(\g{-8},\g{-6}\)\)\)\ goto\ \g{-4}\n
+    \W+ \g{-5}: 
+    (.*)
+    """sx
+    rc = match(pr, mes) ; rc.captures
+
+    mes2 = "$(rc.captures[1]) ; 
+                for $(rc.captures[8]) in $(rc.captures[3]);
+                $(rc.captures[9]);
+            end ;
+            $(rc.captures[10]) "
+
+
+    println("""
+            $(rc.captures[1])
+            for $(rc.captures[8]) in $(rc.captures[3])
+                $(rc.captures[9])
+            end
+            $(rc.captures[10]) """)
+
+ 
