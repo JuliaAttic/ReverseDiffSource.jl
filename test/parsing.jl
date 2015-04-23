@@ -83,7 +83,19 @@ exout = striplinenumbers(quote
         end
         a = _tmp1
     end)
-@test m.tocode(g) == exout 
+exout2 = striplinenumbers(quote  # alternate possible result       
+        _tmp1 = zeros(10)
+        z = 12
+        for i = 1:10
+            t = x + z
+            for j = 1:10
+                u = t + z + v
+                _tmp1[i] = b[i] + u
+            end
+        end
+        a = _tmp1
+    end)
+@test m.tocode(g) == exout || m.tocode(g) == exout2
 
 
 

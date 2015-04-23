@@ -44,7 +44,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 				ddict = drules[(op, index-1)]
 
                 targs = VERSION < v"0.4.0-dev+4319" ?
-                            ( Type[ typeof(x.val) for x in n.parents[2:end]]... ) :
+                            tuple( Type[ typeof(x.val) for x in n.parents[2:end]]... ) :
                             Tuple{ Type[ typeof(x.val) for x in n.parents[2:end]]... }
 
                 sk = tmatch( targs, collect(keys(ddict)) )

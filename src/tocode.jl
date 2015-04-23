@@ -42,13 +42,13 @@ function tocode(g::ExGraph)
         end
 
         # default translation
-        thing_module(op::DataType) = (fullname(op.name.module)..., op.name.name)
+        thing_module(op::DataType) = tuple(fullname(op.name.module)..., op.name.name)
 
         function thing_module(op::Function)
             mods = VERSION >= v"0.4-" ?
                     Base.function_module(op, Tuple{Vararg{Any}}) :
                     Base.function_module(op, (Any...))
-            ( fullname(mods)..., symbol(string(op)) )
+            tuple( fullname(mods)..., symbol(string(op)) )
         end
 
         mt = try
