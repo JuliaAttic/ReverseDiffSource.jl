@@ -11,7 +11,7 @@ trules = Dict() # holds the type equivalence expressions
 
 # macro version
 macro deriv_rule(func::Expr, dv::Symbol, diff)
-    # func = :(  float(x, y::Real, z::Array{String}, t::Union(Float64,Int)))
+    # func = :(  colon(x,y) ) ; dv = :x ; diff = 0.
     emod = current_module()
 
     ss = Symbol[]
@@ -36,11 +36,11 @@ end
 # function deriv_rule{T<:Type}(func::Union(Function, Type), args::Vector{Tuple{Symbol, T}}, dv::Symbol, diff::Union(Expr, Symbol, Real))
 function deriv_rule(func::Union(Function, Type),
     args::Vector, dv::Symbol, diff::Union(Expr, Symbol, Real))
-
+    # func = colon ; args= [(:x,Any), (:y,Any)] ; dv = :x ; diff = 0.
     emod = current_module()
 
     sig = VERSION < v"0.4.0-dev+4319" ?
-            ( Type[ e[2] for e in args ]... ) :
+            tuple( Type[ e[2] for e in args ]... ) :
             Tuple{ Type[ e[2] for e in args ]... }
 
     ss  = Symbol[ e[1] for e in args ]
