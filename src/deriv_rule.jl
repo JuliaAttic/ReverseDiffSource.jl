@@ -40,7 +40,7 @@ function deriv_rule(func::Union(Function, Type),
     emod = current_module()
 
     sig = VERSION < v"0.4.0-dev+4319" ?
-            ( Type[ e[2] for e in args ]... ) :
+            tuple( Type[ e[2] for e in args ]... ) :
             Tuple{ Type[ e[2] for e in args ]... }
 
     ss  = Symbol[ e[1] for e in args ]
