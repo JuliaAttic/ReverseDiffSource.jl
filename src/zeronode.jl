@@ -76,11 +76,11 @@ function zeronode(n)
         return g
 
     elseif isleaftype(typeof(v)) # composite type
-        g  = tograph( :( cell( $(length(names(v))) ) ) )
+        g  = tograph( :( cell( $(length(fieldnames(v))) ) ) )
         nv = addnode!(g, NExt(:tv)) ; g.exti[nv] = :tv
         # TODO : optimize to an array{Float64} instead of array{Any} if all fields are Reals
 
-        for (i, n2) in enumerate(names(typeof(v)))  # i, n2 = 1, :val
+        for (i, n2) in enumerate(fieldnames(typeof(v)))  # i, n2 = 1, :val
             # create node for holding field value
             nf      = addnode!(g, NDot(QuoteNode(n2), [ getnode(g.exti, :tv) ], [], getfield(v, n2), false) ) 
 

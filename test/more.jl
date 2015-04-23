@@ -51,4 +51,3 @@ m.rdiff( :( log(x) ), x=1., allorders=false)
 m.rdiff( :( sum(x .* falses(2)) ), x=1.  )
 
 
-close(sio)

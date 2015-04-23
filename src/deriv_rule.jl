@@ -39,7 +39,10 @@ function deriv_rule(func::Union(Function, Type),
 
     emod = current_module()
 
-    sig = tuple( Type[ e[2] for e in args ]... )
+    sig = VERSION < v"0.4.0-dev+4319" ?
+            ( Type[ e[2] for e in args ]... ) :
+            Tuple{ Type[ e[2] for e in args ]... }
+
     ss  = Symbol[ e[1] for e in args ]
 
     index = findfirst(dv .== ss)
@@ -57,13 +60,27 @@ end
 
 #### Type tuple matching  (naive multiple dispatch)
 
-function tmatch(sig, keys)
-    keys2 = filter(k -> length(k) == length(sig), keys)
-    tcp(a,b) = a <: b
-    sort!(keys2, lt=tcp)
-    for k in keys2
-        all( t -> t[1] <: t[2], zip(sig, k)) && return k
-    end
-    return nothing
-end
+# function tmatch(sig, keys)
+#     if VERSION < v"0.4.0-dev+4319"
+#         keys2 = filter(k -> length(k) == length(sig), keys)
+#         tcp(a,b) = a <: b
+#         sort!(keys2, lt=tcp)
+#         for k in keys2
+#             all( t -> t[1] <: t[2], zip(sig, k)) && return k
+#         end
+#         return nothing
+#     else
+#         keys2 = filter(k -> length(k.parameters) == length(sig.parameters), keys)
+#     end
+# end
 
+function tmatch(sig, keys)
+    if VERSION < v"0.4.0-dev+4319"
+        keys2 = filter(k -> length(k) == length(sig), keys)
+    else
+        keys2 = filter(k -> length(k.parameters) == length(sig.parameters), keys)
+    end
+    sort!(keys2, lt=issubtype)
+    idx = findfirst(s -> sig <: s, keys2)
+    return idx==0 ? nothing : keys2[idx]
+end

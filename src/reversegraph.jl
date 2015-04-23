@@ -43,7 +43,10 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 				haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
 				ddict = drules[(op, index-1)]
 
-                targs = tuple( Type[ typeof(x.val) for x in n.parents[2:end]]... )
+                targs = VERSION < v"0.4.0-dev+4319" ?
+                            ( Type[ typeof(x.val) for x in n.parents[2:end]]... ) :
+                            Tuple{ Type[ typeof(x.val) for x in n.parents[2:end]]... }
+
                 sk = tmatch( targs, collect(keys(ddict)) )
                 (sk == nothing) && error("no derivation rule for $(op) at arg #$(index-1) for signature $targs")
 
@@ -105,7 +108,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NDot)
 		fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
-		idx = findfirst( names(typeof(n.parents[1].val)) .== fsym )
+		idx = findfirst( @compat fieldnames(typeof(n.parents[1].val)) .== fsym )
 		(idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
 
 		v1 = addnode!(g2, NConst(idx) )

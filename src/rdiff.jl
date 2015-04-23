@@ -105,7 +105,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             ni = addnode!(g, NExt(si))
             ns = addnode!(g, NRef(:getidx, [ no, ni ]))
 
-            calc!(g, params=Dict(zip([paramsym; si], [paramvalues; 1.])), emod=evalmod)
+            calc!(g, params=Dict(zip([paramsym; si], [paramvalues; 1])), emod=evalmod)
             dg = reversegraph(g, ns, paramsym)
 
             #### We will now wrap dg in a loop scanning all the elements of 'no'
