@@ -14,7 +14,8 @@
 @compare sum(x[2:end,:])     v2ref
 @compare sum(x[:,2:end])     v2ref
 @compare sum(x[1:end-1,:])   v2ref
-@compare sum(x[v0ref:end,:]) v2ref
+_idx1=2
+@compare sum(x[_idx1:end,:]) v2ref
 
 
 @compare getindex(x,2)          v1ref

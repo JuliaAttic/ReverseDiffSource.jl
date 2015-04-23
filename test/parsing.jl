@@ -95,7 +95,8 @@ exout2 = striplinenumbers(quote  # alternate possible result
         end
         a = _tmp1
     end)
-@test m.tocode(g) == exout || m.tocode(g) == exout2
+res = m.tocode(g)
+@test (res == exout) | (res == exout2)
 
 
 

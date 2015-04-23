@@ -62,7 +62,7 @@ v2ref = [-1. 3 0 ; 0 5 -2]
 
 
 ###### sum()
-@compare sum(x)  v0ref   # fait une erreur  m.rdiff( :(a = sum(x);a), x= 1.0 )
+@compare sum(x)  v0ref  
 @compare sum(x)  v1ref
 @compare sum(x)  v2ref
 

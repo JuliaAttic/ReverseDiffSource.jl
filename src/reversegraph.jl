@@ -123,7 +123,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
     function rev(n::NSDot)
         fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
-        idx = findfirst( names(typeof(n.parents[1].val)) .== fsym )
+        idx = findfirst( fieldnames(typeof(n.parents[1].val)) .== fsym )
         (idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
 
         v1 = addnode!(g2, NConst(idx) )
