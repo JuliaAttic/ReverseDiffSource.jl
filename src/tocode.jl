@@ -44,12 +44,9 @@ function tocode(g::ExGraph)
         # default translation
         thing_module(op::DataType) = tuple(fullname(op.name.module)..., op.name.name)
 
-        function thing_module(op::Function)
-            mods = VERSION < v"0.4.0-dev+4319" ?
-                    Base.function_module(op, (Any...)) :
-                    Base.function_module(op, Tuple{Vararg{Any}})
-            tuple( fullname(mods)..., symbol(string(op)) )
-        end
+        thing_module(op::Function) = 
+            tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
+                  symbol(string(op)) )
 
         mt = try
                 thing_module(op)
