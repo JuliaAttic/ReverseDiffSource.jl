@@ -169,12 +169,6 @@
     fargs = fcode.args[1]  # function parameters
     mex = fcode.args[3]
 
-    mes = repr(mex)
-    println(mes)
-
-    match(r"^\s*(?:\#|$)"sx, mes)
-    match(r"\#\ .*$"sx, mes)
-
     function streamline(ex::Expr)
         ex.head == :call && isa(ex.args[1], TopNode) && (ex.args[1] = ex.args[1].name)
         args = Any[]
@@ -187,10 +181,8 @@
         Expr(ex.head, args...)   
     end
 
-    mes = repr(streamline(mex))
-    dump(mex.args[5].args[2].args[1])
-
     mex2 = streamline(mex)
+    mex2.head = :block
     :(begin 
         a = zeros(2)
         GenSym(0) = colon(1,2)
@@ -208,71 +200,39 @@
         return sum(a)
     end)
 
-    mex2.args[4]
+    mex2.args[2]
+    dump( mex2.args[2] )
+    typeof( mex2.args[2].args[1] )
+    fieldnames( mex2.args[2].args[1] )
+    typeof( mex2.args[2].args[1].id )
+    dump(mex2.args[end])
 
-:(begin 
-        a = zeros(2)
-        GenSym(0) = colon(1,2)
-        _s1 = start(GenSym(0))
-        # unless !(done(GenSym(0),_s1)) goto 1
-2:         GenSym(1) = next(GenSym(0),_s1)
-        i = getfield(GenSym(1),1)
-        _s1 = getfield(GenSym(1),2)
-        setindex!(a,x,i)
-# 3:         unless !(!(done(GenSym(0),_s1))) goto 2
-1: 0:         return sum(a)
-    end)
-
-    dump( mex2.args[4] )
-    dump( :( gotoifnot (done(lst, s1),1 ) ) )
-
-    rexp = quote
-        GenSym(regexp"(\d+)\k{g0}") = regexp"(.*)\k{range}"
-        regexp"(\d+)\k{iter}" = start(GenSym(regexp"\g{g0}"))
-        gotoifnot( !(done(GenSym(regexp"\g{g0}"), regexp"\g{iter}" )) , 1 )
-        2: GenSym(regexp"(\d+)\k{g1}") = next(GenSym(regexp"\g{g0}"), regexp"\g{iter}")
-        i = getfield(GenSym(1),1)
-        regexp"\g{iter}" = getfield(GenSym(regexp"\g{g0}"),2)
-        setindex!(a,x,i)
-        3: gotoifnot( !(!(done(GenSym(regexp"\g{g0}"), regexp"\g{iter}"))) , 2 )
-    end
-
-    e2s(streamline(rexp))
-
-    dump( mex2.args[10] )
-    ln = mex2.args[10]
-    isa(ln, LabelNode)
-    isa(ln, Expr)
-    repr(ln)
-
-
-    dump(:( regexp"(\d+)" ))
-   dump(:( 0: ))
-
-    function e2s(ex::Expr)
+    function e2s(ex::Expr, escape=false)
         ex.head == :macrocall && ex.args[1] == Symbol("@regexp_str") && return(ex.args[2])
 
         if ex.head == :call && ex.args[1] == :gotoifnot
-            es = "↑:gotoifnot"
+            es = "↑gotoifnot"
             ra = 2:length(ex.args)
         else
             es = "↑$(ex.head)"
             ra = 1:length(ex.args)
         end
+
         for a in ex.args[ra]
-            es *= "→" * e2s(a)
+            es *= "→" * e2s(a, escape)
         end
         return es * "↓"
     end
 
-    function e2s(thing)
+    function e2s(thing, escape=false)
         res = repr(thing)
-        # now escape regex special characters
+        escape || return(res)
+        # now escape characters that would otherwise have a meaning in regex
         i = start(res)
         res2 = ""
         while !done(res,i)
             c, j = next(res,i)
-            c in ['(', ')', '+', '*', '.', '$', '^', '[', ']', '|'] && res2 *= string('\\')
+            c in "()+*.\$^[]|" && (res2 *= "\\")
             res2 *= string(c)
             i = j
         end
@@ -280,31 +240,101 @@
     end
     e2s(:(4+bcd))
 
-    rexp2 = Regex(e2s(streamline(rexp)))
-    tr = Regex(".*")
-    dump(tr)
-
-    match(rexp2)
 
     rexp = quote
-        regexp"\("
-        GenSym(regexp"(\d+)") = regexp"(.*)"
-        _s136 = start(GenSym(regexp"\g{0}"))
-        gotoifnot( !(done(GenSym(0),_s136)), 1)
+        regexp"(?<pre>.*)"
+        regexp"(?<g0>GenSym\(\d+\))" = regexp"(?<range>.+)"
+        regexp"(?<iter>.+)" = start(regexp"\g{g0}")
+        gotoifnot( !(done(regexp"\g{g0}", regexp"\g{iter}" )) , regexp"(?<lab1>\d+)" )
+        regexp":\((?<lab2>\d+): \)"
+        regexp"(?<g1>GenSym\(\d+\))" = next(regexp"\g{g0}", regexp"\g{iter}")
+        regexp"(?<idx>.+)" = getfield(regexp"\g{g1}", 1)
+        regexp"\g{iter}"   = getfield(regexp"\g{g1}", 2)
+        regexp"(?<in>.*)"
+        regexp":\((?<lab3>\d+): \)"
+        gotoifnot( !(!(done(regexp"\g{g0}", regexp"\g{iter}"))) , regexp"\g{lab2}" )
+        regexp":\(\g{lab1}: \)"
+        regexp"(?<post>.*)"
     end
-    e2s(streamline(rexp))
+    r1 = Regex(e2s(streamline(rexp), true))
 
+    r1
     e2s(mex2)
-    dump(mex2.args)
-
-    ### 
-    function loopextract(ex::Vector{Expr})
-        for e in ex
-            
+    mm = match(r1, e2s(mex2))
+    pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
 
 
-        return (before, idx, inside, after)
-    end    
+        for c in s
+         println(c)
+       end
+       iter = start(s)
+       next(iter, true)
+
+    function _s2e(s::AbstractString, pos=1) # s = pre ; pos = 1
+        cap = match( r"↑([^→↓]*)(.*)↓$", s, pos )
+        cap == nothing && error("[s2e] unexpected string (1)")
+
+        he  = symbol(cap.captures[1])
+        ar  = Any[]
+        pos = cap.offsets[2]
+        while s[pos] == '→' && !done(s, pos)
+            cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
+            cap == nothing && error("[s2e] unexpected string (2)")
+            if cap.captures[1][1] == '↑'
+                ex, pos2 = _s2e(s, cap.offsets[1])
+            elseif cap.captures[1][1] == ':'
+                ex = symbol(cap.captures[1][2:end])
+                pos2 = cap.offsets[2]
+            else
+                ex = parse(cap.captures[1])
+                pos2 = cap.offsets[2]
+            end
+            push!(ar, ex)
+            pos = pos2
+        end
+
+        c, pos = next(s, pos)
+        return Expr(he, ar...), pos
+    end
+    _s2e(pre,1)
+
+    function s2e(s::AbstractString) # s = pre
+        res = Expr[]
+        pos = 1
+        while !done(s, pos)
+            ex, pos = _s2e(s, pos)
+            push!(res, ex)
+        end
+        res
+    end
+    s2e(pre)
+    s2e(post)
+
+pre, rg, idx, inside, post
+
+    dump( :(for i in 1:2 ; end))
+
+    fex = copy( s2e(pre) )
+    ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), s2e(rg)[1] ), Expr(:block, s2e(inside)...))
+
+    Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)
+
+
+    mm2 = match(rexp, inside)
+    mm2 = match(rexp, "↑block→" * inside)
+
+    rexp
+    inside
+
+    r2 = r"↑block→(?<pre>.*?)→↑=→(?<g0>:__gensym\d+)→(?<range>.+)↓→↑=→(?<iter>.+)→↑call→:start→\g{g0}↓↓→↑gotoifnot→↑call→:!→↑call→:done→\g{g0}→\g{iter}↓↓→(?<lab1>\d+)↓→:\((?<lab2>\d+): \)→↑=→(?<g1>:__gensym\d+)→↑call→:next→\g{g0}→\g{iter}↓↓→↑=→(?<idx>.+)→↑call→:getfield→\g{g1}→1↓↓→↑=→\g{iter}→↑call→:getfield→\g{g1}→2↓↓→(?<in>.*)→:\((?<lab3>\d+): \)→↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→\g{g0}→\g{iter}↓↓↓→\g{lab2}↓→:\(\g{lab1}: \)→(?<post>.*)↓"
+    r2 = r"↑block→(?<pre>.*?)→↑=→(?<g0>:__gensym\d+)→(?<range>.+)↓→↑=→(?<iter>.+)→↑call→:start→\g{g0}↓↓→↑"
+    mm2 = match(r2, inside)
+
+
+    mm2.captures[[1,3,8,9,11]]
+
+"↑block→(?<pre>.*?)→↑=→(?<g0>:__gensym\d+)→(?<range>.+)     ↓→↑=→(?<iter>.+)     →↑call→:start→\g{g0}    ↓↓→↑gotoifnot→↑call→:!→↑call→:done→\g{g0}    →\g{iter}        ↓↓→(?<lab1>\d+)↓→:\((?<lab2>\d+): \)→↑=→(?<g1>:__gensym\d+)→↑call→:next→\g{g0}    →\g{iter}        ↓↓→↑=→(?<idx>.+)→↑call→:getfield→\g{g1}    →1↓↓→↑=→\g{iter}        →↑call→:getfield→\g{g1}    →2↓↓→(?<in>.*)                                                                                                                                                                                      →:\((?<lab3>\d+): \)→↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→\g{g0}    →\g{iter}        ↓↓↓→\g{lab2}↓→:\(\g{lab1}: \)→(?<post>.*)↓"
+"↑=→:d→3↓→↑=→                :__gensym2   →↑call→:colon→1→2↓↓→↑=→symbol(\"#s13\")→↑call→:start→:__gensym2↓↓→↑gotoifnot→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s13\")↓↓→5           ↓→:(6: )             →↑=→:__gensym3         →↑call→:next→:__gensym2→symbol(\"#s13\")↓↓→↑=→:j        →↑call→:getfield→:__gensym3→1↓↓→↑=→symbol(\"#s13\")→↑call→:getfield→:__gensym3→2↓↓→↑call→:setindex!→:a→:x→:i↓→↑=→:__gensym4→↑call→:+→↑call→:getindex→:a→:i↓→↑call→:getindex→:b→↑call→:+→:i→1↓↓↓↓→↑call→:setindex!→:a→:__gensym4→:i↓→↑=→:d→↑call→:*→:d→↑call→:sin→↑call→:*→2→:i↓↓↓↓→:(7: )             →↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s13\")↓↓↓→6       ↓→:(5: )         →:(4: )→↑=→:c→↑call→:+→:c→:d↓↓"
 
 
 
@@ -339,4 +369,18 @@
             end
             $(rc.captures[10]) """)
 
- 
+#######################################################
+
+
+    type Abcd
+        val
+    end
+    tf(x) = (x.val=0. ; x)
+
+    tf(Abcd(3.))
+    a = Abcd(3.)
+    tf(a)
+    a
+    
+tf(4+3im)
+
