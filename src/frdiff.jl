@@ -54,8 +54,8 @@ function streamline(ex0::Expr)
 end
 
 # converts expression to searchable strings
-function _e2s(ex::Expr, escape=false)
-    ex.head == :macrocall && ex.args[1] == Symbol("@rg_str") && return(ex.args[2])
+function _e2s(ex::Expr, escape=false)  # ex = ex2.args[1]
+    ex.head == :macrocall && ex.args[1] == symbol("@rg_str") && return(ex.args[2])
 
     if ex.head == :call && ex.args[1] == :gotoifnot
         es = "↑gotoifnot"
@@ -71,8 +71,8 @@ function _e2s(ex::Expr, escape=false)
     return es * "↓"
 end
 
-function _e2s(thing, escape=false)
-    res = repr(thing)
+function _e2s(thing, escape=false) # thing = symbol("abcd")
+    res = isa(thing, Symbol) ? ":" * string(thing) : repr(thing)
     escape || return(res)
     # now escape characters that would otherwise have a meaning in regex
     i = start(res)
@@ -90,7 +90,7 @@ function e2s(ex::Expr, escape=false)
     if ex.head in [:body, :block]
         return mapreduce(e -> _e2s(e, escape), *, "", ex.args)
     else
-        return _e2s(e, escape)
+        return _e2s(ex, escape)
     end
 end
 
