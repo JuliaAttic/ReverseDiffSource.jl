@@ -198,22 +198,50 @@
     mex = fcode.args[3]
 
     mex2 = m.streamline(mex)
+    dump( mex.args[4] )
+
     dump(mex2)
     s = "↑=→:a→0↓↑=→:__gensym0→↑call→:colon→1→10↓↓↑=→symbol(\"#s6957\")→↑call→:start→:__gensym0↓↓↑gotoifnot→↑call→:!→↑call→:done→:__gensym0→symbol(\"#s6957\")↓↓→1↓:(2: )↑=→:__gensym1→↑call→:next→:__gensym0→symbol(\"#s6957\")↓↓↑=→:i→↑call→:getfield→:__gensym1→1↓↓↑=→symbol(\"#s6957\")→↑call→:getfield→:__gensym1→2↓↓↑=→:__gensym2→↑call→:colon→1→10↓↓↑=→symbol(\"#s6958\")→↑call→:start→:__gensym2↓↓↑gotoifnot→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s6958\")↓↓→5↓:(6: )↑=→:__gensym3→↑call→:next→:__gensym2→symbol(\"#s6958\")↓↓↑=→:j→↑call→:getfield→:__gensym3→1↓↓↑=→symbol(\"#s6958\")→↑call→:getfield→:__gensym3→2↓↓↑=→:a→↑call→:+→:a→↑call→:*→↑call→:log→:x↓→↑call→:sin→:j↓↓↓↓:(7: )↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s6958\")↓↓↓→6↓:(5: ):(4: ):(3: )↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→:__gensym0→symbol(\"#s6957\")↓↓↓→2↓:(1: ):(0: )↑:a↓"
 
     ex  = m.transform(mex)
+    dump(ex)
 
     #######
     s = m.e2s(streamline(mex))
     tex = m._transform(s)
 
-    # remove return statement at the end
-    rex = tex.args[end]
-    if rex.head == :return
-        tex.args[end] = rex.args[1]
-    else
-        error("[transform] not return statement found at the end")
+    exreg = quote
+        rg"(?<pre>.*?)"
+        rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+        rg"(?<iter>.+)" = start(rg"\g{g0}")
+        gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+        rg":\((?<lab2>\d+): \)"
+        rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+        rg"(?<idx>.+?)" = rg":(?:getfield)|(?:tupleref)"(rg"\g{g1}", 1)
+        rg"\g{iter}"    = rg":(?:getfield)|(?:tupleref)"(rg"\g{g1}", 2)
+        rg"(?<in>.*)"
+        rg":\((?<lab3>\d+): \)"
+        gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
+        rg":\(\g{lab1}: \)"
+        rg"(?<post>.*)"
     end
+    sexp = e2s(m.streamline(exreg), true)
+    rexp = Regex(e2s(streamline(rexp), true))
+    mm = match(Regex(sexp), s)
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:getfield)|(?:tupleref)\u2192\\g{g1}\u21921\u2193\u2193\u2191=\u2192\\g{iter}\u2192\u2191call\u2192:(?:getfield)|(?:tupleref)\u2192\\g{g1}\u21922\u2193\u2193(?<in>.*):\\((?<lab3>\\d+): \\)\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2193\u2192\\g{lab2}\u2193:\\(\\g{lab1}: \\)(?<post>.*)"
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:getfield)|(?:tupleref)\u2192"
+   
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:tupleref)|(?:getfield)\u2192"
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192"
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}"
+
+    mm = match(Regex(sexp2), s)
+    mm.captures
+s
+    rexp
+    s
+
+
 
     function _transform(s::AbstractString)
         # s = inside
@@ -416,6 +444,5 @@
         g |> splitnary! |> prune! |> simplify!
 
 
-#######################################################
-
+############ loops in func, v0.3 ###########################################
 

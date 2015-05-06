@@ -43,7 +43,7 @@ function streamline(ex0::Expr)
 
         ar = if isa(a,Expr)
                 streamline(a)
-             elseif isa(a, GenSym)
+             elseif isdefined(:GenSym) && isa(a, GenSym)
                 symbol("__gensym$(a.id)")
              else
                 a
