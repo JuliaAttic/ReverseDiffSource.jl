@@ -4,27 +4,6 @@
 #
 #########################################################################
 
-##########  function version   ##############
-
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false, allorders=true)
-    sig = map( typeof, sig0 )
-    fs = methods(f, sig)
-    length(fs) == 0 && error("no function '$f' found for signature $sig")
-    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
-
-    fdef  = fs[1].func.code
-    fcode = Base.uncompressed_ast(fdef)
-    fargs = fcode.args[1]  # function parameters
-
-    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-    dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, 
-                allorders=allorders, cargs...)
-
-    # Note : new function is created in the same module as original function
-    myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
-end
-
-
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 

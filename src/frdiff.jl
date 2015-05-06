@@ -1,22 +1,40 @@
 #########################################################################
 #
-#   rdiff differentiation function for functions
+#   rdiff differentiation for functions
 #
 #########################################################################
 
+### main function
 
-### translation functions to recover a workable expression that can be differantiated
+function rdiff(f::Function, sig0::Tuple; args...)
+    # f = tf ; sig0 = (0.,)
+    sig = map( typeof, sig0 )
+    fs = methods(f, sig)
+    length(fs) == 0 && error("no function '$f' found for signature $sig")
+    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
+
+    fdef  = fs[1].func.code
+    fcode = Base.uncompressed_ast(fdef)
+
+    fargs = fcode.args[1]  # function parameters
+    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+
+    ex  = transform(fcode.args[3])
+    dex = rdiff(ex; args..., cargs...)
+
+    # Note : new function is created in the same module as original function
+    myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
+end
+
+### translation functions to recover a workable expression that can be differentiated
 
 # Simplifies expressions for processing
-#  - removes Topnode and linenumbers, 
+#  - removes Topnodes and linenumbers, 
 #  - replaces GenSym() with actual symbol
-#  - removes return expr
-
 function streamline(ex0::Expr)
     ex = copy(ex0)
 
     ex.head == :call && isa(ex.args[1], TopNode) && (ex.args[1] = ex.args[1].name)
-    ex.head == :return && (ex = ex.args[1])
 
     args = Any[]
     for a in ex.args
@@ -78,9 +96,13 @@ end
 
 
 # converts searchable strings back to expressions
-function _s2e(s::AbstractString, pos=1) # s = pre ; pos = 1
-    cap = match( r"↑([^→↓]*)(.*)↓$", s, pos )
-    cap == nothing && error("[s2e] unexpected string (1)")
+function _s2e(s::AbstractString, pos=1) # s = pre ; pos = 1 ; s = post
+    cap = match( r"↑([^→↓]*)(.*)", s, pos )
+    if cap == nothing # skip junk characters (Labelnodes,..) and return
+        cap = match( r".*?↑(.*)", s, pos )
+        cap == nothing && return nothing, endof(s)+1
+        return nothing, cap.offsets[1]
+    end
 
     he  = symbol(cap.captures[1])
     ar  = Any[]
@@ -110,7 +132,7 @@ function s2e(s::AbstractString) # s = pre
     pos = 1
     while !done(s, pos)
         ex, pos = _s2e(s, pos)
-        push!(res, ex)
+        ex != nothing && push!(res, ex)
     end
     res
 end
@@ -149,82 +171,19 @@ end
 
 function transform(ex::Expr) # ex = fcode.args[3]
     s = e2s(streamline(ex))
-    _transform(s)
-end
+    tex = _transform(s)
 
-
-### main function
-
-function rdiff(f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false, allorders=true)
-    # f = tfunc ; sig0 = (0.,)
-    sig = map( typeof, sig0 )
-    fs = methods(f, sig)
-    length(fs) == 0 && error("no function '$f' found for signature $sig")
-    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
-
-    fdef  = fs[1].func.code
-    fcode = Base.uncompressed_ast(fdef)
-    fargs = fcode.args[1]  # function parameters
-
-    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-
-    println( transform(fcode.args[3]))
-    # mex = fcode.args[3]
-
-    # dex = rdiff(fcode.args[3]; order=order, evalmod=evalmod, debug=debug, 
-    #             allorders=allorders, cargs...)
-
-    # # Note : new function is created in the same module as original function
-    # myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
-end
-
-
-function tfunc(x)
-    a = zeros(2)
-    for i in 1:2
-        a[i] = x
+    # remove return statement at the end
+    rex = tex.args[end]
+    if rex.head == :return
+        tex.args[end] = rex.args[1]
+    else
+        error("[transform] not return statement found at the end")
     end
-    sum(a)
+
+    tex
 end
-rdiff(tfunc, (0.,))
 
 
-function tfunc(x)
-    a = zeros(2)
-    for i in 1:2
-        a[i] = x
-        a[i] += b[i+1]
-    end
-    sum(a)
-end
-rdiff(tfunc, (0.,))
 
-function tfunc(x)
-    a = zeros(2)
-    c = 0
-    for i in 1:2
-        a[i] = x
-        a[i] += b[i+1]
-        c = c * sin(2i)
-    end
-    sum(a)
-end
-rdiff(tfunc, (0.,))
-
-function tfunc(x)
-    a = zeros(2)
-    c = 0
-    for i in 1:2
-        d = 3
-        for j in 1:2
-            a[i] = x
-            a[i] += b[i+1]
-            d = d * sin(2i)
-        end
-        c += d
-    end
-    z = c * sum(a)
-    z - sum(a)
-end
-rdiff(tfunc, (0.,))
 

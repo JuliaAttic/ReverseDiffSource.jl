@@ -50,6 +50,7 @@ module ReverseDiffSource
   include("deriv_rule.jl")
   include("base_rules.jl")
   include("rdiff.jl")
+  include("frdiff.jl")
 
   ######  Exports  ######
   export 

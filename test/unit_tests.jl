@@ -31,23 +31,11 @@
 
 
 #### accumulator variable generation testing ####
-
-    function striplinenumbers(ex::Expr)
-        args = Any[]
-        for a in ex.args
-            isa(a, LineNumberNode) && continue
-            isa(a, Expr) && a.head==:line && continue
-            push!(args, isa(a,Expr) ? striplinenumbers(a) : a )
-        end
-        Expr(ex.head, args...)
-    end
-
     function zerocode(v)
         zex = m.zeronode( m.NConst(:abcd, [], [], v, false) )
         m.resetvar()
         m.tocode(zex)
     end
-
 
     @test zerocode(12)       == :(0.0;)
     @test zerocode(12.2)     == :(0.0;)
@@ -170,4 +158,41 @@
       @test m.tmatch(Tuple{Real,Float64}, tts)      == Tuple{Real,Real}
     end
 
+### testing conversions for functions diff  ###
+  ex = quote 
+    a = zeros(2)
+    for i in 1:2
+        a[i] = x
+    end
+    sum(a)
+  end
+  @test m.e2s(m.streamline(ex)) == "↑=→:a→↑call→:zeros→2↓↓↑for→↑=→:i→↑:→1→2↓↓" *
+                               "→↑block→↑=→↑ref→:a→:i↓→:x↓↓↓↑call→:sum→:a↓"
 
+  ex = quote
+      a = zeros(2)
+      c = 0
+      for i in 1:2
+          d = 3
+          for j in 1:2
+              a[i] = x
+              a[i] += b[i+1]
+              d = d * sin(2i)
+          end
+          c += d
+      end
+      z = c * sum(a)
+      return z - sum(a)
+  end
+  @test m.e2s(m.streamline(ex)) == "↑=→:a→↑call→:zeros→2↓↓↑=→:c→0↓↑for→↑=→:i→↑:→1→2↓↓→↑block→" *
+                               "↑=→:d→3↓→↑for→↑=→:j→↑:→1→2↓↓→↑block→↑=→↑ref→:a→:i↓→:x↓→" *
+                               "↑+=→↑ref→:a→:i↓→↑ref→:b→↑call→:+→:i→1↓↓↓→↑=→:d→↑call→:*→:d→" *
+                               "↑call→:sin→↑call→:*→2→:i↓↓↓↓↓↓→↑+=→:c→:d↓↓↓↑=→:z→↑call→:*→:c→" *
+                               "↑call→:sum→:a↓↓↓↑return→↑call→:-→:z→↑call→:sum→:a↓↓↓"
+
+  aex = Expr[ :(a = zeros(2)),
+              striplinenumbers(:(for i = 1:2 ; a[i] = x ; end)),
+              :(sum(a)) ]
+
+  @test m.s2e("↑=→:a→↑call→:zeros→2↓↓↑for→↑=→:i→↑:→1→2↓↓" *
+              "→↑block→↑=→↑ref→:a→:i↓→:x↓↓↓↑call→:sum→:a↓" ) == aex

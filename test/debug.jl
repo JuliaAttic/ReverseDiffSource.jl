@@ -3,6 +3,7 @@
     Pkg.test("ReverseDiffSource")
 
     cd(joinpath(Pkg.dir("ReverseDiffSource"), "test"))
+    reload("ReverseDiffSource") ; m = ReverseDiffSource
     include("runtests.jl")
     include("loops.jl")
 
@@ -148,7 +149,7 @@
 
 ##############   loops in functions  #################################
 
-    function tt(x)
+    function tf(x)
         a = zeros(2)
         for i in 1:2
             a[i] = x
@@ -156,8 +157,35 @@
         sum(a)
     end
 
+    function tf(x)
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += log(x) * sin(j)
+            end
+        end
+        a
+    end
+
+    function tf(x)
+        z = 0
+        for i in 1:length(x)
+            z = i * x[i]
+        end
+        return z
+    end
+
+    function tf(x)
+        a=0
+        for i in 1:10
+            for j in 1:10
+                a += log(x) * sin(j)
+            end
+        end
+        a
+    end
     # (f::Function, sig0::Tuple; order::Int=1, evalmod=Main, debug=false, allorders=true)
-    f=tt;sig0=(1.,);order=1;evalmod=Main;debug=false;allorders=true
+    f=tf;sig0=(1.,);order=1;evalmod=Main;debug=false;allorders=true
 
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
@@ -169,172 +197,41 @@
     fargs = fcode.args[1]  # function parameters
     mex = fcode.args[3]
 
-    function streamline(ex::Expr)
-        ex.head == :call && isa(ex.args[1], TopNode) && (ex.args[1] = ex.args[1].name)
-        args = Any[]
-        for a in ex.args
-            isa(a, LineNumberNode) && continue
-            isa(a, Expr) && a.head==:line && continue
+    mex2 = m.streamline(mex)
+    dump(mex2)
+    s = "↑=→:a→0↓↑=→:__gensym0→↑call→:colon→1→10↓↓↑=→symbol(\"#s6957\")→↑call→:start→:__gensym0↓↓↑gotoifnot→↑call→:!→↑call→:done→:__gensym0→symbol(\"#s6957\")↓↓→1↓:(2: )↑=→:__gensym1→↑call→:next→:__gensym0→symbol(\"#s6957\")↓↓↑=→:i→↑call→:getfield→:__gensym1→1↓↓↑=→symbol(\"#s6957\")→↑call→:getfield→:__gensym1→2↓↓↑=→:__gensym2→↑call→:colon→1→10↓↓↑=→symbol(\"#s6958\")→↑call→:start→:__gensym2↓↓↑gotoifnot→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s6958\")↓↓→5↓:(6: )↑=→:__gensym3→↑call→:next→:__gensym2→symbol(\"#s6958\")↓↓↑=→:j→↑call→:getfield→:__gensym3→1↓↓↑=→symbol(\"#s6958\")→↑call→:getfield→:__gensym3→2↓↓↑=→:a→↑call→:+→:a→↑call→:*→↑call→:log→:x↓→↑call→:sin→:j↓↓↓↓:(7: )↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s6958\")↓↓↓→6↓:(5: ):(4: ):(3: )↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→:__gensym0→symbol(\"#s6957\")↓↓↓→2↓:(1: ):(0: )↑:a↓"
 
-            push!(args, isa(a,Expr) ? streamline(a) : a )
-        end
-        Expr(ex.head, args...)   
+    ex  = m.transform(mex)
+
+    #######
+    s = m.e2s(streamline(mex))
+    tex = m._transform(s)
+
+    # remove return statement at the end
+    rex = tex.args[end]
+    if rex.head == :return
+        tex.args[end] = rex.args[1]
+    else
+        error("[transform] not return statement found at the end")
     end
 
-    mex2 = streamline(mex)
-    mex2.head = :block
-    :(begin 
-        a = zeros(2)
-        GenSym(0) = colon(1,2)
-        #s136 = start(GenSym(0))
-        unless !(done(GenSym(0),#s136)) goto 1
-        2: 
-        GenSym(1) = next(GenSym(0),#s136)
-        i = getfield(GenSym(1),1)
-        #s136 = getfield(GenSym(1),2)
-        setindex!(a,x,i)
-        3: 
-        unless !(!(done(GenSym(0),#s136))) goto 2
-        1: 
-        0: 
-        return sum(a)
-    end)
+    function _transform(s::AbstractString)
+        # s = inside
+        mm = match(m.rexp, s)
+        if mm != nothing && length(mm.captures) >= 11
+            pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
+            exin = m._transform(inside)
+            ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), m.s2e(rg)[1] ), exin)
 
-    mex2.args[2]
-    dump( mex2.args[2] )
-    typeof( mex2.args[2].args[1] )
-    fieldnames( mex2.args[2].args[1] )
-    typeof( mex2.args[2].args[1].id )
-    dump(mex2.args[end])
-
-    function e2s(ex::Expr, escape=false)
-        ex.head == :macrocall && ex.args[1] == Symbol("@regexp_str") && return(ex.args[2])
-
-        if ex.head == :call && ex.args[1] == :gotoifnot
-            es = "↑gotoifnot"
-            ra = 2:length(ex.args)
+            return Expr(:block, [ m.s2e(pre) ; ef ; m.s2e(post)]...)
         else
-            es = "↑$(ex.head)"
-            ra = 1:length(ex.args)
+            return Expr(:block, s2e(s)...)
         end
-
-        for a in ex.args[ra]
-            es *= "→" * e2s(a, escape)
-        end
-        return es * "↓"
     end
 
-    function e2s(thing, escape=false)
-        res = repr(thing)
-        escape || return(res)
-        # now escape characters that would otherwise have a meaning in regex
-        i = start(res)
-        res2 = ""
-        while !done(res,i)
-            c, j = next(res,i)
-            c in "()+*.\$^[]|" && (res2 *= "\\")
-            res2 *= string(c)
-            i = j
-        end
-        res2
-    end
-    e2s(:(4+bcd))
 
 
-    rexp = quote
-        regexp"(?<pre>.*)"
-        regexp"(?<g0>GenSym\(\d+\))" = regexp"(?<range>.+)"
-        regexp"(?<iter>.+)" = start(regexp"\g{g0}")
-        gotoifnot( !(done(regexp"\g{g0}", regexp"\g{iter}" )) , regexp"(?<lab1>\d+)" )
-        regexp":\((?<lab2>\d+): \)"
-        regexp"(?<g1>GenSym\(\d+\))" = next(regexp"\g{g0}", regexp"\g{iter}")
-        regexp"(?<idx>.+)" = getfield(regexp"\g{g1}", 1)
-        regexp"\g{iter}"   = getfield(regexp"\g{g1}", 2)
-        regexp"(?<in>.*)"
-        regexp":\((?<lab3>\d+): \)"
-        gotoifnot( !(!(done(regexp"\g{g0}", regexp"\g{iter}"))) , regexp"\g{lab2}" )
-        regexp":\(\g{lab1}: \)"
-        regexp"(?<post>.*)"
-    end
-    r1 = Regex(e2s(streamline(rexp), true))
-
-    r1
-    e2s(mex2)
-    mm = match(r1, e2s(mex2))
-    pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
-
-
-        for c in s
-         println(c)
-       end
-       iter = start(s)
-       next(iter, true)
-
-    function _s2e(s::AbstractString, pos=1) # s = pre ; pos = 1
-        cap = match( r"↑([^→↓]*)(.*)↓$", s, pos )
-        cap == nothing && error("[s2e] unexpected string (1)")
-
-        he  = symbol(cap.captures[1])
-        ar  = Any[]
-        pos = cap.offsets[2]
-        while s[pos] == '→' && !done(s, pos)
-            cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
-            cap == nothing && error("[s2e] unexpected string (2)")
-            if cap.captures[1][1] == '↑'
-                ex, pos2 = _s2e(s, cap.offsets[1])
-            elseif cap.captures[1][1] == ':'
-                ex = symbol(cap.captures[1][2:end])
-                pos2 = cap.offsets[2]
-            else
-                ex = parse(cap.captures[1])
-                pos2 = cap.offsets[2]
-            end
-            push!(ar, ex)
-            pos = pos2
-        end
-
-        c, pos = next(s, pos)
-        return Expr(he, ar...), pos
-    end
-    _s2e(pre,1)
-
-    function s2e(s::AbstractString) # s = pre
-        res = Expr[]
-        pos = 1
-        while !done(s, pos)
-            ex, pos = _s2e(s, pos)
-            push!(res, ex)
-        end
-        res
-    end
-    s2e(pre)
-    s2e(post)
-
-pre, rg, idx, inside, post
-
-    dump( :(for i in 1:2 ; end))
-
-    fex = copy( s2e(pre) )
-    ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), s2e(rg)[1] ), Expr(:block, s2e(inside)...))
-
-    Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)
-
-
-    mm2 = match(rexp, inside)
-    mm2 = match(rexp, "↑block→" * inside)
-
-    rexp
-    inside
-
-    r2 = r"↑block→(?<pre>.*?)→↑=→(?<g0>:__gensym\d+)→(?<range>.+)↓→↑=→(?<iter>.+)→↑call→:start→\g{g0}↓↓→↑gotoifnot→↑call→:!→↑call→:done→\g{g0}→\g{iter}↓↓→(?<lab1>\d+)↓→:\((?<lab2>\d+): \)→↑=→(?<g1>:__gensym\d+)→↑call→:next→\g{g0}→\g{iter}↓↓→↑=→(?<idx>.+)→↑call→:getfield→\g{g1}→1↓↓→↑=→\g{iter}→↑call→:getfield→\g{g1}→2↓↓→(?<in>.*)→:\((?<lab3>\d+): \)→↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→\g{g0}→\g{iter}↓↓↓→\g{lab2}↓→:\(\g{lab1}: \)→(?<post>.*)↓"
-    r2 = r"↑block→(?<pre>.*?)→↑=→(?<g0>:__gensym\d+)→(?<range>.+)↓→↑=→(?<iter>.+)→↑call→:start→\g{g0}↓↓→↑"
-    mm2 = match(r2, inside)
-
-
-    mm2.captures[[1,3,8,9,11]]
-
-"↑block→(?<pre>.*?)→↑=→(?<g0>:__gensym\d+)→(?<range>.+)     ↓→↑=→(?<iter>.+)     →↑call→:start→\g{g0}    ↓↓→↑gotoifnot→↑call→:!→↑call→:done→\g{g0}    →\g{iter}        ↓↓→(?<lab1>\d+)↓→:\((?<lab2>\d+): \)→↑=→(?<g1>:__gensym\d+)→↑call→:next→\g{g0}    →\g{iter}        ↓↓→↑=→(?<idx>.+)→↑call→:getfield→\g{g1}    →1↓↓→↑=→\g{iter}        →↑call→:getfield→\g{g1}    →2↓↓→(?<in>.*)                                                                                                                                                                                      →:\((?<lab3>\d+): \)→↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→\g{g0}    →\g{iter}        ↓↓↓→\g{lab2}↓→:\(\g{lab1}: \)→(?<post>.*)↓"
-"↑=→:d→3↓→↑=→                :__gensym2   →↑call→:colon→1→2↓↓→↑=→symbol(\"#s13\")→↑call→:start→:__gensym2↓↓→↑gotoifnot→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s13\")↓↓→5           ↓→:(6: )             →↑=→:__gensym3         →↑call→:next→:__gensym2→symbol(\"#s13\")↓↓→↑=→:j        →↑call→:getfield→:__gensym3→1↓↓→↑=→symbol(\"#s13\")→↑call→:getfield→:__gensym3→2↓↓→↑call→:setindex!→:a→:x→:i↓→↑=→:__gensym4→↑call→:+→↑call→:getindex→:a→:i↓→↑call→:getindex→:b→↑call→:+→:i→1↓↓↓↓→↑call→:setindex!→:a→:__gensym4→:i↓→↑=→:d→↑call→:*→:d→↑call→:sin→↑call→:*→2→:i↓↓↓↓→:(7: )             →↑gotoifnot→↑call→:!→↑call→:!→↑call→:done→:__gensym2→symbol(\"#s13\")↓↓↓→6       ↓→:(5: )         →:(4: )→↑=→:c→↑call→:+→:c→:d↓↓"
+    dex = rdiff(ex; args..., cargs...)
 
 
 
@@ -355,32 +252,170 @@ pre, rg, idx, inside, post
     """sx
     rc = match(pr, mes) ; rc.captures
 
-    mes2 = "$(rc.captures[1]) ; 
-                for $(rc.captures[8]) in $(rc.captures[3]);
-                $(rc.captures[9]);
-            end ;
-            $(rc.captures[10]) "
+
+    tf(x) = sum(x)
+    dtf = m.rdiff(tf, (zeros(3),))
+    dtf(zeros(3))
+    dtf(ones(3))
+
+    @compare tf v0ref
+    @compare tf v1ref
+    @compare tf v2ref
 
 
-    println("""
-            $(rc.captures[1])
-            for $(rc.captures[8]) in $(rc.captures[3])
-                $(rc.captures[9])
+    function tf(x)
+        a=zeros(1+3)
+        for i in 1:4
+            t = 4+3+2
+            a[i] += b[i]*x+t
+        end
+        sum(a)
+    end
+    compare(:tf, 0.)
+    @compare tf v0ref
+    @compare tf 0.
+    dtf = m.rdiff(tf, (0.,))
+    dtf(0.)
+
+    macro abcd(a,b)
+        println(typeof(a), " ", a)
+        println(typeof(b), " ", b)
+    end
+    @abcd tf 0.
+
+    # f = tf ; sig0 = (0.,)
+    sig = map( typeof, sig0 )
+    fs = methods(f, sig)
+    length(fs) == 0 && error("no function '$f' found for signature $sig")
+    length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
+
+    fdef  = fs[1].func.code
+    fcode = Base.uncompressed_ast(fdef)
+
+    fargs = fcode.args[1]  # function parameters
+    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+
+    ex  = m.transform(fcode.args[3])
+    dex = m.rdiff(ex; cargs...)
+
+
+    ex = tex ; outsym=nothing; order=1; evalmod=Main; debug=false; allorders=true; params = cargs
+    length(params) >= 1 || error("There should be at least one parameter specified, none found")
+    
+    order <= 1 || 
+    length(params) == 1 || error("Only one param allowed for order >= 2")
+    
+    order <= 1 || 
+    isa(params[1][2], Vector) || 
+    isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
+
+    paramsym    = Symbol[ e[1] for e in params]
+    paramvalues = [ e[2] for e in params]
+    parval      = Dict(zip(paramsym, paramvalues))
+
+    g = m.tograph(ex, evalmod)
+
+        tex = quote
+            a = zeros(10)
+            for i in 1:length(a)
+                a[i] += 1
             end
-            $(rc.captures[10]) """)
+            sum(a)
+        end
+        g = m.tograph(tex)
+        g.seti = m.NSMap([m.getnode(g.seti, outsym)], [ outsym ])    
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+        m.tocode(g)
+
+        tex = quote
+            a = zeros(10)
+            for i in 1:length(a)
+                c = a[i] + 1
+                setindex!(a, c, i)
+                z = 3
+            end
+            sum(a)
+        end
+        g = m.tograph(tex)
+
+        tex = quote
+            a = zeros(10)
+            for i in 1:length(a)
+                c = a[i] + 1
+                setindex!(a, c, i)
+                # z = 3
+            end
+            sum(a)
+        end
+        g2 = m.tograph(tex)
+
+        g
+        g2
+
+
+        g.seti = m.NSMap([m.getnode(g.seti, outsym)], [ outsym ])    
+        g |> m.splitnary! |> m.prune! |> m.simplify!
+        m.tocode(g)
+
+        tex = quote
+                c = a[i] + 1
+                setindex!(a, c, i)
+                z = 3
+        end
+        g = m.tograph(tex, Main, [:a])
+        m.syms(g.seti)
+
+        tex = quote  # marche pas
+            setindex!(a, c, i)
+        end
+        g = m.tograph(tex, Main, [:a])
+        m.syms(g.seti)
+
+        tex = quote  # ok
+            a[i] = c
+        end
+        g = m.tograph(tex, Main, [:a])
+        m.syms(g.seti)
+
+        tex = quote  # ok
+            setindex!(a, c, i)
+            c = 2
+        end
+        g = m.tograph(tex, Main, [:a])
+        m.syms(g.seti)
+
+
+    ###################################
+    m.hassym(g.seti, outsym) || 
+        error("can't find output var $( outsym==nothing ? "" : outsym)")
+
+    # reduce to variable of interest
+    g.seti = m.NSMap([m.getnode(g.seti, outsym)], [ outsym ])    
+
+    g |> m.splitnary! |> m.prune! |> m.simplify!
+    m.calc!(g, params=parval, emod=evalmod)
+    m.tocode(g)
+
+
+    ov = getnode(g.seti, outsym).val 
+    isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+
+    voi = Any[ outsym ]
+
+    if order == 1
+        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
+        append!(g.nodes, dg.nodes)
+
+        for p in paramsym
+            nn = getnode(dg.seti, dprefix(p))  # find the exit node of deriv of p
+            ns = newvar("_dv")
+            g.seti[nn] = ns
+            push!(voi, ns)
+        end
+
+        g |> splitnary! |> prune! |> simplify!
+
 
 #######################################################
 
-
-    type Abcd
-        val
-    end
-    tf(x) = (x.val=0. ; x)
-
-    tf(Abcd(3.))
-    a = Abcd(3.)
-    tf(a)
-    a
-    
-tf(4+3im)
 
