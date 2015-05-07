@@ -19,7 +19,7 @@ function rdiff(f::Function, sig0::Tuple; args...)
     fargs = fcode.args[1]  # function parameters
     cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
 
-    ex  = transform(fcode.args[3])
+    ex  = transform(fcode.args[3]) # TODO : add error messages if not parseable
     dex = rdiff(ex; args..., cargs...)
 
     # Note : new function is created in the same module as original function
@@ -54,7 +54,7 @@ function streamline(ex0::Expr)
 end
 
 # converts expression to searchable strings
-function _e2s(ex::Expr, escape=false)  # ex = ex2.args[1]
+function _e2s(ex::Expr, escape=false) 
     ex.head == :macrocall && ex.args[1] == symbol("@rg_str") && return(ex.args[2])
 
     if ex.head == :call && ex.args[1] == :gotoifnot
@@ -71,7 +71,7 @@ function _e2s(ex::Expr, escape=false)  # ex = ex2.args[1]
     return es * "↓"
 end
 
-function _e2s(thing, escape=false) # thing = symbol("abcd")
+function _e2s(thing, escape=false)
     res = isa(thing, Symbol) ? ":" * string(thing) : repr(thing)
     escape || return(res)
     # now escape characters that would otherwise have a meaning in regex
@@ -96,7 +96,7 @@ end
 
 
 # converts searchable strings back to expressions
-function _s2e(s::AbstractString, pos=1) # s = pre ; pos = 1 ; s = post
+function _s2e(s::AbstractString, pos=1) 
     cap = match( r"↑([^→↓]*)(.*)", s, pos )
     if cap == nothing # skip junk characters (Labelnodes,..) and return
         cap = match( r".*?↑(.*)", s, pos )
@@ -127,7 +127,7 @@ function _s2e(s::AbstractString, pos=1) # s = pre ; pos = 1 ; s = post
     return Expr(he, ar...), pos
 end
 
-function s2e(s::AbstractString) # s = pre
+function s2e(s::AbstractString)
     res = Expr[]
     pos = 1
     while !done(s, pos)
@@ -137,7 +137,7 @@ function s2e(s::AbstractString) # s = pre
     res
 end
 
-# regex string (julia v0.3)
+# `for` loop search regex string (julia v0.3.3 + 0.4 latest)
 exreg = quote
     rg"(?<pre>.*?)"
     rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
@@ -153,22 +153,6 @@ exreg = quote
     rg":\(\g{lab1}: \)"
     rg"(?<post>.*)"
 end
-# regex string (julia v0.4)
-# rexp = quote
-#     rg"(?<pre>.*?)"
-#     rg"(?<g0>:__gensym\d+)" = rg"(?<range>.+)"
-#     rg"(?<iter>.+)" = start(rg"\g{g0}")
-#     gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-#     rg":\((?<lab2>\d+): \)"
-#     rg"(?<g1>:__gensym\d+)" = next(rg"\g{g0}", rg"\g{iter}")
-#     rg"(?<idx>.+)" = getfield(rg"\g{g1}", 1)
-#     rg"\g{iter}"   = getfield(rg"\g{g1}", 2)
-#     rg"(?<in>.*)"
-#     rg":\((?<lab3>\d+): \)"
-#     gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
-#     rg":\(\g{lab1}: \)"
-#     rg"(?<post>.*)"
-# end
 rexp = Regex(e2s(streamline(exreg), true))
 
 
@@ -178,14 +162,13 @@ function _transform(s::AbstractString)
         pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
         exin = _transform(inside)
         ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), s2e(rg)[1] ), exin)
-
         return Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)
     else
         return Expr(:block, s2e(s)...)
     end
 end
 
-function transform(ex::Expr) # ex = fcode.args[3]
+function transform(ex::Expr)
     s = e2s(streamline(ex))
     tex = _transform(s)
 
@@ -194,7 +177,7 @@ function transform(ex::Expr) # ex = fcode.args[3]
     if rex.head == :return
         tex.args[end] = rex.args[1]
     else
-        error("[transform] not return statement found at the end")
+        error("[transform] no return statement found at the end")
     end
 
     tex

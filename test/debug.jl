@@ -172,10 +172,11 @@
     dtf(1.5)
     dtf(2.0)
 
-    using 
-    Bokeh.plot( [ sin, psin], -10:10, title="sin(x)", plotfile="c:/temp/sin.html")
+    using Bokeh
+    Bokeh.plot( sin , -2:2, title="tf(x)", plotfile="c:/temp/tf.html")
     showplot()
 
+    Pkg.update()
 
     function tf(x)
         z = 0
