@@ -161,11 +161,21 @@
         a=0
         for i in 1:10
             for j in 1:10
-                a += log(x) * sin(j)
+                a += log(3.+sin(j*x)+cos(i))
             end
         end
         a
     end
+    dtf = m.rdiff(tf, (0,))
+    dtf(1.)
+    dtf(1.1)
+    dtf(1.5)
+    dtf(2.0)
+
+    using 
+    Bokeh.plot( [ sin, psin], -10:10, title="sin(x)", plotfile="c:/temp/sin.html")
+    showplot()
+
 
     function tf(x)
         z = 0
@@ -217,8 +227,8 @@
         gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
         rg":\((?<lab2>\d+): \)"
         rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
-        rg"(?<idx>.+?)" = rg":(?:getfield)|(?:tupleref)"(rg"\g{g1}", 1)
-        rg"\g{iter}"    = rg":(?:getfield)|(?:tupleref)"(rg"\g{g1}", 2)
+        rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+        rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
         rg"(?<in>.*)"
         rg":\((?<lab3>\d+): \)"
         gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
@@ -229,9 +239,9 @@
     rexp = Regex(e2s(streamline(rexp), true))
     mm = match(Regex(sexp), s)
     sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:getfield)|(?:tupleref)\u2192\\g{g1}\u21921\u2193\u2193\u2191=\u2192\\g{iter}\u2192\u2191call\u2192:(?:getfield)|(?:tupleref)\u2192\\g{g1}\u21922\u2193\u2193(?<in>.*):\\((?<lab3>\\d+): \\)\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2193\u2192\\g{lab2}\u2193:\\(\\g{lab1}: \\)(?<post>.*)"
-    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:getfield)|(?:tupleref)\u2192"
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:getfield|tupleref)\u2192\\g{g1}\u21921\u2193\u2193\u2191=\u2192\\g{iter}\u2192\u2191call\u2192:(?:getfield|tupleref)\u2192\\g{g1}\u21922\u2193\u2193(?<in>.*):\\((?<lab3>\\d+): \\)\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2193\u2192\\g{lab2}\u2193:\\(\\g{lab1}: \\)(?<post>.*)"
    
-    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:tupleref)|(?:getfield)\u2192"
+    sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192:(?:tupleref|getfield)\u2192"
     sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2192(?<lab1>\\d+)\u2193:\\((?<lab2>\\d+): \\)\u2191=\u2192(?<g1>.+?)\u2192\u2191call\u2192:next\u2192\\g{g0}\u2192\\g{iter}\u2193\u2193\u2191=\u2192(?<idx>.+?)\u2192\u2191call\u2192"
     sexp2 = "(?<pre>.*?)\u2191=\u2192(?<g0>:[#_].+?)\u2192(?<range>.+?)\u2193\u2191=\u2192(?<iter>.+)\u2192\u2191call\u2192:start\u2192\\g{g0}\u2193\u2193\u2191gotoifnot\u2192\u2191call\u2192:!\u2192\u2191call\u2192:done\u2192\\g{g0}\u2192\\g{iter}"
 

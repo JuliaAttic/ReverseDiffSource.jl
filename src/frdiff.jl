@@ -79,7 +79,7 @@ function _e2s(thing, escape=false) # thing = symbol("abcd")
     res2 = ""
     while !done(res,i)
         c, j = next(res,i)
-        c in "()+*.\$^[]|" && (res2 *= "\\")
+        c in "()+*.\$^[]|?" && (res2 *= "\\")
         res2 *= string(c)
         i = j
     end
@@ -137,23 +137,39 @@ function s2e(s::AbstractString) # s = pre
     res
 end
 
-# regex string (julia v0.4)
-rexp = quote
+# regex string (julia v0.3)
+exreg = quote
     rg"(?<pre>.*?)"
-    rg"(?<g0>:__gensym\d+)" = rg"(?<range>.+)"
+    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
     rg"(?<iter>.+)" = start(rg"\g{g0}")
     gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
     rg":\((?<lab2>\d+): \)"
-    rg"(?<g1>:__gensym\d+)" = next(rg"\g{g0}", rg"\g{iter}")
-    rg"(?<idx>.+)" = getfield(rg"\g{g1}", 1)
-    rg"\g{iter}"   = getfield(rg"\g{g1}", 2)
+    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
     rg"(?<in>.*)"
     rg":\((?<lab3>\d+): \)"
     gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
     rg":\(\g{lab1}: \)"
     rg"(?<post>.*)"
 end
-rexp = Regex(e2s(streamline(rexp), true))
+# regex string (julia v0.4)
+# rexp = quote
+#     rg"(?<pre>.*?)"
+#     rg"(?<g0>:__gensym\d+)" = rg"(?<range>.+)"
+#     rg"(?<iter>.+)" = start(rg"\g{g0}")
+#     gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+#     rg":\((?<lab2>\d+): \)"
+#     rg"(?<g1>:__gensym\d+)" = next(rg"\g{g0}", rg"\g{iter}")
+#     rg"(?<idx>.+)" = getfield(rg"\g{g1}", 1)
+#     rg"\g{iter}"   = getfield(rg"\g{g1}", 2)
+#     rg"(?<in>.*)"
+#     rg":\((?<lab3>\d+): \)"
+#     gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
+#     rg":\(\g{lab1}: \)"
+#     rg"(?<post>.*)"
+# end
+rexp = Regex(e2s(streamline(exreg), true))
 
 
 function _transform(s::AbstractString)
