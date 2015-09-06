@@ -4,13 +4,9 @@ ReverseDiffSource.jl
 _Reverse automated differentiation from an expression or a function_
 
 
-|Julia release (0.3)  | Julia nightly (0.4)|
-|---------------|:-----------:|
-|[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.3.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.3)           |  [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.4.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.4) |
-
-Latest (Julia nightly & release) [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=master)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl)  
-
-[![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=master)
+|Julia release (0.3) | Julia nightly (0.4)| Master (on Julia nightly & release) | Coverage |
+|:-------------:|:-----------:|:-----------:|:-----------:|
+|[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.3.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.3) |  [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.4.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.4) | [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=master)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl) | [![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=master) |
 
 
 
