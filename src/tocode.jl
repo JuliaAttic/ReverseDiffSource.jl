@@ -46,7 +46,8 @@ function tocode(g::ExGraph)
 
         thing_module(op::Function) = 
             tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
-                  symbol(string(op)) )
+                  op.env.name )
+                  # symbol(string(op)) )
 
         mt = try
                 thing_module(op)

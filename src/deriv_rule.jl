@@ -5,7 +5,6 @@
 #########################################################################
 
 drules = Dict() # holds the derivation expressions
-trules = Dict() # holds the type equivalence expressions
 
 #### function derivation rules declaration functions/macros
 
@@ -48,32 +47,35 @@ function deriv_rule(func::Union(Function, Type),
     index = findfirst(dv .== ss)
     (index == 0) && error("[deriv_rule] cannot find $dv in function arguments")
 
-    haskey(drules, (func, index)) || (drules[(func, index)] = Dict())
+    # non generic functions are matched by their name
+    fidx = isa(func, Function) && isa(func.env, Symbol) ? func.env : func
+
+    haskey(drules, (fidx, index)) || (drules[(fidx, index)] = Dict())
 
     g = tograph(diff, emod)  # make the graph
     push!(ss, :ds)
 
-    drules[(func, index)][sig] = (g, ss) 
+    drules[(fidx, index)][sig] = (g, ss) 
     nothing
 end
 
+function hasrule(f, pos)
+    haskey(drules, (f, pos)) && return true
+    # non generic functions are matched by their name
+    isa(func, Function) && isa(f.env, Symbol) && return haskey(drules, (f.env, pos))
+    false
+end
+
+function getrule(f, pos)
+    if isa(f, Function) && isa(f.env, Symbol) # non generic functions are matched by their name
+        haskey(drules, (f.env, pos)) && return drules[(f.env, pos)]
+    else
+        haskey(drules, (f, pos)) && return drules[(f, pos)]  
+    end
+    error("no derivation rule for $(f) at arg #$(pos)")
+end
 
 #### Type tuple matching  (naive multiple dispatch)
-
-# function tmatch(sig, keys)
-#     if VERSION < v"0.4.0-dev+4319"
-#         keys2 = filter(k -> length(k) == length(sig), keys)
-#         tcp(a,b) = a <: b
-#         sort!(keys2, lt=tcp)
-#         for k in keys2
-#             all( t -> t[1] <: t[2], zip(sig, k)) && return k
-#         end
-#         return nothing
-#     else
-#         keys2 = filter(k -> length(k.parameters) == length(sig.parameters), keys)
-#     end
-# end
-
 function tmatch(sig, keys)
     if VERSION < v"0.4.0-dev+4319"
         keys2 = filter(k -> length(k) == length(sig), keys)

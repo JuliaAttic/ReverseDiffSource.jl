@@ -72,7 +72,16 @@ function _e2s(ex::Expr, escape=false)
 end
 
 function _e2s(thing, escape=false)
-    res = isa(thing, Symbol) ? ":" * string(thing) : repr(thing)
+    # res = isa(thing, Symbol) ? ":" * string(thing) : repr(thing)
+    if isa(thing, Symbol)
+        res = ":" * string(thing)
+    elseif isdefined(:GlobalRef) && isa(thing, GlobalRef)
+        res = _e2s(Expr(:., symbol(thing.mod), QuoteNode(thing.name)))
+        # res = string(thing.mod) * "." * string(thing.name)
+    else
+        res = repr(thing)
+    end
+
     escape || return(res)
     # now escape characters that would otherwise have a meaning in regex
     i = start(res)
@@ -110,13 +119,17 @@ function _s2e(s::AbstractString, pos=1)
     while s[pos] == '→' && !done(s, pos)
         cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
         cap == nothing && error("[s2e] unexpected string (2)")
-        if cap.captures[1][1] == '↑'
+        cap1 = cap.captures[1]
+        if cap1[1] == '↑'
             ex, pos2 = _s2e(s, cap.offsets[1])
-        elseif cap.captures[1][1] == ':'
-            ex = symbol(cap.captures[1][2:end])
+        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes        
+            ex = QuoteNode(symbol(cap1[4:end-1]))
+            pos2 = cap.offsets[2]
+        elseif cap1[1] == ':'        # symbols
+            ex = symbol(cap1[2:end])
             pos2 = cap.offsets[2]
         else
-            ex = parse(cap.captures[1])
+            ex = parse(cap1)
             pos2 = cap.offsets[2]
         end
         push!(ar, ex)

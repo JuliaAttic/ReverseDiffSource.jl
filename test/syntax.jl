@@ -73,7 +73,6 @@ module Sandbox
     norm(z::Bar) = z.x*z.x + z.y*z.y
 end
 
-
 ex = quote
     z = Sandbox.Bar(2^a, sin(a))
     Sandbox.norm(z)

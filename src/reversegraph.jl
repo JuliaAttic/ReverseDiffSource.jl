@@ -40,8 +40,9 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 		op = n.parents[1].main
 		for (index, arg) in enumerate(n.parents)
 			if !isa(arg, Union(NConst, NComp))
-				haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
-				ddict = drules[(op, index-1)]
+				# haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
+				# ddict = drules[(op, index-1)]
+                ddict = getrule(op, index-1)
 
                 targs = VERSION < v"0.4.0-dev+4319" ?
                             tuple( Type[ typeof(x.val) for x in n.parents[2:end]]... ) :
@@ -50,7 +51,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
                 sk = tmatch( targs, collect(keys(ddict)) )
                 (sk == nothing) && error("no derivation rule for $(op) at arg #$(index-1) for signature $targs")
 
-				dg, dd = drules[(op, index-1)][sk]
+                # dg, dd = drules[(op, index-1)][sk]
+                dg, dd = ddict[sk]
             	smap = Dict( zip(dd, [n.parents[2:end]; dnodes[n]]) )
 
                 exitnode = addgraph!(dg, g2, smap)

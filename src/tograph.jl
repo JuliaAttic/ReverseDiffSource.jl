@@ -84,13 +84,20 @@ function tograph(s, evalmod=Main, svars=Any[])
     end
 
     function explore(ex::ExCall)
-        sf = ex.args[1]
-        if sf == :getindex  
+        sf  = ex.args[1]
+        # catch getindex, etc. qualified by a module
+        sf2 = if isa(sf, Expr) && sf.head == :. && isa(sf.args[2], QuoteNode)
+                sf.args[2].value
+              else
+                nothing
+              end
+
+        if sf == :getindex || sf2 == :getindex
             nv = explore(ex.args[2])
             ps = indexspec(nv, ex.args[3:end])
             return addnode!(g, NRef(:getidx, vcat([nv], ps)))
 
-        elseif sf == :setindex!
+        elseif sf == :setindex! || sf2 == :setindex!
             isa(ex.args[2], Symbol) || 
                 error("[tograph] setindex! only allowed on variables, $(ex.args[2]) found")
 
@@ -106,10 +113,10 @@ function tograph(s, evalmod=Main, svars=Any[])
 
             return nothing
 
-        elseif sf == :getfield
+        elseif sf == :getfield || sf2 == :getfield
             return addnode!(g, NDot(ex.args[3], [ explore(ex.args[2]) ]))
 
-        elseif sf == :setfield!
+        elseif sf == :setfield! || sf2 == :setfield!
             isa(ex.args[2], Symbol) || 
                 error("[tograph] setfield! only allowed on variables, $(ex.args[2]) found")
 
