@@ -3,10 +3,8 @@ ReverseDiffSource.jl
 
 _Reverse automated differentiation from an expression or a function_
 
-
-|Julia release (0.3)  | Julia nightly (0.4)|
-|---------------|:-----------:|
-|[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_release.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=release)           |  [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_nightly.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=nightly) |
+[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.3.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.3)
+[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.4.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.4)
 
 Latest (Julia nightly & release) [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=master)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl)  
 
