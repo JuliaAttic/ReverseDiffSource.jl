@@ -64,7 +64,7 @@ res = m.rdiff( :( 2 ^ foo(x) ) , x=1)
 
 ######### @typeequiv ############
 
-module Sandbox
+module Sandbox2
     type Bar
         x
         y
@@ -74,14 +74,14 @@ module Sandbox
 end
 
 ex = quote
-    z = Sandbox.Bar(2^a, sin(a))
-    Sandbox.norm(z)
+    z = Sandbox2.Bar(2^a, sin(a))
+    Sandbox2.norm(z)
 end
 
-m.@deriv_rule  Sandbox.Bar(x,y)      x  ds[1]   # Derivative accumulator of x is increased by ds[1]
-m.@deriv_rule  Sandbox.Bar(x,y)      y  ds[2]   # Derivative accumulator of y is increased by ds[2]
+m.@deriv_rule  Sandbox2.Bar(x,y)      x  ds[1]   # Derivative accumulator of x is increased by ds[1]
+m.@deriv_rule  Sandbox2.Bar(x,y)      y  ds[2]   # Derivative accumulator of y is increased by ds[2]
 
-m.@deriv_rule  Sandbox.norm(z::Sandbox.Bar)  z  Any[ 2*z.x*ds , 2*z.y*ds ]  # Note : produces a 2-vector since z is a Bar
+m.@deriv_rule  Sandbox2.norm(z::Sandbox2.Bar)  z  Any[ 2*z.x*ds , 2*z.y*ds ]  # Note : produces a 2-vector since z is a Bar
 
 res = m.rdiff(ex, a=0.)
 @eval df(a) = $res
