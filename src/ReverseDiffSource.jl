@@ -50,7 +50,7 @@ module ReverseDiffSource
   include("zeronode.jl")
   include("reversegraph.jl")
   include("deriv_rule.jl")
-  include("base_rules.jl")
+  # include("base_rules.jl")
   include("rdiff.jl")
   include("frdiff.jl")
 
@@ -61,7 +61,7 @@ module ReverseDiffSource
     @typeequiv, typeequiv
 
   ######  Initializations (for the deriv rules)  ######
-  __init__() = ReverseDiffSource.initrules()
+  __init__() = include(joinpath(Pkg.dir("ReverseDiffSource"), "src/base_rules.jl"))
   VERSION < v"0.3-" && __init__()  # call explicitly __init__ for older julias
 
 end # module ReverseDiffSource
