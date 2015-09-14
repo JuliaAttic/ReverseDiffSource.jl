@@ -1,7 +1,4 @@
-using Base.Test
-
-reload("ReverseDiffSource") # instead of 'using' to retest without exiting Julia
-m = ReverseDiffSource
+include("defs.jl")  # testing setup
 
 my_tests = [
 			"unit_tests.jl",
@@ -11,6 +8,7 @@ my_tests = [
             "indexing.jl",
             "types.jl",
             "loops.jl",
+            "functions.jl",
             "more.jl"
            ]
 

@@ -2,16 +2,6 @@
 ## expression to graph testing
 #################################################################
 
-function striplinenumbers(ex::Expr)
-    args = Any[]
-    for a in ex.args
-        isa(a, LineNumberNode) && continue
-        isa(a, Expr) && a.head==:line && continue
-        push!(args, isa(a,Expr) ? striplinenumbers(a) : a )
-    end
-    Expr(ex.head, args...)
-end 
-
 ### for loop #1
 ex = quote
     a=zeros(10)

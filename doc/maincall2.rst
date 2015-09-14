@@ -1,9 +1,6 @@
 Calling ``rdiff()`` with a function
 ***********************************
 
-.. warning:: 
-	Currently ``rdiff()`` will not work with ``for`` loops in the function definition. This is caused by ``uncompressed_ast`` call not giving access to the original function definition but to an interpreted version that is more challenging to parse.
-
 Calling syntax::
 
 	rdiff( func::Function, init::Tuple; order::Int)
@@ -53,7 +50,7 @@ For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. Fo
 Limitations
 ^^^^^^^^^^^
 
-* No ``for`` loops allowed for this ``rdiff`` version.
+* The function should have a single ``return`` statement positioned at the end. Functions exiting before the end (conditionally or not) cannot be differentiated.
 
 * All variables should be type-stable (not change from a scalar to a vector for example).
 
