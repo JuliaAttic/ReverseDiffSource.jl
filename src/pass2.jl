@@ -114,7 +114,7 @@ function derive(opex::Expr, index::Integer, dsym::Union(Expr,Symbol))  # opex=:(
 	try
 		dexp = eval(Expr(:call, fn, val...))
 
-		smap = Dict{Any,Any}([symbol("x$i") => args[i] for i in 1:length(args)])
+		smap = @compat Dict{Any,Any}([symbol("x$i") => args[i] for i in 1:length(args)])
 		smap[:ds] = ds
 		smap[:ds1] = symbol("$(ds).1")
 		smap[:ds2] = symbol("$(ds).2")

@@ -88,7 +88,7 @@ function varGraph(vex::Vector{Expr})
 		ex = substSymbols(ex, subst) # first, do renaming
 		if isa(ex, ExCall)
 			#  where to look for changed variable, TODO : generalize, make user settable
-			const inplace_var = Dict{Any,Any}(:copy! => 1, :gemm! => 7)
+			const inplace_var = @compat Dict{Any,Any}(:copy! => 1, :gemm! => 7)
 
 			fn = ex.args[1]
 			haskey(inplace_var, fn) || error("[varGraph!] unknown function $(ex.args[1])")
