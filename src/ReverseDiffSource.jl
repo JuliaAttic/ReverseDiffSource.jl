@@ -1,4 +1,5 @@
 module ReverseDiffSource
+using Compat
 
 	include("reversediff.jl")
 
