@@ -35,7 +35,7 @@ function unfold!(m::ParsingStruct)
 	end
 
 	function explore(ex::ExCall) 
-		na = {ex.args[1]}   # function name
+		na = Any[ex.args[1]]   # function name
 		args = ex.args[2:end]  # arguments
 
 		# if more than 2-ary call, convert to nested 2-ary calls
@@ -88,7 +88,7 @@ function varGraph(vex::Vector{Expr})
 		ex = substSymbols(ex, subst) # first, do renaming
 		if isa(ex, ExCall)
 			#  where to look for changed variable, TODO : generalize, make user settable
-			const inplace_var = {:copy! => 1, :gemm! => 7 }
+			const inplace_var = Dict{Any,Any}(:copy! => 1, :gemm! => 7)
 
 			fn = ex.args[1]
 			haskey(inplace_var, fn) || error("[varGraph!] unknown function $(ex.args[1])")
@@ -104,7 +104,7 @@ function varGraph(vex::Vector{Expr})
 			rhss = getSymbols( ex.args[2] )
 		end
 		
-		external = union(external, {setdiff(rhss, touched)...})
+		external = union(external, Any[setdiff(rhss, touched)...])
 		in(lhss, external) && error("$lhss is both an external variable and a variable set by the model")
 
 		if in(lhss, touched) # ex is setting an already set variable => new var creation

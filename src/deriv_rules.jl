@@ -14,7 +14,7 @@ function deriv_rule(func::Expr, dv::Symbol, diff::Expr)
 	index = find(dv .== argsn)[1]
 
 	# change var names in signature and diff expr to x1, x2, x3, ..
-	smap = { argsn[i] => symbol("x$i") for i in 1:length(argsn) }
+	smap = Dict{Any,Any}([argsn[i] => symbol("x$i") for i in 1:length(argsn)])
 	# symbols for distributions
 	smap[ symbol("d$dv")] = symbol("drec") 
 	# notation for composite type derivatives
