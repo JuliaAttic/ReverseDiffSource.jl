@@ -39,7 +39,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 	function rev(n::NCall)
 		op = n.parents[1].main
 		for (index, arg) in enumerate(n.parents)
-			if !isa(arg, Union(NConst, NComp))
+			if !isa(arg, @compat Union{NConst, NComp})
 				# haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
 				# ddict = drules[(op, index-1)]
                 ddict = getrule(op, index-1)

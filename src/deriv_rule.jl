@@ -32,8 +32,8 @@ macro deriv_rule(func::Expr, dv::Symbol, diff)
     deriv_rule(emod.eval(func.args[1]), collect(zip(ss, ts)), dv, diff)
 end
 
-function deriv_rule(func::Union(Function, Type),
-    args::Vector, dv::Symbol, diff::Union(Expr, Symbol, Real))
+function deriv_rule(func::@compat(Union{Function, Type}),
+    args::Vector, dv::Symbol, diff::@compat(Union{Expr, Symbol, Real}))
     # func = colon ; args= [(:x,Any), (:y,Any)] ; dv = :x ; diff = 0.
     emod = current_module()
 

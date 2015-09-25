@@ -110,7 +110,7 @@ function tocode(g::ExGraph)
     ### do a precount of nodes references setfield/index or getfield/index
     nref3 = Dict(zip(g.nodes, falses(length(g.nodes))))
     for n in g.nodes
-        if isa(n, Union(NSRef, NSDot, NRef, NDot))
+        if isa(n, @compat(Union{NSRef, NSDot, NRef, NDot}))
             nref3[n.parents[1]] = true
         end
     end
@@ -121,7 +121,7 @@ function tocode(g::ExGraph)
         n.val = translate(n)       # translate to Expr
         stat, lhs = ispivot(n, g, nref1, nref2, nref3)
 
-        if stat && isa(n, Union(NSRef, NSDot))
+        if stat && isa(n, @compat(Union{NSRef, NSDot}))
             push!(out, n.val)
             n.val = n.parents[1].val
 
@@ -179,11 +179,11 @@ end
 #####################################################################
 
 # always print nodes that change a variable's state
-ispivot(n::Union(NSRef, NSDot, NFor), 
+ispivot(n::@compat(Union{NSRef, NSDot, NFor}), 
         g::ExGraph, nref1, nref2, nref3) = (true, nothing)
 
 # print only if names are linked
-function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph, 
+function ispivot(n::@compat(Union{NExt, NRef, NDot}), g::ExGraph, 
                  nref1, nref2, nref3)
     sym = getname(n, g)
     sym != nosym && return (true, sym)
@@ -236,7 +236,7 @@ function ispivot(n::NIn, g::ExGraph, nref1, nref2, nref3)
 end
 
 
-function ispivot(n::Union(NCall, NComp), g::ExGraph, nref1, nref2, nref3)
+function ispivot(n::@compat( Union{NCall, NComp}), g::ExGraph, nref1, nref2, nref3)
     sym = getname(n, g)
 
     # it has a name assigned
@@ -248,7 +248,7 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph, nref1, nref2, nref3)
     nref2[n] && return (true, nosym)
 
     # it is used in a setfield/index or getfield/index 
-    # any(x -> isa(x, Union(NSRef, NSDot, NRef, NDot)) && n == x.parents[1], g.nodes) &&
+    # any(x -> isa(x, @compat( Union{NSRef, NSDot, NRef, NDot})) && n == x.parents[1], g.nodes) &&
     #   return (true, nosym)
     nref3[n] && return (true, nosym)
 

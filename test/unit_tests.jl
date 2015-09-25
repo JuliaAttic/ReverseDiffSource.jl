@@ -116,7 +116,7 @@
                  (Float64, Int64), 
                  (Float64,), 
                  (Int64,), 
-                 (String,),
+                 (AbstractString,),
                  (Any,),
                  (Any, Any) ]
 
@@ -126,7 +126,7 @@
       @test m.tmatch((Float64,Int32), tts)     == (Real,Real)
       @test m.tmatch((Any, Real), tts)         == (Any,Any)
       @test m.tmatch((Float64, Int, Int), tts) == nothing
-      @test m.tmatch((String,), tts)           == (String,)
+      @test m.tmatch((AbstractString,), tts)   == (AbstractString,)
       @test m.tmatch((Float32,), tts)          == (Real,)
       @test m.tmatch((Float64,Real), tts)      == (Real,Real)
       @test m.tmatch((Float64,Float64), tts)   == (Float64,Float64)
@@ -140,7 +140,7 @@
                  Tuple{Float64, Int64}, 
                  Tuple{Float64}, 
                  Tuple{Int64}, 
-                 Tuple{String},
+                 Tuple{AbstractString},
                  Tuple{Any},
                  Tuple{Any, Any} ]
 
@@ -150,7 +150,7 @@
       @test m.tmatch(Tuple{Float64,Int32}, tts)     == Tuple{Real,Real}
       @test m.tmatch(Tuple{Any, Real}, tts)         == Tuple{Any,Any}
       @test m.tmatch(Tuple{Float64, Int, Int}, tts) == nothing
-      @test m.tmatch(Tuple{String}, tts)            == Tuple{String}
+      @test m.tmatch(Tuple{AbstractString}, tts)    == Tuple{AbstractString}
       @test m.tmatch(Tuple{Float32}, tts)           == Tuple{Real}
       @test m.tmatch(Tuple{Float64,Real}, tts)      == Tuple{Real,Real}
       @test m.tmatch(Tuple{Float64,Float64}, tts)   == Tuple{Float64,Float64}
