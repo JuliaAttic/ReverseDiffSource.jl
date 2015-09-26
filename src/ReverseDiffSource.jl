@@ -4,7 +4,7 @@
 #
 #########################################################################
 
-VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
+__precompile__(true)
 
 module ReverseDiffSource
 
@@ -18,7 +18,7 @@ module ReverseDiffSource
   const DERIV_PREFIX = "d"   # prefix of gradient variables
 
   ## misc functions
-  dprefix(v::Union(Symbol, String, Char)) = symbol("$DERIV_PREFIX$v")
+  dprefix(v::Union{Symbol, AbstractString, Char}) = symbol("$DERIV_PREFIX$v")
 
   isSymbol(ex)   = isa(ex, Symbol)
   isDot(ex)      = isa(ex, Expr) && ex.head == :.   && isa(ex.args[1], Symbol)
@@ -28,7 +28,7 @@ module ReverseDiffSource
   let
     vcount = Dict()
     global newvar
-    function newvar(radix::Union(String, Symbol)=TEMP_NAME)
+    function newvar(radix::Union{AbstractString, Symbol}=TEMP_NAME)
       vcount[radix] = haskey(vcount, radix) ? vcount[radix]+1 : 1
       return symbol("$(radix)$(vcount[radix])")
     end
@@ -62,7 +62,6 @@ module ReverseDiffSource
 
   ######  Initializations (for the deriv rules)  ######
   __init__() = include(joinpath(Pkg.dir("ReverseDiffSource"), "src/base_rules.jl"))
-  VERSION < v"0.3-" && __init__()  # call explicitly __init__ for older julias
 
 end # module ReverseDiffSource
 

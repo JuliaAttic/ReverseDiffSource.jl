@@ -31,8 +31,7 @@ function tocode(g::ExGraph)
         # special translation cases
         op = n.parents[1].main
         if op == vcat
-            vs = VERSION >= v"0.4-" ? :vect : :vcat
-            return Expr(         vs, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+            return Expr(      :vect, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         elseif op == colon
             return Expr(       :(:), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         elseif op == transpose
@@ -110,7 +109,7 @@ function tocode(g::ExGraph)
     ### do a precount of nodes references setfield/index or getfield/index
     nref3 = Dict(zip(g.nodes, falses(length(g.nodes))))
     for n in g.nodes
-        if isa(n, Union(NSRef, NSDot, NRef, NDot))
+        if isa(n, Union{NSRef, NSDot, NRef, NDot})
             nref3[n.parents[1]] = true
         end
     end
@@ -121,7 +120,7 @@ function tocode(g::ExGraph)
         n.val = translate(n)       # translate to Expr
         stat, lhs = ispivot(n, g, nref1, nref2, nref3)
 
-        if stat && isa(n, Union(NSRef, NSDot))
+        if stat && isa(n, Union{NSRef, NSDot})
             push!(out, n.val)
             n.val = n.parents[1].val
 
@@ -179,11 +178,11 @@ end
 #####################################################################
 
 # always print nodes that change a variable's state
-ispivot(n::Union(NSRef, NSDot, NFor), 
+ispivot(n::Union{NSRef, NSDot, NFor}, 
         g::ExGraph, nref1, nref2, nref3) = (true, nothing)
 
 # print only if names are linked
-function ispivot(n::Union(NExt, NRef, NDot), g::ExGraph, 
+function ispivot(n::Union{NExt, NRef, NDot}, g::ExGraph, 
                  nref1, nref2, nref3)
     sym = getname(n, g)
     sym != nosym && return (true, sym)
@@ -236,7 +235,7 @@ function ispivot(n::NIn, g::ExGraph, nref1, nref2, nref3)
 end
 
 
-function ispivot(n::Union(NCall, NComp), g::ExGraph, nref1, nref2, nref3)
+function ispivot(n::Union{NCall, NComp}, g::ExGraph, nref1, nref2, nref3)
     sym = getname(n, g)
 
     # it has a name assigned
@@ -248,7 +247,7 @@ function ispivot(n::Union(NCall, NComp), g::ExGraph, nref1, nref2, nref3)
     nref2[n] && return (true, nosym)
 
     # it is used in a setfield/index or getfield/index 
-    # any(x -> isa(x, Union(NSRef, NSDot, NRef, NDot)) && n == x.parents[1], g.nodes) &&
+    # any(x -> isa(x, Union{NSRef, NSDot, NRef, NDot}) && n == x.parents[1], g.nodes) &&
     #   return (true, nosym)
     nref3[n] && return (true, nosym)
 

@@ -11,7 +11,7 @@
 function zeronode(n)  
     v = n.val
 
-    if isa(v, Union(Real, Symbol, DataType, TypeConstructor, Function, Module))
+    if isa(v, Union{Real, Symbol, DataType, TypeConstructor, Function, Module})
         return tograph( :(0.) )
 
     elseif isa(v, Range)

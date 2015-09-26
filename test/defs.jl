@@ -31,8 +31,8 @@ good_enough(x,y) = isfinite(x) ? (abs(x-y) / max(ERROR_THRESHOLD, abs(x))) < ERR
 good_enough(t::Tuple) = good_enough(t[1], t[2])
 
 #  Compares numerical gradient to automated gradient
-function compare( ex::Union(Expr, Symbol), 
-                  x0::Union(Float64, Vector{Float64}, Matrix{Float64}) )
+function compare( ex::Union{Expr, Symbol}, 
+                  x0::Union{Float64, Vector{Float64}, Matrix{Float64}} )
     nx = length(x0)  
 
     if isa(ex, Expr)
