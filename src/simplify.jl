@@ -64,7 +64,7 @@ end
 ## mark nodes that can't be fused because they are modified by a setindex/setfield or a for loop
 function markalloc!(g::ExGraph)
 	for n in g.nodes
-		if isa(n, @compat Union{NSRef, NSDot})
+		if isa(n, Union{NSRef, NSDot})
 			n.parents[1].alloc = true
 
 		elseif isa(n, NFor)

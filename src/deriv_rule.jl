@@ -32,14 +32,11 @@ macro deriv_rule(func::Expr, dv::Symbol, diff)
     deriv_rule(emod.eval(func.args[1]), collect(zip(ss, ts)), dv, diff)
 end
 
-function deriv_rule(func::@compat(Union{Function, Type}),
-    args::Vector, dv::Symbol, diff::@compat(Union{Expr, Symbol, Real}))
-    # func = colon ; args= [(:x,Any), (:y,Any)] ; dv = :x ; diff = 0.
+function deriv_rule(func::Union{Function, Type},
+    args::Vector, dv::Symbol, diff::Union{Expr, Symbol, Real})
     emod = current_module()
 
-    sig = VERSION < v"0.4.0-dev+4319" ?
-            tuple( Type[ e[2] for e in args ]... ) :
-            Tuple{ Type[ e[2] for e in args ]... }
+    sig = Tuple{ Type[ e[2] for e in args ]... }
 
     ss  = Symbol[ e[1] for e in args ]
 
@@ -76,11 +73,7 @@ end
 
 #### Type tuple matching  (naive multiple dispatch)
 function tmatch(sig, keys)
-    if VERSION < v"0.4.0-dev+4319"
-        keys2 = filter(k -> length(k) == length(sig), keys)
-    else
-        keys2 = filter(k -> length(k.parameters) == length(sig.parameters), keys)
-    end
+    keys2 = filter(k -> length(k.parameters) == length(sig.parameters), keys)
     sort!(keys2, lt=issubtype)
     idx = findfirst(s -> sig <: s, keys2)
     return idx==0 ? nothing : keys2[idx]
