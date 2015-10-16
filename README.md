@@ -3,9 +3,9 @@ ReverseDiffSource.jl
 
 _Reverse automated differentiation from an expression or a function_
 
-|Julia 0.3 | Julia 0.4 | Julia 0.5 | master (on nightly + release) | Coverage |
-|:-------------:|:-----------:|:-----------:|:-----------:|:-----------:|
-|[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.3.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.3) | [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.4.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.4) | [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.5.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.5)| [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=master)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl) | [![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=master) |
+|Julia 0.3 | Julia 0.4 | master (on nightly + release) | Coverage |
+|:--------:|:---------:|:-----------------------------:|:-----------:|
+|[![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.3.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.3) | [![ReverseDiffSource](http://pkg.julialang.org/badges/ReverseDiffSource_0.4.svg)](http://pkg.julialang.org/?pkg=ReverseDiffSource&ver=0.4) | [![Build Status](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl.svg?branch=master)](https://travis-ci.org/JuliaDiff/ReverseDiffSource.jl) | [![Coverage Status](https://coveralls.io/repos/JuliaDiff/ReverseDiffSource.jl/badge.png?branch=master)](https://coveralls.io/r/JuliaDiff/ReverseDiffSource.jl?branch=master) |
 
 This package provides a function `rdiff()` that generates valid Julia code for the calculation of derivatives up to any order for a user supplied expression or generic function. Install with `Pkg.add("ReverseDiffSource")`. Package documentation and examples can be found [here](http://reversediffsourcejl.readthedocs.org/en/master/index.html).
 

@@ -54,6 +54,14 @@ ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  y     ds[2]
 ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  x     ds[3]
 ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  t     ds[4]
 
+# reshape
+ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        x    reshape(ds, size(x))
+ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        a    0.
+ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        b    0.
+ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    x    reshape(ds, size(x))
+ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    d    0.
+
+
 # square root
 ReverseDiffSource.@deriv_rule sqrt(x::Real)              x     0.5 * x ^ (-0.5) * ds
 ReverseDiffSource.@deriv_rule sqrt(x::AbstractVector)    x     0.5 .* x .^ (-0.5) .* ds
