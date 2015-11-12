@@ -232,9 +232,29 @@ function show(io::IO, g::Graph)
 
 end
 
+function show(io::IO, g::Graph)
+  slocs = Array(UTF8String, length(g.locs)+1, 4)
+  slocs[1,:] = ["#" "type" "val" "var(s)"]
+  for (i,l) in enumerate(g.locs) # i,l = 1, g.locs[1]
+      vs = collect(keys(filter((k,v) -> v==l, g.vars)))
+      slocs[i+1,:] = map(string, Any[i, l.typ, l.val, join(vs, ",")])
+  end
+  sz = maximum(map(length, slocs),1)
+  for i in 1:size(slocs,1)
+    for j in 1:size(slocs,2)
+      l = length(slocs[i,j])
+      print(io, " " ^ (sz[j]-l), slocs[i,j], " ")
+    end
+    println()
+  end
+end
+
+
+a = ["abcd" :sd ; 465464 12+im]
+println(a)
 
 
 g
-showall(g)
+show(g)
 
 end # of module A
