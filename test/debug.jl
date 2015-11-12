@@ -16,6 +16,8 @@ module A
 end
 
 module A
+using ReverseDiffSource
+ReverseDiffSource.__init__()
 import ReverseDiffSource: tocode, tograph
 
 ex = :( tmp= x' * ones(2,2) ; tmp[1] )
@@ -35,3 +37,15 @@ end
 
 A.g
 A.g == *
+
+module B ; end
+
+module B
+
+type
+
+
+
+
+
+end
