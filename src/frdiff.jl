@@ -7,7 +7,7 @@
 ### main function
 
 function rdiff(f::Function, sig0::Tuple; args...)
-    # f = tf ; sig0 = (0.,)
+    # f = Main.foo ; sig0 = (1,1,1)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -29,7 +29,7 @@ end
 ### translation functions to recover a workable expression that can be differentiated
 
 # Simplifies expressions for processing
-#  - removes Topnodes and linenumbers, 
+#  - removes Topnodes and linenumbers,
 #  - replaces GenSym() with actual symbol
 function streamline(ex0::Expr)
     ex = copy(ex0)
@@ -50,11 +50,11 @@ function streamline(ex0::Expr)
              end
         push!(args, ar)
     end
-    Expr(ex.head, args...)   
+    Expr(ex.head, args...)
 end
 
 # converts expression to searchable strings
-function _e2s(ex::Expr, escape=false) 
+function _e2s(ex::Expr, escape=false)
     ex.head == :macrocall && ex.args[1] == symbol("@rg_str") && return(ex.args[2])
 
     if ex.head == :call && ex.args[1] == :gotoifnot
@@ -105,7 +105,7 @@ end
 
 
 # converts searchable strings back to expressions
-function _s2e(s::AbstractString, pos=1) 
+function _s2e(s::AbstractString, pos=1)
     cap = match( r"↑([^→↓]*)(.*)", s, pos )
     if cap == nothing # skip junk characters (Labelnodes,..) and return
         cap = match( r".*?↑(.*)", s, pos )
@@ -122,7 +122,7 @@ function _s2e(s::AbstractString, pos=1)
         cap1 = cap.captures[1]
         if cap1[1] == '↑'
             ex, pos2 = _s2e(s, cap.offsets[1])
-        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes        
+        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
             ex = QuoteNode(symbol(cap1[4:end-1]))
             pos2 = cap.offsets[2]
         elseif cap1[1] == ':'        # symbols
@@ -195,7 +195,3 @@ function transform(ex::Expr)
 
     tex
 end
-
-
-
-
