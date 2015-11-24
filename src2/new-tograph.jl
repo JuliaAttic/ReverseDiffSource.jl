@@ -35,53 +35,51 @@ isSymbol(ex)   = isa(ex, Symbol)
 isDot(ex)      = isa(ex, Expr) && ex.head == :.   && isa(ex.args[1], Symbol)
 isRef(ex)      = isa(ex, Expr) && ex.head == :ref && isa(ex.args[1], Symbol)
 
-
-type Env
-  eval::Function
-  isdefined::Function
-  isconst::Function
-  mark::Function
+function modenv(m::Module=current_module())
+  s -> begin
+    isdefined(m, s) || return (false, nothing, nothing, nothing)
+    (true, eval(m,s), isconst(m,s), nothing)
+  end
 end
 
-modenv(m::Module=current_module()) = Env(ex -> eval(m, ex),
-                             s -> isdefined(m, s),
-                             s -> isconst(m, s),
-                             s -> error("can't modify variable outside function ($s)"))
-
-current_module()
-env = modenv(A)
-env.eval(:a)
-env.isconst(:a)
-env.isdefined(:z)
-env.isdefined(:y)
-
-env = modenv()
-env.eval(:a)
-env.isconst(:a)
-env.isdefined(:z)
-env.isdefined(:y)
-
-# function modenv(s::Symbol, m::Module=A)
-#   isdefined(m, s) && return eval(m, s)
-#   error("[tograph] undefined symbol $s")
-# end
-
-function tograph(s, env::Env=modenv())  # env = modenv
-  # ex = :( z.x )
-  #  this level graph
+# graph is to be created
+# entry point for top level (Graph is created)
+function tograph(ex::Expr, env=modenv())
   g = Graph()
+  tograph(ex, env, g)
+end
+# tograph(m::Method, env)
+
+# graph is pre-existing
+function blockparse(ex::ExFor, env, g)
+  # new scope, new env w/ local symbols dict
+  # returns ForBlock
+  # env with indexing variables added ?
+  tograph(ex, env, g, isclosure=true)
+end
+
+function blockparse(ex::ExIf, env, g)
+  # same scope, same env
+  # returns IfBlock
+end
+
+# both above call....
+
+# entry point for top level
+function tograph(ex, env=modenv(), g=Graph(), isclosure=true)  # env = modenv  # ex = :( z.x )
+  # isclosure = true  => new loc have no symbol in g
+  # isclosure = false => new loc have a symbol in g
+
   add!(l::Loc) = (push!(g.locs,l) ; l)
   add!(o::Op)  = (push!(g.ops, o) ; o)
-
-  localenv = Env()
 
   # AST exploration functions
   explore(ex::Any)       = error("[tograph] unmanaged type $ex ($(typeof(ex)))")
   explore(ex::Expr)      = explore(toExH(ex))
   explore(ex::ExH)       = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
 
-  explore(ex::ExLine)         = nothing     # remove line info
-  explore(ex::LineNumberNode) = nothing     # remove line info
+  explore(ex::ExLine)         = nothing     # ignore line info
+  explore(ex::LineNumberNode) = nothing     # ignore line info
 
   explore(ex::QuoteNode) = add!(CLoc(ex))  # consider as constant
 
@@ -93,6 +91,7 @@ function tograph(s, env::Env=modenv())  # env = modenv
   explore(ex::ExTrans)   = explore(Expr(:call, :transpose, ex.args[1]) )  # translate to transpose() and explore
   explore(ex::ExColon)   = explore(Expr(:call, :colon, ex.args...) )  # translate to colon() and explore
   explore(ex::ExTuple)   = explore(Expr(:call, :tuple, ex.args...) )  # translate to tuple() and explore
+  explore(ex::ExComp)    = explore(Expr(:call, ex.args[2], ex.args[1], ex.args[3]) )
 
   explore(ex::ExPEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :+, args[1], args[2])) ) )
   explore(ex::ExMEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :-, args[1], args[2])) ) )
@@ -105,8 +104,7 @@ function tograph(s, env::Env=modenv())  # env = modenv
 
   # explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
-  # explore(ex::ExDot)     = addnode!(g, NDot(ex.args[2],     [ explore(ex.args[1]) ]))
-  explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...))
+  explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...)) # TODO : collapse Modules ?
   explore(ex::ExRef)     = explore(Expr(:call, :getindex, ex.args...))
 
   # ex = Expr(:call, :getfield, ex.args...)

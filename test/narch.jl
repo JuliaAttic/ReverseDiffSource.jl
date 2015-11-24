@@ -1,7 +1,9 @@
 # locations instead of symbols
 # dict symbol -> loc
-# loc have previous states (for mutating functions)
+# (No) : loc have previous states (for mutating functions)
 # deriv rules as real functions in a dedicated sub module
+# Loc at parent level only
+
 
 module A; end
 
@@ -82,6 +84,8 @@ getindex(a, 5:end)  # does not work
 
 type Z ; x ; y ; end
 z = Z(1,2)
+typeof(z)
+typeof(A)
 
 g = tograph( :( z.x ) )
 show(g)
