@@ -1,11 +1,15 @@
 
+# name for exit variable
+const EXIT_SYM = :_result
 
 type Loc{T}  # regular, constant, external
     typ::DataType
     val::Any
+
+    Loc(x) = new(typeof(x), x)
 end
 
-Loc{T}(x) = Loc{T}(typeof(x), x)
+# Loc{T}(x) = Loc{T}(typeof(x), x)
 
 typealias CLoc Loc{:constant}  # constants
 typealias ELoc Loc{:external}  # external
@@ -13,10 +17,10 @@ typealias RLoc Loc{:regular}   # regular
 
 loctype{T}(l::Loc{T}) = T
 
-abstract Block   # abstract type for 'ifblock', 'for block', etc..
+abstract Block   # abstract type for 'ifblock', 'forblock', etc..
 
 type Op
-    f::Union{Function, Block}
+    f::Loc
     asc::Vector{Loc}  # parent Loc (function arguments)
     desc::Vector{Loc} # descendant Loc (Loc modified/created by function)
 end
@@ -45,7 +49,7 @@ function show(io::IO, g::Graph)
   slocs = Array(UTF8String, length(g.locs)+1, 5)
   slocs[1,:] = ["#", "type", "symbol(s)", "cat", "val" ]
   for (i,l) in enumerate(g.locs) # i,l = 1, g.locs[1]
-    vs = keys(filter((k,v) -> v===l, g.vars))
+    vs = keys(filter((k,v) -> v===l, g.symbols))
     slocs[i+1,:] = map(string, Any[i, l.typ, join(vs, ","), loctype(l), l.val])
   end
   printtable(slocs)

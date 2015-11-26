@@ -31,12 +31,12 @@ typealias ExReturn   ExH{:return}
 typealias ExBody     ExH{:body}
 typealias ExQuote    ExH{:QuoteNode}
 
-isSymbol(ex)   = isa(ex, Symbol)
-isDot(ex)      = isa(ex, Expr) && ex.head == :.   && isa(ex.args[1], Symbol)
-isRef(ex)      = isa(ex, Expr) && ex.head == :ref && isa(ex.args[1], Symbol)
+isSym(ex)   = isa(ex, Symbol)
+isDot(ex)   = isa(ex, Expr) && ex.head == :.   # && isa(ex.args[1], Symbol)
+isRef(ex)   = isa(ex, Expr) && ex.head == :ref # && isa(ex.args[1], Symbol)
 
 function modenv(m::Module=current_module())
-  s -> begin
+  function lookup(s::Symbol)
     isdefined(m, s) || return (false, nothing, nothing, nothing)
     (true, eval(m,s), isconst(m,s), nothing)
   end
@@ -45,8 +45,9 @@ end
 # graph is to be created
 # entry point for top level (Graph is created)
 function tograph(ex::Expr, env=modenv())
-  g = Graph()
-  tograph(ex, env, g)
+  g, ops = tograph(ex, env, Graph())
+  g.ops  = ops
+  g
 end
 # tograph(m::Method, env)
 
@@ -66,12 +67,15 @@ end
 # both above call....
 
 # entry point for top level
-function tograph(ex, env=modenv(), g=Graph(), isclosure=true)  # env = modenv  # ex = :( z.x )
+function tograph(ex, env, g::Graph, isclosure=false)  # env = modenv  # ex = :( z.x )
   # isclosure = true  => new loc have no symbol in g
   # isclosure = false => new loc have a symbol in g
 
+  symbols = isclosure ? copy(g.symbols) : g.symbols
+  ops     = Vector{Op}()
+
   add!(l::Loc) = (push!(g.locs,l) ; l)
-  add!(o::Op)  = (push!(g.ops, o) ; o)
+  add!(o::Op)  = (push!(ops, o) ; o)
 
   # AST exploration functions
   explore(ex::Any)       = error("[tograph] unmanaged type $ex ($(typeof(ex)))")
@@ -81,7 +85,7 @@ function tograph(ex, env=modenv(), g=Graph(), isclosure=true)  # env = modenv  #
   explore(ex::ExLine)         = nothing     # ignore line info
   explore(ex::LineNumberNode) = nothing     # ignore line info
 
-  explore(ex::QuoteNode) = add!(CLoc(ex))  # consider as constant
+  explore(ex::QuoteNode) = add!(CLoc(ex.value))  # consider as constant
 
   explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
 
@@ -104,60 +108,78 @@ function tograph(ex, env=modenv(), g=Graph(), isclosure=true)  # env = modenv  #
 
   # explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
 
-  explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...)) # TODO : collapse Modules ?
+  explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...))
   explore(ex::ExRef)     = explore(Expr(:call, :getindex, ex.args...))
 
-  # ex = Expr(:call, :getfield, ex.args...)
-
   function explore(ex::Symbol)
-      haskey(g.vars, ex) && return g.vars[ex]
+      haskey(symbols, ex) && return symbols[ex]
+      # if not known, then it is a new external
+      isdef, val, iscst, _ = env(ex)
+      isdef || error("symbol $ex is not defined")
 
-      val = env(ex)
-      nloc = ELoc(val)
-      g.vars[ex] = nloc
+      nloc = iscst ? CLoc(val) : ELoc(val)
+      symbols[ex] = nloc
       add!(nloc)  # return Loc
   end
 
   function explore(ex::ExCall) # TODO :  treat func that return several values
-      sf  = ex.args[1]
+      floc  = explore(ex.args[1])
+      esf   = floc.val
 
-      largs = map(explore, ex.args[2:end])
-      val = eval(Expr(:call, sf, [x.val for x in largs]...))
+      largs = map(explore, ex.args[2:end]) # explore arguments
+      val = (esf)([x.val for x in largs]...)
 
-      if string(sf)[end] == '!' # mutating ? TODO : generalize with rules
-        nloc = largs[1]
+      if sprint(show, esf)[end] == '!' # mutating ? TODO : generalize with rules
+          nloc = largs[1]
+          loctype(nloc)==:external &&
+            error("attempt to modify an external variable in $(toExpr(ex))")
+      elseif esf in [getindex, getfield] # propagate type of object to result
+          # if module mark as external directly
+          ntyp = largs[1].typ==Module ? :external : loctype(largs[1])
+          nloc = Loc{ntyp}(val)
+          add!(nloc)
       else
-        nloc = Loc(val)
-        add!(nloc)
+          nloc = RLoc(val)
+          add!(nloc)
       end
 
-      add!( Op(eval(sf), largs, [nloc;]) )
+      add!( Op(floc, largs, [nloc;]) )
       nloc  # return Loc of result
   end
 
   function explore(ex::ExEqual) #  ex = toExH(:(a = sin(2)))
-    lhs = ex.args[1]
+    lhs, rhs = ex.args
 
     if isa(lhs, Symbol)
-      rloc = explore(ex.args[2])
+      if haskey(symbols, lhs)
+        lloc = symbols[lhs]
+        loctype(lloc)==:external &&
+        error("attempt to modify an external variable in $(toExpr(ex))")
+      else
+        isdef, val = env(lhs)
+        isdef && error("attempt to modify an external variable in $(toExpr(ex))")
+      end
+
+      rloc = explore(rhs)
+
       if isbits(rloc.typ)  # bitstype => '=' is a copy
-        nloc = Loc(rloc.typ, rloc.val)
-        add!( Op(copy, [rloc;], [nloc;]) )
+        nloc = RLoc(rloc.val)
+        floc = CLoc(copy)
+        add!(floc)
+        add!( Op(floc, [rloc;], [nloc;]) )
         add!(nloc)
-      else  # array or composite type => '=' is a reference copy
+      else  # array or composite type => '=' is a reference
         nloc = rloc
       end
-      g.vars[lhs] = nloc
+      symbols[lhs] = nloc
       return nloc
 
     elseif isRef(lhs)   # x[i] = ....
-      lhss = lhs.args[1]
-      explore( Expr(:call, :setindex!, lhss, ex.args[2], lhs.args[2:end]...) )
+      explore( Expr(:call, :setindex!, lhs.args[1], rhs, lhs.args[2:end]...) )
       return nothing  # TODO : should return the Array
 
     elseif isDot(lhs)   # x.field = ....
-      lhss = lhs.args[1]
-      explore( Expr(:call, :setfield!, lhss, lhs.args[2], ex.args[2]) )
+      explore( Expr(:call, :setfield!, lhs.args[1], lhs.args[2], rhs) )
       return nothing  # TODO : should return the composite type
 
     else
@@ -173,12 +195,10 @@ function tograph(ex, env=modenv(), g=Graph(), isclosure=true)  # env = modenv  #
       #       end
   end
 
-  exitnode = explore(s)
-  # exitnode = nothing if only variable assigments in expression
-  #          = ExNode of last calc otherwise
+  exitloc = explore(ex)
 
   # id is 'nothing' for unnassigned last statement
-  exitnode!=nothing && ( g.vars[nothing] = exitnode )
+  exitloc != nothing && ( symbols[EXIT_SYM] = exitloc )
 
     # # Resolve external symbols that are Functions, DataTypes or Modules
     # # and turn them into constants
@@ -194,7 +214,7 @@ function tograph(ex, env=modenv(), g=Graph(), isclosure=true)  # env = modenv  #
     #     end
     # end
 
-  g  # return graph
+  g, ops  # return graph and ops created
 end
 
 #

@@ -24,21 +24,21 @@ function tocode(g::Graph)
     vargs = Any[ getexpr(arg) for arg in o.asc ]
 
     # special translation cases
-    if o.f == vcat
+    if o.f.val == vcat
       return Expr(:vect, vargs...)
-    elseif o.f == colon
+    elseif o.f.val == colon
       return Expr( :(:), vargs...)
-    elseif o.f == transpose
+    elseif o.f.val == transpose
       return Expr(symbol("'"), vargs...)
-    elseif o.f == tuple
+    elseif o.f.val == tuple
       return Expr(:tuple, vargs...)
-    elseif o.f == getindex
+    elseif o.f.val == getindex
       return Expr( :ref, vargs...)
-    elseif o.f == getfield
+    elseif o.f.val == getfield
       return Expr(   :., vargs...)
-    elseif o.f == setindex!
+    elseif o.f.val == setindex!
       return Expr( :(=), Expr(:ref, vargs[1], vargs[3:end]...), vargs[2])
-    elseif o.f == setfield!
+    elseif o.f.val == setfield!
       return Expr( :(=), Expr(  :., vargs[1], vargs[2]), vargs[3])
     end
 
@@ -51,7 +51,7 @@ function tocode(g::Graph)
               # symbol(string(op)) )
 
     mt = try
-            thing_module(o.f)
+            thing_module(o.f.val)
          catch e
             error("[tocode] cannot find module of $op ($(typeof(op)))")
          end
@@ -71,29 +71,41 @@ function tocode(g::Graph)
   function getexpr(l::Loc) # l = g.locs[1]
     haskey(locex, l) && return locex[l]
     sym = 0
-    for (k,v) in g.vars ; v!=l && continue ; sym = k ; break ; end
+    for (k,v) in g.symbols ; v!=l && continue ; sym = k ; break ; end
     sym = sym!= 0 ? sym : newvar()
     locex[l] = sym
     sym
   end
 
-  function ispivot(o::Op)
-    true
+  function ispivot(o::Op, line) # o = A.g.ops[1] ; line = 1
+    g.symbols[EXIT_SYM] in o.desc && return true
+    # checks if desc appear several times afterward
+    #  (a mutating function resets the counter)
+    for l in o.desc # l = o.desc[1]
+      ct = 0
+      for o2 in g.ops[line+1:end]
+        ct += l in o2.asc
+        l in o2.desc && (ct = 0)
+        ct > 1 && return true
+      end
+    end
+    println(line)
+    false
   end
 
   out = Any[]
   opex  = Dict{Op, Any}()
   locex = Dict{Loc, Any}()
-  for o in g.ops #
+  for (line, o) in enumerate(g.ops) #
     opex[o] = translate(o)       # translate to Expr
 
     # TODO : manage multiple assignment
     if o.desc[1] in o.asc   # mutating Function
       push!(out, opex[o])
-    elseif ispivot(o) # assignment needed,
+    elseif ispivot(o, line) # assignment needed,
       sym = getexpr(o.desc[1])
       locex[o.desc[1]] = sym
-      if sym == nothing # terminal calculation
+      if sym == EXIT_SYM # terminal calculation
         push!(out, :( $(opex[o])) )
       else
         push!(out, :( $sym = $(opex[o])) )
@@ -103,5 +115,7 @@ function tocode(g::Graph)
     end
   end
 
-  return Expr(:block, out...)
+  length(out) == 0 && return nothing
+  length(out) == 1 && return out[1]
+  Expr(:block, out...)
 end
