@@ -10,8 +10,18 @@
 
 function simplify!(g, keep=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
 
-	# prune unecessary elements
-	lset = Set{Loc}([ g.symbols[s] for s in keep])
+	prune!(g, keep)
+	splitnary!(g)
+
+	fusecopies!(g)
+	prune!(g, keep)
+	g
+end
+
+# removes unecessary elements (as specified by 'keep')
+function prune!(g, keep)
+	keep2 = intersect(keep, keys(g.symbols))
+	lset = Set{Loc}([ g.symbols[s] for s in keep2])
 	for o in reverse(g.ops)
 		if any(l -> l in o.desc, lset)
 			union!(lset, o.asc)
@@ -21,8 +31,12 @@ function simplify!(g, keep=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
 	filter!(l -> l in lset, g.locs)
 	filter!(o -> any(l -> l in o.desc, lset), g.ops)
 	filter!((s,l) -> l in lset, g.symbols)
+	# TODO : cleanup subgraphs too
+	g
+end
 
-	# splits n-ary functions
+# splits n-ary functions into binary ones
+function splitnary!(g)
 	for (line, o) in enumerate(g.ops)
 		o.f.val in [+, *, sum, min, max] || continue
 		length(o.asc) > 2 || continue
@@ -32,9 +46,48 @@ function simplify!(g, keep=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
 		insert!(g.ops, line, Op(o.f, o.asc[1:2], [nloc;]))
 		o.asc = [nloc;o.asc[3:end]]
 	end
-
+	# TODO : cleanup subgraphs too
 	g
 end
+
+# removes redundant copies
+function fusecopies!(g)
+	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
+		o.f.val == copy || continue
+
+		if loctype(o.asc[1]) == :external # check that copy is not mutated
+			any(l -> o.desc[1] in l.desc, g.ops[line+1:end]) && continue
+		end
+
+		# is 'original' written to and 'copy' used afterward ?
+		writ, flag = false, false
+		for o2 in g.ops[line+1:end]
+			writ && o.desc[1] in o2.asc && (flag = true ; break)
+			writ = writ || o.asc[1] in o2.desc
+		end
+		# is 'copy' written to and 'original' used afterward ?
+		if !flag
+			writ = false
+			for o2 in g.ops[line+1:end]
+				writ && o.asc[1] in o2.asc && (flag = true ; break)
+				writ = writ || o.desc[1] in o2.desc
+			end
+		end
+
+		flag && continue # do not change
+
+		# replace occurences of copy by original
+		for o2 in g.ops[line+1:end]
+			o2.asc[ o2.asc .== o.desc[1] ] = o.asc[1]
+			o2.desc[ o2.desc .== o.desc[1] ] = o.asc[1]
+		end
+		for (k,v) in filter((k,v) -> v == o.desc[1], g.symbols)
+			g.symbols[k] = o.asc[1]
+		end
+		# TODO propagate to subgraphs
+	end
+end
+
 
 
 # function simplify!(g::ExGraph, emod = Main)

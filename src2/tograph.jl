@@ -44,7 +44,7 @@ end
 
 # graph is to be created
 # entry point for top level (Graph is created)
-function tograph(ex::Expr, env=modenv())
+function tograph(ex, env=modenv())
   g, ops = tograph(ex, env, Graph())
   g.ops  = ops
   g
@@ -66,7 +66,7 @@ end
 
 # both above call....
 
-# entry point for top level
+# entry point when graph exists
 function tograph(ex, env, g::Graph, isclosure=false)  # env = modenv  # ex = :( z.x )
   # isclosure = true  => new loc have no symbol in g
   # isclosure = false => new loc have a symbol in g
@@ -175,24 +175,14 @@ function tograph(ex, env, g::Graph, isclosure=false)  # env = modenv  # ex = :( 
       return nloc
 
     elseif isRef(lhs)   # x[i] = ....
-      explore( Expr(:call, :setindex!, lhs.args[1], rhs, lhs.args[2:end]...) )
-      return nothing  # TODO : should return the Array
+      return explore( Expr(:call, :setindex!, lhs.args[1], rhs, lhs.args[2:end]...) )
 
     elseif isDot(lhs)   # x.field = ....
-      explore( Expr(:call, :setfield!, lhs.args[1], lhs.args[2], rhs) )
-      return nothing  # TODO : should return the composite type
+      return explore( Expr(:call, :setfield!, lhs.args[1], lhs.args[2], rhs) )
 
     else
         error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
     end
-
-    nothing
-      # catch getindex, etc. qualified by a module
-      # sf2 = if isa(sf, Expr) && sf.head == :. && isa(sf.args[2], QuoteNode)
-      #         sf.args[2].value
-      #       else
-      #         nothing
-      #       end
   end
 
   exitloc = explore(ex)
