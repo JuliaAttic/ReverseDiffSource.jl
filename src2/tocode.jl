@@ -101,13 +101,23 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
     error("[tocode] some requested variables were not found : $vset")
   end
 
-  if length(g.ops) == 0 # if no op
-    for sym in exits
-      if sym == EXIT_SYM # terminal calculation
-        push!(out, :( $( getexpr(g.symbols[sym]) )) )
-      else
-        push!(out, :( $sym = $( getexpr(g.symbols[sym]) )) )
-      end
+  # if no op, just fetch constant/external associated
+  # to each exits requested
+  if length(g.ops) == 0
+    for l in g.locs
+      # symbols for that loc
+      syms = collect(keys(filter((k,v) -> v==l && k in exits, g.symbols)))
+      length(syms)==0 && continue
+      syms = setdiff(syms, [EXIT_SYM;]) # result is implicit, no need for assign
+      ex = reduce((x,y) -> Expr(:(=), x, y), getexpr(l), syms )
+      push!(out, ex)
+    # for sym in exits
+    #
+    #   if sym == EXIT_SYM # terminal calculation
+    #     push!(out, :( $( getexpr(g.symbols[sym]) )) )
+    #   else
+    #     push!(out, :( $sym = $( getexpr(g.symbols[sym]) )) )
+    #   end
     end
 
   else # run through each op
@@ -116,15 +126,24 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
     for (line, o) in enumerate(g.ops) #
       opex[o] = translate(o)       # translate to Expr
 
-      # TODO : manage multiple assignment
+
       if any(l -> l in lexits, o.desc) || ispivot(o, line) # assignment needed,
-        sym = getexpr(o.desc[1])
-        locex[o.desc[1]] = sym
-        if sym == EXIT_SYM # terminal calculation
-          push!(out, :( $(opex[o])) )
-        else
-          push!(out, :( $sym = $(opex[o])) )
-        end
+        # sym = getexpr(o.desc[1])
+        # locex[o.desc[1]] = sym
+        # if sym == EXIT_SYM # terminal calculation
+        #   push!(out, :( $(opex[o])) )
+        # else
+        #   push!(out, :( $sym = $(opex[o])) )
+        # end
+
+        rv = o.desc[1] # TODO : manage multiple assignment
+        syms = collect(keys(filter((k,v) -> v==rv && k in exits, g.symbols)))
+        length(syms)==0 && push!(syms, newvar())
+        syms = setdiff(syms, [EXIT_SYM;]) # result is implicit, no need for assign
+        ex = reduce((x,y) -> Expr(:(=), x, y), getexpr(rv), syms )
+        push!(out, ex)
+        locex[o.desc[1]] = syms[1]
+
       elseif o.desc[1] in o.asc   # mutating Function
         push!(out, opex[o])
       else # keep expression for later

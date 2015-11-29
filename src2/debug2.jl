@@ -11,14 +11,15 @@ module A
   begin
     using Base.Test
 
-    include("src2/ReverseDiffSource.jl")
-    include("src2/tograph.jl")
-    include("src2/tocode.jl")
-    include("src2/simplify.jl")
+    include("ReverseDiffSource.jl")
+    include("tograph.jl")
+    include("tocode.jl")
+    include("simplify.jl")
 
     # testing vars
     a, b = 2, 2.1
     B = ones(2)
+    D = rand(2,3,4)
     type Z ; x ; y ; end
     C = Z(1,2)
 
@@ -101,6 +102,12 @@ show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 ############################ testing #####################################
 
 fullcycle(:( x = 5 ; y = x+5 ; z = cos(y) ))
+ex = :( x = 5 ; y = x+5 ; z = cos(y) )
+g = simplify!(tograph(ex))
+g = tograph(ex)
+show(g)
+isfusable(g.locs[1], g.locs[3], g)
+
 fullcycle(:( x = 5 ; y = a+5 ; z = cos(y) ))
 
 fullcycle(:( x = 5 + 6 + 5))
@@ -139,13 +146,13 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:(Y=copy(B); Y[2]=a ; Y[1] ))   == cleanup(:(Y=copy(B); Y[2]=a ; Y[1]))
 
 @test fullcycle(:( a[2] = x ; y=a[3] ; y ))       == :(a[2] = x ; a[3])
-@test fullcycle(:( b = a ; b[2] = x; 1 + b[2] ))  == :(a[2] = x ; 1+a[2])
-@test fullcycle(:( x = a ; Y = copy(B) ; Y[2] = x; 1 + Y[1] ))  == :(a[2] = x ; 1+a[1])
+@test fullcycle(:( x = a ; Y = copy(B) ; Y[2] = x; 1 + Y[1] ))  ==
+         cleanup(:(Y = copy(B) ; Y[2] = a; 1 + Y[1]))
 @test fullcycle(:( B[1] + B[2] ))                 == :(B[1] + B[2])
 @test fullcycle(:( B[1:2] ))                      == :( B[1:2] )
-@test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] )) == Expr(:block, :( a = x ) )
-@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,3] )) == Expr(:block, :( a = x ) )
-@test fullcycle(:( a = x ; a[1:2,3] = a[1:2,4] ), x=ones(4,4)) == :( _tmp1 = 1:2 ; x[_tmp1,3] = x[_tmp1,4])
+@test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] ))  == :( X = copy(B) ; X[1:2] = X[1:2] )
+@test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))     == :( X = copy(D) ; X[1:2,3] = a )
+@test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) == :( X = copy(D) ; X[1:2,2] = D[1:2,3] )
 
 @test fullcycle(:( B[:] ))               == Expr(:block, :( x[1:length(x)] ) )
 @test fullcycle(:( B[a+b, c:d] ))        == Expr(:block, :( x[a + b,c:d] ) )
@@ -154,7 +161,7 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
 
 @test fullcycle(:( C.x ))                       == :( C.x )
-@test fullcycle(:( y=C.x ))                     == :(y = C.x )
+@test fullcycle(:( y=C.x ))                     == :( C.x )
 @test fullcycle(:( y=C.x + 1 ; C.y + C.x ))     == :(C.y + C.x)
 @test fullcycle(:( X=Z(0,0); X.x=a ))           == :( a )
 @test fullcycle(:( X=Z(0,0); X.x=a; y=X.y; y )) == cleanup(:(X=A.Z(0,0);X.x=a; y=X.y))

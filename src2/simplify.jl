@@ -50,41 +50,53 @@ function splitnary!(g)
 	g
 end
 
+
+# check that 'cpy' can be replaced by 'org'
+# line is the optional beginning of search
+function isfusable(org::Loc, cpy::Loc, g::Graph, line=1) # org, cpy, g = A.g.locsA.g
+	# if org is external, checks that copy is not mutated
+	if loctype(org) == :external
+		any(l -> cpy in l.desc, g.ops[line+1:end]) && return false
+	end
+
+	# is 'org' written to and 'cpy' used afterward ?
+	writ, flag = false, false
+	for o2 in g.ops[line:end]
+		writ && cpy in o2.asc && return false
+		writ = writ || org in o2.desc
+	end
+
+	# is 'cpy' written to and 'org' used afterward ?
+	writ = false
+	for o2 in g.ops[line:end]
+		writ && org in o2.asc && return false
+		writ = writ || cpy in o2.desc
+	end
+
+	true
+end
+
+# replaces occurrences of 'cpy' by 'org'
+function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.locs[3], A.g
+	for o2 in g.ops
+		o2.asc[  o2.asc  .== cpy ] = org
+		o2.desc[ o2.desc .== cpy ] = org
+	end
+	for (k,v) in filter((k,v) -> v == cpy, g.symbols)
+		g.symbols[k] = org
+	end
+	# TODO propagate to subgraphs
+end
+
 # removes redundant copies
 function fusecopies!(g)
 	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
 		o.f.val == copy || continue
+		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-		if loctype(o.asc[1]) == :external # check that copy is not mutated
-			any(l -> o.desc[1] in l.desc, g.ops[line+1:end]) && continue
-		end
-
-		# is 'original' written to and 'copy' used afterward ?
-		writ, flag = false, false
-		for o2 in g.ops[line+1:end]
-			writ && o.desc[1] in o2.asc && (flag = true ; break)
-			writ = writ || o.asc[1] in o2.desc
-		end
-		# is 'copy' written to and 'original' used afterward ?
-		if !flag
-			writ = false
-			for o2 in g.ops[line+1:end]
-				writ && o.asc[1] in o2.asc && (flag = true ; break)
-				writ = writ || o.desc[1] in o2.desc
-			end
-		end
-
-		flag && continue # do not change
-
+		deleteat!(g.ops, line)
 		# replace occurences of copy by original
-		for o2 in g.ops[line+1:end]
-			o2.asc[ o2.asc .== o.desc[1] ] = o.asc[1]
-			o2.desc[ o2.desc .== o.desc[1] ] = o.asc[1]
-		end
-		for (k,v) in filter((k,v) -> v == o.desc[1], g.symbols)
-			g.symbols[k] = o.asc[1]
-		end
-		# TODO propagate to subgraphs
+		fuse(o.asc[1], o.desc[1], g)
 	end
 end
 
