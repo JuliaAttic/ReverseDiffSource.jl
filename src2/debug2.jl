@@ -8,53 +8,50 @@
 module A
   cd(Pkg.dir("ReverseDiffSource"))
 
-  begin
-    using Base.Test
+  using Base.Test
 
-    include("ReverseDiffSource.jl")
-    include("tograph.jl")
-    include("tocode.jl")
-    include("simplify.jl")
+  include("./src2/ReverseDiffSource.jl")
+  include("./src2/tograph.jl")
+  include("./src2/tocode.jl")
+  include("./src2/simplify.jl")
 
-    # testing vars
-    a, b = 2, 2.1
-    B = ones(2)
-    D = rand(2,3,4)
-    type Z ; x ; y ; end
-    C = Z(1,2)
+  # testing vars
+  a, b = 2, 2.1
+  B = ones(2)
+  D = rand(2,3,4)
+  type Z ; x ; y ; end
+  C = Z(1,2)
 
-    function fullcycle(ex; params...)
-      psym  = Symbol[ e[1] for e in params]
-      pvals = [ e[2] for e in params]
-      m = current_module()
-      function env(s::Symbol)
-        i = findfirst(s .== psym)
-        i != 0 && return (true, pvals[i], false, nothing)
+  function fullcycle(ex; env_var=Dict(), keep_var=[EXIT_SYM;])
+    psym  = collect(keys(env_var))
+    pvals = collect(values(env_var))
+    m = current_module()
+    function env(s::Symbol)
+      i = findfirst(s .== psym)
+      i != 0 && return (true, pvals[i], false, nothing)
+      isdefined(m, s) || return (false, nothing, nothing, nothing)
+      (true, eval(m,s), isconst(m,s), nothing)
+    end
 
-        isdefined(m, s) || return (false, nothing, nothing, nothing)
+    resetvar()
+    g  = tograph(ex, env) |> simplify!
+    c2 = tocode(g, keep_var)
+    length(c2.args) == 1 ? c2.args[1] : c2
+  end
 
-        (true, eval(m,s), isconst(m,s), nothing)
+  ## removes linenumbers from expression to ease comparisons
+  function cleanup(ex::Expr)
+      args = Any[]
+      for a in ex.args
+          isa(a, LineNumberNode) && continue
+          isa(a, Expr) && a.head==:line && continue
+          if isa(a, Expr) && a.head==:block
+            args = vcat(args, a.args)
+          else
+            push!(args, isa(a,Expr) ? cleanup(a) : a )
+          end
       end
-
-      resetvar()
-      c2 = tograph(ex, env) |> simplify! |> tocode
-      length(c2.args) == 1 ? c2.args[1] : c2
-    end
-
-    ## removes linenumbers from expression to ease comparisons
-    function cleanup(ex::Expr)
-        args = Any[]
-        for a in ex.args
-            isa(a, LineNumberNode) && continue
-            isa(a, Expr) && a.head==:line && continue
-            if isa(a, Expr) && a.head==:block
-              args = vcat(args, a.args)
-            else
-              push!(args, isa(a,Expr) ? cleanup(a) : a )
-            end
-        end
-        Expr(ex.head, args...)
-    end
+      Expr(ex.head, args...)
   end
 
 end
@@ -113,22 +110,25 @@ fullcycle(:( x = 5 ; y = a+5 ; z = cos(y) ))
 fullcycle(:( x = 5 + 6 + 5))
 fullcycle(:( x = a * b * B))
 
-@test fullcycle(:( x = b+6 ))       == :(x = b+6)
+@test fullcycle(:( x = b+6 ))       == :(b+6)
+@test fullcycle(:( x = b+6 ), keep_var=[:x]) == :(x=b+6)
+@test fullcycle(:( x = y = b+6 ), keep_var=[:x]) == :(x=b+6)
+
 @test fullcycle(:(sin(b); x=3))     == :(3)
 
-@test fullcycle(:(x = b+6; x+=1))   == :(x = (b+6)+1 )
-@test fullcycle(:(x = 1; x -= b+6)) == :(x = 1 - (b+6))
-@test fullcycle(:(x = a; x *= b+6)) == :(x = a * (b+6))
-@test fullcycle(:(x = b'))          == :(x = b')
-@test fullcycle(:(x = [1,2]))       == :(x = [1,2])
-@test fullcycle(:(x = 4:5 ))        == :(x = 4:5)
+@test fullcycle(:(x = b+6; x+=1))   == :((b+6)+1)
+@test fullcycle(:(x = 1; x -= b+6)) == :(1 - (b+6))
+@test fullcycle(:(x = a; x *= b+6)) == :(a * (b+6))
+@test fullcycle(:(x = b'))          == :( b')
+@test fullcycle(:(x = [1,2]))       == :( [1,2])
+@test fullcycle(:(x = 4:5 ))        == :( 4:5)
 
-@test fullcycle(:(x = b+4+5))       == :(a = b+9)
-@test fullcycle(:(x = b+0))         == :(x = b)
-@test fullcycle(:(x = b*0))         == :(x = 0)
-@test fullcycle(:(x = b*1))         == :(x = b)
-@test fullcycle(:(x = b*(0.5+0.5))) == :(x = b)
-@test fullcycle(:(x = b/1))         == :(x = b)
+@test fullcycle(:(x = b+4+5))       == :(b+9)
+@test fullcycle(:(x = b+0))         == :(b)
+@test fullcycle(:(x = b*0))         == :(0)
+@test fullcycle(:(x = b*1))         == :(b)
+@test fullcycle(:(x = b*(0.5+0.5))) == :(b)
+@test fullcycle(:(x = b/1))         == :(b)
 
 @test fullcycle(:(5))                          == :(5)
 @test fullcycle(:(x = 2 ; y = 2 ; x:y))        == :(2:2)
@@ -142,8 +142,8 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:(y = B[2]; y[1] ))             == :( B[2][1] )
 @test fullcycle(:(y = zeros(B); y[1] = B[2]; y[1] )) == cleanup(:(y = zeros(B); y[1] = B[2]; y[1]))
 @test fullcycle(:(y = B+1 ; y[2]+y[1] ))        == :(y = B+1 ; y[2]+y[1])
-@test fullcycle(:(Y=zeros(B); Y[2]=a ; a ))     == :(a)
-@test fullcycle(:(Y=copy(B); Y[2]=a ; Y[1] ))   == cleanup(:(Y=copy(B); Y[2]=a ; Y[1]))
+@test fullcycle(:(Y = zeros(B); Y[2]=a ; a ))     == :(a)
+@test fullcycle(:(Y = copy(B); Y[2]=a ; Y[1] ))   == cleanup(:(Y=copy(B); Y[2]=a ; Y[1]))
 
 @test fullcycle(:( a[2] = x ; y=a[3] ; y ))       == :(a[2] = x ; a[3])
 @test fullcycle(:( x = a ; Y = copy(B) ; Y[2] = x; 1 + Y[1] ))  ==

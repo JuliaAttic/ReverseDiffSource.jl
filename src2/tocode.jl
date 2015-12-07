@@ -21,6 +21,7 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
   mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
 
   function translate(o::Op)  # o = g.ops[1]
+    println(o.f.val)
     vargs = Any[ getexpr(arg) for arg in o.asc ]
 
     # special translation cases
@@ -64,6 +65,7 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
         eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
     end
 
+    println(Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...))
     Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...)
   end
 
@@ -95,11 +97,10 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
   opex  = Dict{Op, Any}()
   locex = Dict{Loc, Any}()
 
-  # check that variable to be shown are defined by graph
-  if ! all(s -> s in keys(g.symbols), exits)
-    vset = setdiff(exits, keys(g.symbols))
+  # check that variables to be shown are defined by graph
+  vset = setdiff(exits, keys(g.symbols))
+  length(vset) > 0 &&
     error("[tocode] some requested variables were not found : $vset")
-  end
 
   # if no op, just fetch constant/external associated
   # to each exits requested
@@ -109,15 +110,8 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
       syms = collect(keys(filter((k,v) -> v==l && k in exits, g.symbols)))
       length(syms)==0 && continue
       syms = setdiff(syms, [EXIT_SYM;]) # result is implicit, no need for assign
-      ex = reduce((x,y) -> Expr(:(=), x, y), getexpr(l), syms )
+      ex = foldr((x,y) -> Expr(:(=), x, y), getexpr(l), syms )
       push!(out, ex)
-    # for sym in exits
-    #
-    #   if sym == EXIT_SYM # terminal calculation
-    #     push!(out, :( $( getexpr(g.symbols[sym]) )) )
-    #   else
-    #     push!(out, :( $sym = $( getexpr(g.symbols[sym]) )) )
-    #   end
     end
 
   else # run through each op
@@ -126,23 +120,14 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
     for (line, o) in enumerate(g.ops) #
       opex[o] = translate(o)       # translate to Expr
 
-
       if any(l -> l in lexits, o.desc) || ispivot(o, line) # assignment needed,
-        # sym = getexpr(o.desc[1])
-        # locex[o.desc[1]] = sym
-        # if sym == EXIT_SYM # terminal calculation
-        #   push!(out, :( $(opex[o])) )
-        # else
-        #   push!(out, :( $sym = $(opex[o])) )
-        # end
-
         rv = o.desc[1] # TODO : manage multiple assignment
         syms = collect(keys(filter((k,v) -> v==rv && k in exits, g.symbols)))
         length(syms)==0 && push!(syms, newvar())
         syms = setdiff(syms, [EXIT_SYM;]) # result is implicit, no need for assign
-        ex = reduce((x,y) -> Expr(:(=), x, y), getexpr(rv), syms )
+        ex = foldr((x,y) -> Expr(:(=), x, y), opex[o], syms)
         push!(out, ex)
-        locex[o.desc[1]] = syms[1]
+        length(syms) > 0 && (locex[o.desc[1]] = syms[1])
 
       elseif o.desc[1] in o.asc   # mutating Function
         push!(out, opex[o])
