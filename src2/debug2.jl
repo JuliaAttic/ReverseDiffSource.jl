@@ -10,10 +10,7 @@ module A
 
   using Base.Test
 
-  include("./src2/ReverseDiffSource.jl")
-  include("./src2/tograph.jl")
-  include("./src2/tocode.jl")
-  include("./src2/simplify.jl")
+  include("ReverseDiffSource.jl")
 
   # testing vars
   a, b = 2, 2.1

@@ -1,4 +1,7 @@
 
+
+module ReverseDiffSource
+
 # name for exit variable
 const EXIT_SYM = :_result
 
@@ -64,3 +67,9 @@ function show(io::IO, g::Graph)
   end
   printtable(sops)
 end
+
+include("tograph.jl")
+include("tocode.jl")
+include("simplify.jl")
+
+end # module
