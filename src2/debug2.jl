@@ -4,56 +4,51 @@
 # deriv rules as real functions in a dedicated sub module
 # Loc at parent level only
 
+# module A
 
-module A
-  cd(Pkg.dir("ReverseDiffSource"))
+using Base.Test
 
-  using Base.Test
+# testing vars
+a, b = 2, 2.1
+B = ones(2)
+D = rand(2,3,4)
+type Z ; x ; y ; end
+C = Z(1,2)
 
-  include("ReverseDiffSource.jl")
-
-  # testing vars
-  a, b = 2, 2.1
-  B = ones(2)
-  D = rand(2,3,4)
-  type Z ; x ; y ; end
-  C = Z(1,2)
-
-  function fullcycle(ex; env_var=Dict(), keep_var=[EXIT_SYM;])
-    psym  = collect(keys(env_var))
-    pvals = collect(values(env_var))
-    m = current_module()
-    function env(s::Symbol)
-      i = findfirst(s .== psym)
-      i != 0 && return (true, pvals[i], false, nothing)
-      isdefined(m, s) || return (false, nothing, nothing, nothing)
-      (true, eval(m,s), isconst(m,s), nothing)
-    end
-
-    resetvar()
-    g  = tograph(ex, env) |> simplify!
-    c2 = tocode(g, keep_var)
-    length(c2.args) == 1 ? c2.args[1] : c2
+function fullcycle(ex; env_var=Dict(), keep_var=[EXIT_SYM;])
+  psym  = collect(keys(env_var))
+  pvals = collect(values(env_var))
+  m = current_module()
+  function env(s::Symbol)
+    i = findfirst(s .== psym)
+    i != 0 && return (true, pvals[i], false, nothing)
+    isdefined(m, s) || return (false, nothing, nothing, nothing)
+    (true, eval(m,s), isconst(m,s), nothing)
   end
 
-  ## removes linenumbers from expression to ease comparisons
-  function cleanup(ex::Expr)
-      args = Any[]
-      for a in ex.args
-          isa(a, LineNumberNode) && continue
-          isa(a, Expr) && a.head==:line && continue
-          if isa(a, Expr) && a.head==:block
-            args = vcat(args, a.args)
-          else
-            push!(args, isa(a,Expr) ? cleanup(a) : a )
-          end
-      end
-      Expr(ex.head, args...)
-  end
-
+  resetvar()
+  g  = tograph(ex, env) |> simplify!
+  c2 = tocode(g, keep_var)
+  length(c2.args) == 1 ? c2.args[1] : c2
 end
 
-module A
+## removes linenumbers from expression to ease comparisons
+function cleanup(ex::Expr)
+    args = Any[]
+    for a in ex.args
+        isa(a, LineNumberNode) && continue
+        isa(a, Expr) && a.head==:line && continue
+        if isa(a, Expr) && a.head==:block
+          args = vcat(args, a.args)
+        else
+          push!(args, isa(a,Expr) ? cleanup(a) : a )
+        end
+    end
+    Expr(ex.head, args...)
+end
+
+
+# module A
 
 # check for errors
 tograph( :(a = 1) )
@@ -98,9 +93,12 @@ show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 fullcycle(:( x = 5 ; y = x+5 ; z = cos(y) ))
 ex = :( x = 5 ; y = x+5 ; z = cos(y) )
 g = simplify!(tograph(ex))
+ex = :( a + 0 )
 g = tograph(ex)
 show(g)
-isfusable(g.locs[1], g.locs[3], g)
+
+isfusable(g.locs[2], g.locs[4], g)
+simplify!(g)
 
 fullcycle(:( x = 5 ; y = a+5 ; z = cos(y) ))
 
@@ -108,8 +106,9 @@ fullcycle(:( x = 5 + 6 + 5))
 fullcycle(:( x = a * b * B))
 
 @test fullcycle(:( x = b+6 ))       == :(b+6)
-@test fullcycle(:( x = b+6 ), keep_var=[:x]) == :(x=b+6)
+@test fullcycle(:( x = b+6 ),     keep_var=[:x]) == :(x=b+6)
 @test fullcycle(:( x = y = b+6 ), keep_var=[:x]) == :(x=b+6)
+@test fullcycle(:( x = y = b+6 ), keep_var=[:y]) == :(y=b+6)
 
 @test fullcycle(:(sin(b); x=3))     == :(3)
 
@@ -151,10 +150,10 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))     == :( X = copy(D) ; X[1:2,3] = a )
 @test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) == :( X = copy(D) ; X[1:2,2] = D[1:2,3] )
 
-@test fullcycle(:( B[:] ))               == Expr(:block, :( x[1:length(x)] ) )
-@test fullcycle(:( B[a+b, c:d] ))        == Expr(:block, :( x[a + b,c:d] ) )
-@test fullcycle(:( B[1:4] ))             == Expr(:block, :( x[1:4] ) )
-@test fullcycle(:( B[1:end] ), x=ones(5))           == Expr(:block, :( x[1:length(x)]) )
+@test fullcycle(:( B[:] ))                == Expr(:block, :( x[1:length(x)] ) )
+@test fullcycle(:( B[a+b, c:d] ))         == Expr(:block, :( x[a + b,c:d] ) )
+@test fullcycle(:( B[1:2] ))              == :( B[1:2] )
+@test fullcycle(:( B[1:end] ), x=ones(5)) == Expr(:block, :( x[1:length(x)]) )
 @test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
 
 @test fullcycle(:( C.x ))                       == :( C.x )
@@ -168,4 +167,48 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
 @test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
 
-end # of module A
+
+###  test evalconstants, simplify
+ex = quote
+    x = 3
+    y = x * a * 1
+    y2 = (x * a) + 0 + 3
+    x += 1
+    y3 = x * a
+    y + y2 + y3 + 12
+end
+fullcycle(ex)
+
+
+exout = :( _tmp1 = *(x,a) ; +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
+@test fullcycle(ex) == exout
+
+###  test respect of allocations
+ex = quote
+    a=zeros(2)
+    a[2] = x
+    sum(a)
+end
+exout = quote
+    _tmp1 = zeros(2)
+    _tmp1[2] = x
+    sum(_tmp1)
+end
+@test fullcycle(ex) == striplinenumbers(exout)
+
+
+ex = quote
+    a = zeros(5)
+    x = sum(a)
+    a[2] = 1
+    y = sum(a)
+    x + y
+end
+exout = quote
+    _tmp1 = zeros(5)
+    _tmp2 = sum(_tmp1)
+    _tmp1[2] = 1
+    _tmp2 + sum(_tmp1)
+end
+
+@test fullcycle(ex) == striplinenumbers(exout)

@@ -14,6 +14,8 @@ function simplify!(g, keep=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
 	splitnary!(g)
 
 	fusecopies!(g)
+	removerightneutral!(g)
+	removeleftneutral!(g)
 	prune!(g, keep)
 	g
 end
@@ -60,7 +62,7 @@ function isfusable(org::Loc, cpy::Loc, g::Graph, line=1) # org, cpy, g = A.g.loc
 	end
 
 	# is 'org' written to and 'cpy' used afterward ?
-	writ, flag = false, false
+	writ = false
 	for o2 in g.ops[line:end]
 		writ && cpy in o2.asc && return false
 		writ = writ || org in o2.desc
@@ -90,18 +92,58 @@ end
 
 # removes redundant copies
 function fusecopies!(g)
+	del_list = Int64[]
 	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
 		o.f.val == copy || continue
 		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-		deleteat!(g.ops, line)
+		push!(del_list, line)
 		# replace occurences of copy by original
 		fuse(o.asc[1], o.desc[1], g)
 	end
+	deleteat!(g.ops, del_list)
+
 end
 
+function removerightneutral!(g)
+	const conds = [(/, 1.), (./, 1.),
+								 (+, 0.), (.+, 0.),
+								 (-, 0.), (.-, 0.),
+								 (*, 1.), (.*, 1.),
+								 (^, 1.), (.^, 1.)]
 
+	del_list = Int64[]
+	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
+		length(o.asc) == 2 || continue
+		loctype(o.asc[2]) == :constant || continue
+		any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
+		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
+		push!(del_list, line)
+		# replace occurences of copy by original
+		fuse(o.asc[1], o.desc[1], g)
+	end
+	deleteat!(g.ops, del_list)
+
+end
+
+function removeleftneutral!(g)
+	const conds = [(+, 0.), (.+, 0.),
+								 (*, 1.), (.*, 1.)]
+
+	del_list = Int64[]
+	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
+		length(o.asc) == 2 || continue
+		any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
+		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+
+		push!(del_list, line)
+		# replace occurences of copy by original
+		fuse(o.asc[1], o.desc[1], g)
+	end
+	deleteat!(g.ops, del_list)
+
+end
 # function simplify!(g::ExGraph, emod = Main)
 #
 # 	i = 1
