@@ -4,9 +4,13 @@
 # deriv rules as real functions in a dedicated sub module
 # Loc at parent level only
 
-# module A
+# in module ReverseDiffSource
 
 using Base.Test
+whos()
+tocode
+
+
 
 # testing vars
 a, b = 2, 2.1
@@ -150,8 +154,9 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))     == :( X = copy(D) ; X[1:2,3] = a )
 @test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) == :( X = copy(D) ; X[1:2,2] = D[1:2,3] )
 
+
 @test fullcycle(:( B[:] ))                == Expr(:block, :( x[1:length(x)] ) )
-@test fullcycle(:( B[a+b, c:d] ))         == Expr(:block, :( x[a + b,c:d] ) )
+@test fullcycle(:( B[a+b, c:d] ))         == Expr(:block, :( x[a+b,c:d] ) )
 @test fullcycle(:( B[1:2] ))              == :( B[1:2] )
 @test fullcycle(:( B[1:end] ), x=ones(5)) == Expr(:block, :( x[1:length(x)]) )
 @test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
