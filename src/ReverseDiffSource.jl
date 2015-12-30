@@ -4,13 +4,12 @@
 #
 #########################################################################
 
-__precompile__(true)
+__precompile__(false)
 
 module ReverseDiffSource
 
   import Base.show, Base.copy
 
-  
   using Compat  # for Julia v0.x compatibility issues
 
   # naming conventions
@@ -51,18 +50,14 @@ module ReverseDiffSource
   include("zeronode.jl")
   include("reversegraph.jl")
   include("deriv_rule.jl")
-  # include("base_rules.jl")
+  include("base_rules.jl")
   include("rdiff.jl")
   include("frdiff.jl")
 
   ######  Exports  ######
-  export 
+  export
     rdiff,
-    @deriv_rule, deriv_rule, 
+    @deriv_rule, deriv_rule,
     @typeequiv, typeequiv
 
-  ######  Initializations (for the deriv rules)  ######
-  __init__() = include(joinpath(Pkg.dir("ReverseDiffSource"), "src/base_rules.jl"))
-
 end # module ReverseDiffSource
-
