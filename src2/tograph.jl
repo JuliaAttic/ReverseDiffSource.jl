@@ -35,16 +35,8 @@ isSym(ex)   = isa(ex, Symbol)
 isDot(ex)   = isa(ex, Expr) && ex.head == :.   # && isa(ex.args[1], Symbol)
 isRef(ex)   = isa(ex, Expr) && ex.head == :ref # && isa(ex.args[1], Symbol)
 
-function modenv(m::Module=current_module())
-  ( s -> isdefined(m, s), s -> eval(m,s), s -> isconst(m,s))
-  # function (s::Symbol)
-  #   isdefined(m, s) || return (false, nothing, nothing)
-  #   (true, eval(m,s), isconst(m,s))
-  # end
-end
-
-# top level entry point (Graph is created)
-function tograph(ex, env=modenv())
+# top level entry point
+function tograph(ex, g::Graph=Graph())
 
   g, ops = tograph(ex, env, Graph())
   g.ops  = ops
@@ -66,11 +58,14 @@ end
 
 
 # graph is pre-existing
-function blockparse(ex::ExFor, env, g::Graph)
+function blockparse(ex::ExFor, g::Graph, symbols)
   # new scope, new env w/ local symbols dict
   # returns ForBlock
   # env with indexing variables added ?
   tograph(ex, env, g, isclosure=true)
+
+  symbols = copy(g.symbols)
+  ForBlock(symbols, )
 end
 
 function blockparse(ex::ExIf, env, g::Graph)
@@ -80,29 +75,39 @@ end
 
 # both above call....
 
-# entry point when graph exists
-function blockparse!(ex, env, g::Graph)  # env = modenv  # ex = :( z.x )
-  # isclosure = true  => new loc have no symbol in g
-  # isclosure = false => new loc have a symbol in g
+# parse expression and add to existing given block/graph
+function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # ex = :( z.x )
 
-  symbols = isclosure ? copy(g.symbols) : g.symbols
-  ops     = Vector{Op}()
+  symbols = thisblock.symbols
+  ops     = thisblock.ops
 
   add!(l::Loc) = (push!(g.locs,l) ; l)
   add!(o::Op)  = (push!(ops, o) ; o)
 
-  # AST exploration functions
-  explore(ex::Any)       = error("[tograph] unmanaged type $ex ($(typeof(ex)))")
-  explore(ex::Expr)      = explore(toExH(ex))
-  explore(ex::ExH)       = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
-
+  ### exploration for non-expressions
   explore(ex::ExLine)         = nothing     # ignore line info
   explore(ex::LineNumberNode) = nothing     # ignore line info
+  explore(ex::QuoteNode)      = add!(CLoc(ex.value))  # consider as constant
+  explore(ex::Real)           = add!(CLoc(ex))
 
-  explore(ex::QuoteNode) = add!(CLoc(ex.value))  # consider as constant
+  function explore(ex::Symbol)
+      haskey(symbols, ex) && return symbols[ex]
+      # if not known, then it must be a symbol defined in the environment
+      #  (it is an 'external')
+      g.isdef(ex) || error("symbol $ex is not defined")
+      val = g.eval(ex)
 
+      nloc = g.isconst(ex) ? CLoc(val) : ELoc(val)
+      symbols[ex] = nloc
+      add!(nloc)  # return Loc
+  end
+
+  # catch remaining cases
+  explore(ex::Any) = error("[tograph] unmanaged type $ex ($(typeof(ex)))")
+
+  ### exploration of regular expressions
+  explore(ex::Expr)      = explore(toExH(ex))
   explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
-
   explore(ex::ExVcat)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
   explore(ex::ExVect)    = explore(Expr(:call, :vcat, ex.args...) )  # translate to vcat() call, and explore
   explore(ex::ExCell1d)  = explore(Expr(:call, :(Base.cell_1d), ex.args...) )  # translate to cell_1d() call, and explore
@@ -110,31 +115,13 @@ function blockparse!(ex, env, g::Graph)  # env = modenv  # ex = :( z.x )
   explore(ex::ExColon)   = explore(Expr(:call, :colon, ex.args...) )  # translate to colon() and explore
   explore(ex::ExTuple)   = explore(Expr(:call, :tuple, ex.args...) )  # translate to tuple() and explore
   explore(ex::ExComp)    = explore(Expr(:call, ex.args[2], ex.args[1], ex.args[3]) )
+  explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...))
+  explore(ex::ExRef)     = explore(Expr(:call, :getindex, ex.args...))
 
   explore(ex::ExPEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :+, args[1], args[2])) ) )
   explore(ex::ExMEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :-, args[1], args[2])) ) )
   explore(ex::ExTEqual)  = (args = ex.args ; explore( Expr(:(=), args[1], Expr(:call, :*, args[1], args[2])) ) )
 
-  explore(ex::Real)      = add!(CLoc(ex))
-
-  explore(ex::ExBlock)   = map( explore, ex.args )[end]
-  explore(ex::ExBody)    = map( explore, ex.args )[end]
-
-  # explore(ex::ExComp)    = addnode!(g, NComp(ex.args[2], [explore(ex.args[1]), explore(ex.args[3])]))
-
-  explore(ex::ExDot)     = explore(Expr(:call, :getfield, ex.args...))
-  explore(ex::ExRef)     = explore(Expr(:call, :getindex, ex.args...))
-
-  function explore(ex::Symbol)
-      haskey(symbols, ex) && return symbols[ex]
-      # if not known, then it is a new external
-      isdef, val, iscst, _ = env(ex)
-      isdef || error("symbol $ex is not defined")
-
-      nloc = iscst ? CLoc(val) : ELoc(val)
-      symbols[ex] = nloc
-      add!(nloc)  # return Loc
-  end
 
   function explore(ex::ExCall) # TODO :  treat func that return several values
       floc  = explore(ex.args[1])
@@ -168,10 +155,9 @@ function blockparse!(ex, env, g::Graph)  # env = modenv  # ex = :( z.x )
       if haskey(symbols, lhs)
         lloc = symbols[lhs]
         loctype(lloc)==:external &&
-        error("attempt to modify an external variable in $(toExpr(ex))")
+          error("attempt to modify an external variable in $(toExpr(ex))")
       else
-        isdef, val = env(lhs)
-        isdef && error("attempt to modify an external variable in $(toExpr(ex))")
+        g.isdef(lhs) && error("attempt to modify an external variable in $(toExpr(ex))")
       end
 
       rloc = explore(rhs)
@@ -199,24 +185,23 @@ function blockparse!(ex, env, g::Graph)  # env = modenv  # ex = :( z.x )
     end
   end
 
+  ### remaining cases are expressions introducing new blocks and possibly
+  ###   scope blocks
+  function explore(ex::ExH)
+    block, res = blockparse!(ex, thisblock, g)
+    asc  = collect( mapreduce(o ->  o.asc, union, Set{Loc}(), block.ops) )
+    desc = collect( mapreduce(o -> o.desc, union, Set{Loc}(), block.ops) )
+    op = Op(block, asc, desc)
+  end
+  # explore(ex::ExH) = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
+
+    explore(ex::ExBlock)   = map( explore, ex.args )[end]
+    explore(ex::ExBody)    = map( explore, ex.args )[end]
+
   exitloc = explore(ex)
 
-  # id is 'nothing' for unnassigned last statement
+  # if there is a value produced, assign it to symbol EXIT_SYM
   exitloc != nothing && ( symbols[EXIT_SYM] = exitloc )
-
-    # # Resolve external symbols that are Functions, DataTypes or Modules
-    # # and turn them into constants
-    # for en in filter(n -> isa(n, NExt) & !in(n.main, svars) , keys(g.exti))
-    #     if isdefined(evalmod, en.main)  # is it defined
-    #         tv = evalmod.eval(en.main)
-    #         isa(tv, TypeConstructor) && error("[tograph] TypeConstructors not supported: $ex $(tv), use DataTypes")
-    #         if isa(tv, DataType) || isa(tv, Module) || isa(tv, Function)
-    #             delete!(g.exti, en)
-    #             nc = addnode!(g, NConst( tv ))
-    #             fusenodes(g, nc, en)
-    #         end
-    #     end
-    # end
 
   g, ops  # return graph and ops created
 end
