@@ -102,7 +102,6 @@ function fusecopies!(g)
 		fuse(o.asc[1], o.desc[1], g)
 	end
 	deleteat!(g.ops, del_list)
-
 end
 
 function removerightneutral!(g)

@@ -6,11 +6,13 @@
 
 # in module ReverseDiffSource
 
+# reset module = Ctrl-Alt-j Ctrl-Alt-m
+mp = joinpath(Pkg.dir("ReverseDiffSource"), "src2", "ReverseDiffSource.jl")
+parent(current_module())
+.@eval include($mp)
+
+
 using Base.Test
-whos()
-tocode
-
-
 
 # testing vars
 a, b = 2, 2.1
@@ -134,6 +136,26 @@ fullcycle(:( x = a * b * B))
 @test fullcycle(:(x = 2 ; y = 2 ; x:y))        == :(2:2)
 @test fullcycle(:(x = 2 ; x))                  == :(2)
 @test fullcycle(:(x = a ; y = 0 ))             == :(0)
+@test fullcycle(:(x = a ; x))                  == :(a)
+@test fullcycle(:(y = a ; y))                  == :(a)
+
+fullcycle(:( x = a ; x ))
+fullcycle(:( y = a ; y ))
+ex = :( x = a ; x )
+ex = :( y = a ; y )
+g = tograph(ex)
+
+g = simplify!(tograph(ex))
+ex = :( a + 0 )
+g = tograph(ex)
+show(g)
+
+a
+let
+  a = 3
+end
+
+@test fullcycle(:(x = a ; y = a ; y))          == :(a)
 @test fullcycle(:(x = a ; y = a ; x + y))      == :( a+a )
 @test fullcycle(:(x = a ; y = x ; z = y ; y))  == :( a )
 
@@ -217,3 +239,24 @@ exout = quote
 end
 
 @test fullcycle(ex) == striplinenumbers(exout)
+
+
+
+
+
+
+ex = quote
+	a = 0.
+	for i in 1:10
+		a += i
+	end
+	a
+end
+
+m.plot( m.tograph(ex) )
+
+########## show() for nodes and graphs  ##########
+
+g = tograph(ex, modenv())
+println(g.nodes[4])
+println(g)

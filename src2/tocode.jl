@@ -21,7 +21,7 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
   mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
 
   function translate(o::Op)  # o = g.ops[1]
-    println(o.f.val)
+    # println(o.f.val)
     vargs = Any[ getexpr(arg) for arg in o.asc ]
 
     # special translation cases
@@ -65,7 +65,7 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
         eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
     end
 
-    println(Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...))
+    # println(Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...))
     Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...)
   end
 

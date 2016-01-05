@@ -36,30 +36,44 @@ isDot(ex)   = isa(ex, Expr) && ex.head == :.   # && isa(ex.args[1], Symbol)
 isRef(ex)   = isa(ex, Expr) && ex.head == :ref # && isa(ex.args[1], Symbol)
 
 function modenv(m::Module=current_module())
-  function lookup(s::Symbol)
-    isdefined(m, s) || return (false, nothing, nothing, nothing)
-    (true, eval(m,s), isconst(m,s), nothing)
-  end
+  ( s -> isdefined(m, s), s -> eval(m,s), s -> isconst(m,s))
+  # function (s::Symbol)
+  #   isdefined(m, s) || return (false, nothing, nothing)
+  #   (true, eval(m,s), isconst(m,s))
+  # end
 end
 
-# graph is to be created
-# entry point for top level (Graph is created)
+# top level entry point (Graph is created)
 function tograph(ex, env=modenv())
+
   g, ops = tograph(ex, env, Graph())
   g.ops  = ops
   g
 end
 # tograph(m::Method, env)
 
+# blockparse! functions take an expression (ex) and do the following :
+#  1) return a vector of operators (ops)
+#  2) update the memory locations (locs) of the graph (g)
+#        if the block creates new ones
+#  3) update the symbol to locs map if ex is not a closure
+# arguments :
+#  - ex : the expression to parse
+#  - g  : the containing graph
+#  - env: the environment functions (tells if a symbol is defined, etc..)
+#       in the containing scope
+#  - isclosure : boolean indicating if ex is a scope block (for), or not (if, begin)
+
+
 # graph is pre-existing
-function blockparse(ex::ExFor, env, g)
+function blockparse(ex::ExFor, env, g::Graph)
   # new scope, new env w/ local symbols dict
   # returns ForBlock
   # env with indexing variables added ?
   tograph(ex, env, g, isclosure=true)
 end
 
-function blockparse(ex::ExIf, env, g)
+function blockparse(ex::ExIf, env, g::Graph)
   # same scope, same env
   # returns IfBlock
 end
@@ -67,7 +81,7 @@ end
 # both above call....
 
 # entry point when graph exists
-function tograph(ex, env, g::Graph, isclosure=false)  # env = modenv  # ex = :( z.x )
+function blockparse!(ex, env, g::Graph)  # env = modenv  # ex = :( z.x )
   # isclosure = true  => new loc have no symbol in g
   # isclosure = false => new loc have a symbol in g
 
