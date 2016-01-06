@@ -16,11 +16,20 @@ let
   end
 end
 
-function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
+function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
+
+  # check that variables to be shown are defined in root block
+  vset = setdiff(exits, keys(g.block.symbols))
+  length(vset) > 0 &&
+    error("[tocode] some requested variables were not found : $vset")
+
+  out   = Any[]
+  locex = Dict{Loc, Any}()
+
   #### creates expression for names qualified by a module
   mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
 
-  function translate(o::Op)  # o = g.ops[1]
+  function translate(o::Op)  # o = g.block.ops[1]
     # println(o.f.val)
     vargs = Any[ getexpr(arg) for arg in o.asc ]
 
@@ -65,26 +74,55 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
         eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
     end
 
-    # println(Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...))
-    Expr(:call, mexpr( mt ), Any[ getexpr(arg) for arg in o.asc ]...)
+    Expr(:call, mexpr( mt ), vargs...)
   end
 
-  getexpr(l::Loc{:constant}) = l.val
+  ### returns the correct symbol / expression for given Loc
+  getexpr(l::CLoc) = l.val
+
+  function getexpr(l::ELoc)
+    # find the symbol defined in env for this Loc
+    syms = collect(keys(g.block.symbols))
+    filter!(s -> g.block.symbols[s]==l, syms)
+    filter!(g.isdef, syms)
+    length(syms)==0 && error("[tocode] no symbol found for external $l")
+    syms[1]
+  end
+
   function getexpr(l::Loc) # l = g.locs[1]
     haskey(locex, l) && return locex[l]
-    sym = 0
-    for (k,v) in g.symbols ; v!=l && continue ; sym = k ; break ; end
-    sym = sym!= 0 ? sym : newvar()
-    locex[l] = sym
-    sym
+    error("[tocode] no expression for Loc $l")
   end
 
-  function ispivot(o::Op, line) # o = A.g.ops[1] ; line = 1
+  ### generates assignment expression for given Loc
+  function genassign(l::Loc, force=false)
+    # find symbols to be assigned to among exits
+    syms = Set(filter(s -> g.block.symbols[s]==l, exits))
+    # if force = true, EXIT_SYM is not a valid proposition
+    force && setdiff!(syms, [EXIT_SYM;])
+
+    # if none found, try to find one among other symbols
+    if length(syms)==0
+      ss = collect(keys(g.block.symbols))
+      idx = findfirst(s -> g.block.symbols[s]==l, ss)
+      idx != 0 && push!(syms, ss[idx])
+    end
+    # if still none found, generate one
+    length(syms)==0 && push!(syms, newvar())
+
+    # generate assignement expression for all symbols in syms, except EXIT_SYM
+    setdiff!(syms, [EXIT_SYM;])
+    push!(out, foldr((x,y) -> Expr(:(=), x, y), getexpr(l), collect(syms) ) )
+    length(syms) > 0 && (locex[l] = pop!(syms)) # update locex (if syms not empty)
+  end
+
+  ### tells if an assignement expression should be generated
+  function ispivot(o::Op, line)
     # checks if desc appear several times afterward
     #  or if it is mutated
-    for l in o.desc # l = o.desc[1]
+    for l in o.desc # l = g.block.ops[1].desc[1] ; line=1
       ct = 0
-      for o2 in g.ops[line+1:end]
+      for o2 in g.block.ops[line+1:end]
         l in o2.desc && return true
         ct += l in o2.asc
         ct > 1 && return true
@@ -93,46 +131,35 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #  g = A.g ; exits=[A.EXIT_SYM;]
     false
   end
 
-  out = Any[]
-  opex  = Dict{Op, Any}()
-  locex = Dict{Loc, Any}()
+  # if no op, just fetch constant/external associated to an exit
+  if length(g.block.ops) == 0
+    lexits = unique( Loc[ g.block.symbols[s] for s in exits ] ) # Locs of interest
+    map(genassign, lexits)
 
-  # check that variables to be shown are defined by graph
-  vset = setdiff(exits, keys(g.symbols))
-  length(vset) > 0 &&
-    error("[tocode] some requested variables were not found : $vset")
+  # otherwise, run through each op
+  else
+    lexits = unique( Loc[ g.block.symbols[s] for s in exits ] )
 
-  # if no op, just fetch constant/external associated
-  # to each exits requested
-  if length(g.ops) == 0
-    for l in g.locs
-      # symbols for that loc
-      syms = collect(keys(filter((k,v) -> v==l && k in exits, g.symbols)))
-      length(syms)==0 && continue
-      syms = setdiff(syms, [EXIT_SYM;]) # result is implicit, no need for assign
-      ex = foldr((x,y) -> Expr(:(=), x, y), getexpr(l), syms )
-      push!(out, ex)
-    end
+    for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
+      # TO DO : manage multiple assignment
 
-  else # run through each op
-    lexits = Loc[ g.symbols[s] for s in exits ]
+      ex = translate(o)       # translate to Expr
 
-    for (line, o) in enumerate(g.ops) #
-      opex[o] = translate(o)       # translate to Expr
+      if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
+        locex[o.desc[1]] = ex
+        genassign(o.desc[1], true)
 
-      if any(l -> l in lexits, o.desc) || ispivot(o, line) # assignment needed,
-        rv = o.desc[1] # TODO : manage multiple assignment
-        syms = collect(keys(filter((k,v) -> v==rv && k in exits, g.symbols)))
-        length(syms)==0 && push!(syms, newvar())
-        syms = setdiff(syms, [EXIT_SYM;]) # result is implicit, no need for assign
-        ex = foldr((x,y) -> Expr(:(=), x, y), opex[o], syms)
-        push!(out, ex)
-        length(syms) > 0 && (locex[o.desc[1]] = syms[1])
+      elseif any(l -> l in lexits, o.desc) # assignment needed
+        locex[o.desc[1]] = ex
+        genassign(o.desc[1])
+
 
       elseif o.desc[1] in o.asc   # mutating Function
-        push!(out, opex[o])
+        push!(out, ex)
+
       else # keep expression for later
-        locex[o.desc[1]] = opex[o]
+        locex[o.desc[1]] = ex
+
       end
     end
   end

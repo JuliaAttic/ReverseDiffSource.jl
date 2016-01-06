@@ -100,35 +100,15 @@ end
 
 ###########  printing methods  ###################
 
-function _printtable(t::Array{UTF8String,2})
+function _printtable(io::IO, t::Array{UTF8String,2})
   sz = maximum(map(length, t),1)
   for i in 1:size(t,1)
     for j in 1:size(t,2)
       l = length(t[i,j])
       print(io, " " ^ (sz[j]-l), t[i,j], " ")
     end
-    println()
+    println(io,"")
   end
-end
-
-function show(io::IO, ls::Vector{Loc})
-  slocs = Array(UTF8String, length(g.locs)+1, 5)
-  slocs[1,:] = ["#", "type", "symbol(s)", "cat", "val" ]
-  for (i,l) in enumerate(g.locs) # i,l = 1, g.locs[1]
-    vs = keys(filter((k,v) -> v===l, g.symbols))
-    slocs[i+1,:] = map(string, Any[i, l.typ, join(vs, ","), loctype(l), l.val])
-  end
-  printtable(slocs)
-  println()
-
-  sops = Array(UTF8String, length(g.ops)+1, 3)
-  sops[1,:] = ["f" "parents" "children"]
-  for (i,o) in enumerate(g.ops) # i,l = 1, g.ops[1]
-    ps = indexin(o.asc, g.locs)
-    cs = indexin(o.desc, g.locs)
-    sops[i+1,:] = map(string, Any[o.f, join(ps, ","), join(cs, ",")])
-  end
-  printtable(sops)
 end
 
 function show(io::IO, g::Graph)
@@ -138,21 +118,38 @@ function show(io::IO, g::Graph)
     vs = keys(filter((k,v) -> v===l, g.block.symbols))
     slocs[i+1,:] = map(string, Any[i, l.typ, join(vs, ","), loctype(l), l.val])
   end
-  _printtable(slocs)
-  println()
+  _printtable(io, slocs)
+  println(io, "")
 
   sops = Array(UTF8String, length(g.block.ops)+1, 3)
   sops[1,:] = ["f" "parents" "children"]
   for (i,o) in enumerate(g.block.ops) # i,l = 1, g.ops[1]
-    ps = indexin(o.asc, g.locs)
-    cs = indexin(o.desc, g.locs)
-    sops[i+1,:] = map(string, Any[o.f, join(ps, ","), join(cs, ",")])
+    sio = IOBuffer(true, true)
+    show(sio, o.f)
+    sops[i+1,1] = takebuf_string(sio)
+    sops[i+1,2] = join(indexin( o.asc, g.locs), ",")
+    sops[i+1,3] = join(indexin(o.desc, g.locs), ",")
   end
-  _printtable(sops)
+  _printtable(io, sops)
 end
+
+function show(io::IO, l::Loc)
+  print(io, "($(l.typ)) ")
+  sio = IOBuffer(true, true)
+  show(io, l.val)
+end
+
+function show(io::IO, bl::AbstractBlock)
+  ns = length(bl.symbols)
+  no = length(bl.ops)
+  print(io, "$ns symbols, $no ops")
+end
+
+##### files to be included
 
 include("tograph.jl")
 include("tocode.jl")
 include("simplify.jl")
+include("forblock.jl")
 
 end # module

@@ -37,43 +37,12 @@ isRef(ex)   = isa(ex, Expr) && ex.head == :ref # && isa(ex.args[1], Symbol)
 
 # top level entry point
 function tograph(ex, g::Graph=Graph())
+  exitloc = addtoblock!(ex, g.block, g)
 
-  g, ops = tograph(ex, env, Graph())
-  g.ops  = ops
+  # if there is a value produced, assign it to symbol EXIT_SYM
+  exitloc != nothing && ( g.block.symbols[EXIT_SYM] = exitloc )
   g
 end
-# tograph(m::Method, env)
-
-# blockparse! functions take an expression (ex) and do the following :
-#  1) return a vector of operators (ops)
-#  2) update the memory locations (locs) of the graph (g)
-#        if the block creates new ones
-#  3) update the symbol to locs map if ex is not a closure
-# arguments :
-#  - ex : the expression to parse
-#  - g  : the containing graph
-#  - env: the environment functions (tells if a symbol is defined, etc..)
-#       in the containing scope
-#  - isclosure : boolean indicating if ex is a scope block (for), or not (if, begin)
-
-
-# graph is pre-existing
-function blockparse(ex::ExFor, g::Graph, symbols)
-  # new scope, new env w/ local symbols dict
-  # returns ForBlock
-  # env with indexing variables added ?
-  tograph(ex, env, g, isclosure=true)
-
-  symbols = copy(g.symbols)
-  ForBlock(symbols, )
-end
-
-function blockparse(ex::ExIf, env, g::Graph)
-  # same scope, same env
-  # returns IfBlock
-end
-
-# both above call....
 
 # parse expression and add to existing given block/graph
 function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # ex = :( z.x )
@@ -136,7 +105,8 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
             error("attempt to modify an external variable in $(toExpr(ex))")
       elseif esf in [getindex, getfield] # propagate type of object to result
           # if module mark as external directly
-          ntyp = largs[1].typ==Module ? :external : loctype(largs[1])
+          # ntyp = largs[1].typ==Module ? :external : loctype(largs[1])
+          ntyp = largs[1].typ==Module ? :external : :regular
           nloc = Loc{ntyp}(val)
           add!(nloc)
       else
@@ -187,23 +157,22 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
 
   ### remaining cases are expressions introducing new blocks and possibly
   ###   scope blocks
+  # simple :block expressions can be unfolded in the current block directly
+  explore(ex::ExBlock)   = map( explore, ex.args )[end]
+  # explore(ex::ExBody)    = map( explore, ex.args )[end]
+
+  # for the other cases (for-blocks, if-blocks), create a new Block
   function explore(ex::ExH)
     block, res = blockparse!(ex, thisblock, g)
     asc  = collect( mapreduce(o ->  o.asc, union, Set{Loc}(), block.ops) )
     desc = collect( mapreduce(o -> o.desc, union, Set{Loc}(), block.ops) )
     op = Op(block, asc, desc)
+    add!(op)
+    res
   end
   # explore(ex::ExH) = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
 
-    explore(ex::ExBlock)   = map( explore, ex.args )[end]
-    explore(ex::ExBody)    = map( explore, ex.args )[end]
-
-  exitloc = explore(ex)
-
-  # if there is a value produced, assign it to symbol EXIT_SYM
-  exitloc != nothing && ( symbols[EXIT_SYM] = exitloc )
-
-  g, ops  # return graph and ops created
+  explore(ex)
 end
 
 #

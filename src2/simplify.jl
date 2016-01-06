@@ -22,30 +22,30 @@ end
 
 # removes unecessary elements (as specified by 'keep')
 function prune!(g, keep)
-	keep2 = intersect(keep, keys(g.symbols))
-	lset = Set{Loc}([ g.symbols[s] for s in keep2])
-	for o in reverse(g.ops)
+	keep2 = intersect(keep, keys(g.block.symbols))
+	lset = Set{Loc}([ g.block.symbols[s] for s in keep2])
+	for o in reverse(g.block.ops)
 		if any(l -> l in o.desc, lset)
 			union!(lset, o.asc)
 			push!(lset, o.f)
 		end
 	end
 	filter!(l -> l in lset, g.locs)
-	filter!(o -> any(l -> l in o.desc, lset), g.ops)
-	filter!((s,l) -> l in lset, g.symbols)
+	filter!(o -> any(l -> l in o.desc, lset), g.block.ops)
+	filter!((s,l) -> l in lset, g.block.symbols)
 	# TODO : cleanup subgraphs too
 	g
 end
 
 # splits n-ary functions into binary ones
 function splitnary!(g)
-	for (line, o) in enumerate(g.ops)
+	for (line, o) in enumerate(g.block.ops)
 		o.f.val in [+, *, sum, min, max] || continue
 		length(o.asc) > 2 || continue
 
 		nloc = RLoc( (o.f.val)(o.asc[1].val, o.asc[2].val) ) # intermediate
 		push!(g.locs, nloc)
-		insert!(g.ops, line, Op(o.f, o.asc[1:2], [nloc;]))
+		insert!(g.block.ops, line, Op(o.f, o.asc[1:2], [nloc;]))
 		o.asc = [nloc;o.asc[3:end]]
 	end
 	# TODO : cleanup subgraphs too
@@ -58,19 +58,19 @@ end
 function isfusable(org::Loc, cpy::Loc, g::Graph, line=1) # org, cpy, g = A.g.locsA.g
 	# if org is external, checks that copy is not mutated
 	if loctype(org) == :external
-		any(l -> cpy in l.desc, g.ops[line+1:end]) && return false
+		any(l -> cpy in l.desc, g.block.ops[line:end]) && return false
 	end
 
 	# is 'org' written to and 'cpy' used afterward ?
 	writ = false
-	for o2 in g.ops[line:end]
+	for o2 in g.block.ops[line:end]
 		writ && cpy in o2.asc && return false
 		writ = writ || org in o2.desc
 	end
 
 	# is 'cpy' written to and 'org' used afterward ?
 	writ = false
-	for o2 in g.ops[line:end]
+	for o2 in g.block.ops[line:end]
 		writ && org in o2.asc && return false
 		writ = writ || cpy in o2.desc
 	end
@@ -80,12 +80,12 @@ end
 
 # replaces occurrences of 'cpy' by 'org'
 function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.locs[3], A.g
-	for o2 in g.ops
+	for o2 in g.block.ops
 		o2.asc[  o2.asc  .== cpy ] = org
 		o2.desc[ o2.desc .== cpy ] = org
 	end
-	for (k,v) in filter((k,v) -> v == cpy, g.symbols)
-		g.symbols[k] = org
+	for (k,v) in filter((k,v) -> v == cpy, g.block.symbols)
+		g.block.symbols[k] = org
 	end
 	# TODO propagate to subgraphs
 end
@@ -93,7 +93,7 @@ end
 # removes redundant copies
 function fusecopies!(g)
 	del_list = Int64[]
-	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
+	for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
 		o.f.val == copy || continue
 		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
@@ -101,7 +101,7 @@ function fusecopies!(g)
 		# replace occurences of copy by original
 		fuse(o.asc[1], o.desc[1], g)
 	end
-	deleteat!(g.ops, del_list)
+	deleteat!(g.block.ops, del_list)
 end
 
 function removerightneutral!(g)
@@ -112,7 +112,7 @@ function removerightneutral!(g)
 								 (^, 1.), (.^, 1.)]
 
 	del_list = Int64[]
-	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
+	for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
 		length(o.asc) == 2 || continue
 		loctype(o.asc[2]) == :constant || continue
 		any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
@@ -122,7 +122,7 @@ function removerightneutral!(g)
 		# replace occurences of copy by original
 		fuse(o.asc[1], o.desc[1], g)
 	end
-	deleteat!(g.ops, del_list)
+	deleteat!(g.block.ops, del_list)
 
 end
 
@@ -131,7 +131,7 @@ function removeleftneutral!(g)
 								 (*, 1.), (.*, 1.)]
 
 	del_list = Int64[]
-	for (line, o) in enumerate(g.ops) # line=1 ; o = g.ops[1]
+	for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
 		length(o.asc) == 2 || continue
 		any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
 		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
@@ -140,7 +140,7 @@ function removeleftneutral!(g)
 		# replace occurences of copy by original
 		fuse(o.asc[1], o.desc[1], g)
 	end
-	deleteat!(g.ops, del_list)
+	deleteat!(g.block.ops, del_list)
 
 end
 # function simplify!(g::ExGraph, emod = Main)
