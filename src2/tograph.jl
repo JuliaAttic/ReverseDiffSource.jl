@@ -163,14 +163,12 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
 
   # for the other cases (for-blocks, if-blocks), create a new Block
   function explore(ex::ExH)
-    block, res = blockparse!(ex, thisblock, g)
-    asc  = collect( mapreduce(o ->  o.asc, union, Set{Loc}(), block.ops) )
-    desc = collect( mapreduce(o -> o.desc, union, Set{Loc}(), block.ops) )
-    op = Op(block, asc, desc)
-    add!(op)
-    res
+    try
+      blockparse!(ex, thisblock, g)
+    catch e
+      error("[tograph] error parsing expr type $(ex.head) in ($ex)")
+    end
   end
-  # explore(ex::ExH) = error("[tograph] unmanaged expr type $(ex.head) in ($ex)")
 
   explore(ex)
 end

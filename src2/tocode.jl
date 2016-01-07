@@ -128,6 +128,12 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
         ct > 1 && return true
       end
     end
+    # checks if asc is modified later
+    for l in o.asc # l = g.block.ops[1].desc[1] ; line=1
+      for o2 in g.block.ops[line+1:end]
+        l in o2.desc && l in o2.asc && return true
+      end
+    end
     false
   end
 
@@ -152,7 +158,6 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
       elseif any(l -> l in lexits, o.desc) # assignment needed
         locex[o.desc[1]] = ex
         genassign(o.desc[1])
-
 
       elseif o.desc[1] in o.asc   # mutating Function
         push!(out, ex)

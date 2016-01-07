@@ -5,10 +5,3 @@
 
 mp = joinpath(Pkg.dir("ReverseDiffSource"), "src2", "ReverseDiffSource.jl")
 include(mp)
-
-
-
-module A
-  # cd(Pkg.dir("ReverseDiffSource"))
-  using ReverseDiffSource
-end

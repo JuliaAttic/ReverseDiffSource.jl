@@ -22,6 +22,7 @@ end
 
 # removes unecessary elements (as specified by 'keep')
 function prune!(g, keep)
+	# find all locs that are relevant to calculate 'keep'
 	keep2 = intersect(keep, keys(g.block.symbols))
 	lset = Set{Loc}([ g.block.symbols[s] for s in keep2])
 	for o in reverse(g.block.ops)
@@ -30,25 +31,30 @@ function prune!(g, keep)
 			push!(lset, o.f)
 		end
 	end
+
+	# filter all locs, symbols, ops unrelated
 	filter!(l -> l in lset, g.locs)
-	filter!(o -> any(l -> l in o.desc, lset), g.block.ops)
 	filter!((s,l) -> l in lset, g.block.symbols)
-	# TODO : cleanup subgraphs too
+	for ops in allops(g)
+		filter!(o -> any(l -> l in o.desc, lset), ops)
+	end
+
 	g
 end
 
 # splits n-ary functions into binary ones
 function splitnary!(g)
-	for (line, o) in enumerate(g.block.ops)
-		o.f.val in [+, *, sum, min, max] || continue
-		length(o.asc) > 2 || continue
+	for ops in allops(g)
+		for (line, o) in enumerate(ops)
+			o.f.val in [+, *, sum, min, max] || continue
+			length(o.asc) > 2 || continue
 
-		nloc = RLoc( (o.f.val)(o.asc[1].val, o.asc[2].val) ) # intermediate
-		push!(g.locs, nloc)
-		insert!(g.block.ops, line, Op(o.f, o.asc[1:2], [nloc;]))
-		o.asc = [nloc;o.asc[3:end]]
+			nloc = RLoc( (o.f.val)(o.asc[1].val, o.asc[2].val) ) # intermediate
+			push!(g.locs, nloc)
+			insert!(ops, line, Op(o.f, o.asc[1:2], [nloc;]))
+			o.asc = [nloc;o.asc[3:end]]
+		end
 	end
-	# TODO : cleanup subgraphs too
 	g
 end
 
@@ -80,28 +86,31 @@ end
 
 # replaces occurrences of 'cpy' by 'org'
 function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.locs[3], A.g
-	for o2 in g.block.ops
-		o2.asc[  o2.asc  .== cpy ] = org
-		o2.desc[ o2.desc .== cpy ] = org
+	for ops in allops(g)
+		for o in ops
+			o.asc[  o.asc  .== cpy ] = org
+			o.desc[ o.desc .== cpy ] = org
+		end
 	end
 	for (k,v) in filter((k,v) -> v == cpy, g.block.symbols)
 		g.block.symbols[k] = org
 	end
-	# TODO propagate to subgraphs
 end
 
-# removes redundant copies
+# removes redundant 'copy'
 function fusecopies!(g)
-	del_list = Int64[]
-	for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
-		o.f.val == copy || continue
-		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+	for ops in allops(g)
+		del_list = Int64[]
+		for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+			o.f.val == copy || continue
+			isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-		push!(del_list, line)
-		# replace occurences of copy by original
-		fuse(o.asc[1], o.desc[1], g)
+			push!(del_list, line)
+			# replace occurences of copy by original
+			fuse(o.asc[1], o.desc[1], g)
+		end
+		deleteat!(ops, del_list)
 	end
-	deleteat!(g.block.ops, del_list)
 end
 
 function removerightneutral!(g)
@@ -111,38 +120,43 @@ function removerightneutral!(g)
 								 (*, 1.), (.*, 1.),
 								 (^, 1.), (.^, 1.)]
 
-	del_list = Int64[]
-	for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
-		length(o.asc) == 2 || continue
-		loctype(o.asc[2]) == :constant || continue
-		any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
-		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+  for ops in allops(g)
+		del_list = Int64[]
+		for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+			length(o.asc) == 2 || continue
+			loctype(o.asc[2]) == :constant || continue
+			any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
+			isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-		push!(del_list, line)
-		# replace occurences of copy by original
-		fuse(o.asc[1], o.desc[1], g)
+			push!(del_list, line)
+			# replace occurences of copy by original
+			fuse(o.asc[1], o.desc[1], g)
+		end
+		deleteat!(ops, del_list)
 	end
-	deleteat!(g.block.ops, del_list)
-
 end
 
 function removeleftneutral!(g)
 	const conds = [(+, 0.), (.+, 0.),
 								 (*, 1.), (.*, 1.)]
 
-	del_list = Int64[]
-	for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
-		length(o.asc) == 2 || continue
-		any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
-		isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+  for ops in allops(g)
+		del_list = Int64[]
+		for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+			length(o.asc) == 2 || continue
+			any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
+			isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-		push!(del_list, line)
-		# replace occurences of copy by original
-		fuse(o.asc[1], o.desc[1], g)
+			push!(del_list, line)
+			# replace occurences of copy by original
+			fuse(o.asc[1], o.desc[1], g)
+		end
+		deleteat!(ops, del_list)
 	end
-	deleteat!(g.block.ops, del_list)
-
 end
+
+
+
 # function simplify!(g::ExGraph, emod = Main)
 #
 # 	i = 1

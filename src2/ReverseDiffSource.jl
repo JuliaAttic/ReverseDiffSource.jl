@@ -66,6 +66,14 @@ end
 
 Block() = Block(Vector{Op}(), Dict{Any, Loc}())
 
+
+allops(x::Any)   = Vector{Op}[]
+allops(g::Graph) = allops(g.block)
+allops(op::Op)   = allops(op.f.val)
+function allops(bl::AbstractBlock)
+  mapreduce(allops, vcat, Vector{Op}[bl.ops], bl.ops)
+end
+
 ######## Graph type ##########
 """
 Type `Graph` contains the whole function/expression description on which the

@@ -6,52 +6,8 @@
 
 # in module ReverseDiffSource
 
-
 # init
-begin
-  using Base.Test
-
-  # testing vars
-  a, b = 2, 2.1
-  B = ones(2)
-  D = rand(2,3,4)
-  type Z ; x ; y ; end
-  C = Z(1,2)
-
-  function fullcycle(ex; env_var=Dict(), keep_var=[EXIT_SYM;])
-    # psym  = collect(keys(env_var))
-    # pvals = collect(values(env_var))
-    # m = current_module()
-    # function env(s::Symbol)
-    #   i = findfirst(s .== psym)
-    #   i != 0 && return (true, pvals[i], false, nothing)
-    #   isdefined(m, s) || return (false, nothing, nothing, nothing)
-    #   (true, eval(m,s), isconst(m,s), nothing)
-    # end
-
-    resetvar()
-    g  = tograph(ex) |> simplify!
-    c2 = tocode(g, keep_var)
-    length(c2.args) == 1 ? c2.args[1] : c2
-  end
-
-  ## removes linenumbers from expression to ease comparisons
-  function cleanup(ex::Expr)
-      args = Any[]
-      for a in ex.args
-          isa(a, LineNumberNode) && continue
-          isa(a, Expr) && a.head==:line && continue
-          if isa(a, Expr) && a.head==:block
-            args = vcat(args, a.args)
-          else
-            push!(args, isa(a,Expr) ? cleanup(a) : a )
-          end
-      end
-      Expr(ex.head, args...)
-  end
-end
-
-# module A
+include("defs.jl")
 
 # check for errors
 tograph( :(a = 1) )
@@ -190,51 +146,61 @@ exout = :( _tmp1 = *(x,a) ; +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
 
 ###  test respect of allocations
 ex = quote
-    a=zeros(2)
-    a[2] = x
-    sum(a)
+    x=zeros(2)
+    x[2] = a
+    sum(x)
 end
 exout = quote
-    _tmp1 = zeros(2)
-    _tmp1[2] = x
-    sum(_tmp1)
+    x = zeros(2)
+    x[2] = a
+    sum(x)
 end
-@test fullcycle(ex) == striplinenumbers(exout)
+@test fullcycle(ex) == cleanup(exout)
 
 
 ex = quote
-    a = zeros(5)
-    x = sum(a)
-    a[2] = 1
-    y = sum(a)
+    z = zeros(5)
+    x = sum(z)
+    z[2] = 1
+    y = sum(z)
     x + y
 end
 exout = quote
-    _tmp1 = zeros(5)
-    _tmp2 = sum(_tmp1)
-    _tmp1[2] = 1
-    _tmp2 + sum(_tmp1)
+    z = zeros(5)
+    x = sum(z)
+    z[2] = 1
+    x + sum(z)
 end
-
-@test fullcycle(ex) == striplinenumbers(exout)
-
+@test fullcycle(ex) == cleanup(exout)
 
 
 
 
+################# for loops  ################
+ex = quote
+	x = 0.
+	for i in 1:10
+		x += i
+	end
+	x
+end
+g = tograph(ex)
+show(g)
+fullcycle(ex)
 
 ex = quote
-	a = 0.
-	for i in 1:10
-		a += i
+  N = 12
+	X = Array(Float64,N)
+	for i in 1:N
+		X[i] = i*i
 	end
-	a
+	sum(X)
 end
+g = tograph(ex)
+show(g)
 
-m.plot( m.tograph(ex) )
-
-########## show() for nodes and graphs  ##########
-
-g = tograph(ex, modenv())
-println(g.nodes[4])
-println(g)
+ret = allops(g.block)
+ret[1][4]
+allops(ret[1][4])
+typeof(ret[1][4])
+typeof(ret[1][4].f)
