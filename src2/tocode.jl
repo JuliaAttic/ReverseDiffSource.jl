@@ -17,14 +17,15 @@ let
 end
 
 function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
-
   # check that variables to be shown are defined in root block
   vset = setdiff(exits, keys(g.block.symbols))
   length(vset) > 0 &&
     error("[tocode] some requested variables were not found : $vset")
 
-  out   = Any[]
-  locex = Dict{Loc, Any}()
+  _tocode(g.block.ops, exits, g)
+end
+
+function _tocode(ops, exits, g, locex=Dict{Loc, Any}()) #   exits=[EXIT_SYM;]
 
   #### creates expression for names qualified by a module
   mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
@@ -32,23 +33,24 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
   function translate(o::Op)  # o = g.block.ops[1]
     # println(o.f.val)
     vargs = Any[ getexpr(arg) for arg in o.asc ]
+    fun = o.f.val
 
     # special translation cases
-    if o.f.val == vcat
+    if fun == vcat
       return Expr(:vect, vargs...)
-    elseif o.f.val == colon
+    elseif fun == colon
       return Expr( :(:), vargs...)
-    elseif o.f.val == transpose
+    elseif fun == transpose
       return Expr(symbol("'"), vargs...)
-    elseif o.f.val == tuple
+    elseif fun == tuple
       return Expr(:tuple, vargs...)
-    elseif o.f.val == getindex
+    elseif fun == getindex
       return Expr( :ref, vargs...)
-    elseif o.f.val == getfield
+    elseif fun == getfield
       return Expr(   :., vargs[1], QuoteNode(vargs[2]))
-    elseif o.f.val == setindex!
+    elseif fun == setindex!
       return Expr( :(=), Expr(:ref, vargs[1], vargs[3:end]...), vargs[2])
-    elseif o.f.val == setfield!
+    elseif fun == setfield!
       return Expr( :(=), Expr(  :., vargs[1], QuoteNode(vargs[2])), vargs[3])
     end
 
@@ -61,9 +63,9 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
               # symbol(string(op)) )
 
     mt = try
-            thing_module(o.f.val)
+            thing_module(fun)
          catch e
-            error("[tocode] cannot find module of $op ($(typeof(op)))")
+            error("[tocode] cannot find module of $fun ($(typeof(fun)))")
          end
 
     # try to strip module names for brevity
@@ -91,6 +93,7 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
 
   function getexpr(l::Loc) # l = g.locs[1]
     haskey(locex, l) && return locex[l]
+    return newvar()
     error("[tocode] no expression for Loc $l")
   end
 
@@ -122,23 +125,26 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
     #  or if it is mutated
     for l in o.desc # l = g.block.ops[1].desc[1] ; line=1
       ct = 0
-      for o2 in g.block.ops[line+1:end]
+      for o2 in ops[line+1:end]
         l in o2.desc && return true
         ct += l in o2.asc
         ct > 1 && return true
       end
     end
     # checks if asc is modified later
-    for l in o.asc # l = g.block.ops[1].desc[1] ; line=1
-      for o2 in g.block.ops[line+1:end]
+    for l in o.asc # l = ops[1].desc[1] ; line=1
+      for o2 in ops[line+1:end]
         l in o2.desc && l in o2.asc && return true
       end
     end
     false
   end
 
+  ###### start expression generation
+  out   = Any[]
+
   # if no op, just fetch constant/external associated to an exit
-  if length(g.block.ops) == 0
+  if length(ops) == 0
     lexits = unique( Loc[ g.block.symbols[s] for s in exits ] ) # Locs of interest
     map(genassign, lexits)
 
@@ -146,10 +152,10 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
   else
     lexits = unique( Loc[ g.block.symbols[s] for s in exits ] )
 
-    for (line, o) in enumerate(g.block.ops) # line=1 ; o = g.block.ops[1]
+    for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
       # TO DO : manage multiple assignment
 
-      ex = translate(o)       # translate to Expr
+      ex = isa(o.f.val, AbstractBlock) ? blockcode(o.f.val, locex, o.asc, g) : translate(o)  # translate to Expr
 
       if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
         locex[o.desc[1]] = ex

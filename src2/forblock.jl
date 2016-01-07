@@ -29,21 +29,21 @@ Block() = Block(Vector{Op}(), Dict{Any, Loc}())
 
 function blockparse!(ex::ExFor, parentblock::AbstractBlock, g::Graph)
   # find the iteration variable
-  is = ex.args[1].args[1]
-  isa(is, Symbol) || error("[tograph] for loop using several indices : $is ")
+  ixs = ex.args[1].args[1]
+  isa(ixs, Symbol) || error("[tograph] for loop using several indices : $ixs ")
 
   # explore loop iterable in the parentblock
-  nir = addtoblock!(ex.args[1].args[2], parentblock, g)
+  rgl = addtoblock!(ex.args[1].args[2], parentblock, g)
 
   # create Loc for iteration variable
-  lis = RLoc( first(nir.val) ) # first element of iterable
-  push!(g.locs, lis)
+  ixl = RLoc( first(rgl.val) ) # first element of iterable
+  push!(g.locs, ixl)
 
   # create ForBlock
   symbols = copy(parentblock.symbols)
-  symbols[is] = lis  # add iteration variable
+  symbols[ixs] = ixl  # add iteration var symbol in symbols map
 
-  thisblock = ForBlock(Vector{Op}(), symbols, is, nir)
+  thisblock = ForBlock(Vector{Op}(), symbols, ixs, rgl)
   addtoblock!(ex.args[2], thisblock, g) # parse loop contents
 
   # update parent block symbols map
@@ -53,7 +53,7 @@ function blockparse!(ex::ExFor, parentblock::AbstractBlock, g::Graph)
   end
 
   # create op
-  asc  = collect( mapreduce(o ->  o.asc, union, Set{Loc}(), thisblock.ops) )
+  asc  = vcat([ixl, rgl], mapreduce(o ->  o.asc, union, Set{Loc}(), thisblock.ops))
   desc = collect( mapreduce(o -> o.desc, union, Set{Loc}(), thisblock.ops) )
   lb = RLoc(thisblock)
   push!(g.locs, lb)
@@ -61,4 +61,25 @@ function blockparse!(ex::ExFor, parentblock::AbstractBlock, g::Graph)
   push!(parentblock.ops, op)
 
   nothing  # considers that for loops do not return anything (TODO : check)
+end
+
+
+function blockcode(bl::ForBlock, locex, asc, g::Graph)
+  # iteration variable Loc is in pos # 1
+  ixl = asc[1]
+  if !haskey(locex, ixl) # if no name, create one
+      locex[ixl] = newvar()
+  end
+  ixs = locex[ixl]
+
+  # iterable Loc is in pos # 2
+  rgl = asc[2]
+  rgs = locex[rgl]
+
+  # expression for inner code
+  fex = _tocode(bl.ops, [], g, locex)
+
+  Expr(:for,
+       Expr(:(=), ixs, rgs),
+       fex)
 end

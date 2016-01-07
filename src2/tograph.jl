@@ -166,7 +166,8 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
     try
       blockparse!(ex, thisblock, g)
     catch e
-      error("[tograph] error parsing expr type $(ex.head) in ($ex)")
+      println("[tograph] error parsing expr type $(ex.head) in ($ex)")
+      error("$e")
     end
   end
 

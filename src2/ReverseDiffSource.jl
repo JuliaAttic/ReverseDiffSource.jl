@@ -68,7 +68,6 @@ Block() = Block(Vector{Op}(), Dict{Any, Loc}())
 
 
 allops(x::Any)   = Vector{Op}[]
-allops(g::Graph) = allops(g.block)
 allops(op::Op)   = allops(op.f.val)
 function allops(bl::AbstractBlock)
   mapreduce(allops, vcat, Vector{Op}[bl.ops], bl.ops)
@@ -105,6 +104,8 @@ function Graph(m::Module=current_module())
          s -> isconst(m,s) )
 end
 
+allops(g::Graph) = allops(g.block)
+
 
 ###########  printing methods  ###################
 
@@ -129,16 +130,18 @@ function show(io::IO, g::Graph)
   _printtable(io, slocs)
   println(io, "")
 
-  sops = Array(UTF8String, length(g.block.ops)+1, 3)
-  sops[1,:] = ["f" "parents" "children"]
-  for (i,o) in enumerate(g.block.ops) # i,l = 1, g.ops[1]
-    sio = IOBuffer(true, true)
-    show(sio, o.f)
-    sops[i+1,1] = takebuf_string(sio)
-    sops[i+1,2] = join(indexin( o.asc, g.locs), ",")
-    sops[i+1,3] = join(indexin(o.desc, g.locs), ",")
+  for ops in allops(g)
+    sops = Array(UTF8String, length(ops)+1, 3)
+    sops[1,:] = ["f" "parents" "children"]
+    for (i,o) in enumerate(ops) # i,l = 1, g.ops[1]
+      sio = IOBuffer(true, true)
+      show(sio, o.f)
+      sops[i+1,1] = takebuf_string(sio)
+      sops[i+1,2] = join(indexin( o.asc, g.locs), ",")
+      sops[i+1,3] = join(indexin(o.desc, g.locs), ",")
+    end
+    _printtable(io, sops)
   end
-  _printtable(io, sops)
 end
 
 function show(io::IO, l::Loc)
@@ -150,7 +153,7 @@ end
 function show(io::IO, bl::AbstractBlock)
   ns = length(bl.symbols)
   no = length(bl.ops)
-  print(io, "$ns symbols, $no ops")
+  print(io, "$ns syms, $no ops")
 end
 
 ##### files to be included

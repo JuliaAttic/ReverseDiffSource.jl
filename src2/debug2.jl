@@ -121,8 +121,8 @@ show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 @test fullcycle(:( y=C.x ))                     == :( C.x )
 @test fullcycle(:( y=C.x + 1 ; C.y + C.x ))     == :(C.y + C.x)
 @test fullcycle(:( X=Z(0,0); X.x=a ))           == :( a )
-@test fullcycle(:( X=Z(0,0); X.x=a; y=X.y; y )) == cleanup(:(X=A.Z(0,0);X.x=a; y=X.y))
-@test fullcycle(:( X=Z(1,1); X.x = a; 1+X.y ))  == cleanup(:(X=A.Z(1,1);X.x=a; 1+X.y))
+@test fullcycle(:( X=Z(0,0); X.x=a; y=X.y; y )) == cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a; X.y))
+@test fullcycle(:( X=Z(1,1); X.x = a; 1+X.y ))  == cleanup(:(X=ReverseDiffSource.Z(1,1);X.x=a; 1+X.y))
 @test fullcycle(:( C.x + C.y ))                 == :( C.x + C.y )
 
 @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
@@ -139,8 +139,6 @@ ex = quote
     y + y2 + y3 + 12
 end
 fullcycle(ex)
-
-
 exout = :( _tmp1 = *(x,a) ; +(_tmp1,+(+(_tmp1,3),+(*(+(x,1),a),12))) )
 @test fullcycle(ex) == exout
 
@@ -185,8 +183,17 @@ ex = quote
 	x
 end
 g = tograph(ex)
+prune!(g, [:_result;])
+splitnary!(g)
+fusecopies!(g)
+show(g)
+simplify!(g)
 show(g)
 fullcycle(ex)
+
+tocode(g)
+
+vcat([1,2], [3,4])
 
 ex = quote
   N = 12
