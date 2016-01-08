@@ -28,15 +28,17 @@ function prune!(g, keep)
 	for o in reverse(g.block.ops)
 		if any(l -> l in o.desc, lset)
 			union!(lset, o.asc)
-			push!(lset, o.f)
+			isa(o, FOp) && push!(lset, o.f)
 		end
 	end
 
-	# filter all locs, symbols, ops unrelated
+	# filter all locs, symbols, ops unrelated to lset
 	filter!(l -> l in lset, g.locs)
 	filter!((s,l) -> l in lset, g.block.symbols)
-	for ops in allops(g)
-		filter!(o -> any(l -> l in o.desc, lset), ops)
+	for bl in allblocks(g)
+		for ops in getops(bl)
+			filter!(o -> any(l -> l in o.desc, lset), ops)
+		end
 	end
 
 	g
@@ -44,16 +46,20 @@ end
 
 # splits n-ary functions into binary ones
 function splitnary!(g)
-	for ops in allops(g)
-		for (line, o) in enumerate(ops)
-			o.f.val in [+, *, sum, min, max] || continue
-			length(o.asc) > 2 || continue
+	for bl in allblocks(g)
+		for ops in getops(bl)
+			for (line, o) in enumerate(ops)
+				isa(o, FOp) || continue
+				o.f.val in [+, *, sum, min, max] || continue
+				length(o.asc) > 2 || continue
 
-			nloc = RLoc( (o.f.val)(o.asc[1].val, o.asc[2].val) ) # intermediate
-			push!(g.locs, nloc)
-			insert!(ops, line, Op(o.f, o.asc[1:2], [nloc;]))
-			o.asc = [nloc;o.asc[3:end]]
+				nloc = RLoc( (o.f.val)(o.asc[1].val, o.asc[2].val) ) # intermediate
+				push!(g.locs, nloc)
+				insert!(ops, line, FOp(o.f, o.asc[1:2], [nloc;]))
+				o.asc = [nloc;o.asc[3:end]]
+			end
 		end
+		bl.asc, bl.desc = summarize(bl)
 	end
 	g
 end
@@ -86,30 +92,36 @@ end
 
 # replaces occurrences of 'cpy' by 'org'
 function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.locs[3], A.g
-	for ops in allops(g)
-		for o in ops
-			o.asc[  o.asc  .== cpy ] = org
-			o.desc[ o.desc .== cpy ] = org
+	for bl in allblocks(g)
+		for ops in getops(bl)
+			for o in ops
+				o.asc[  o.asc  .== cpy ] = org
+				o.desc[ o.desc .== cpy ] = org
+			end
 		end
-	end
-	for (k,v) in filter((k,v) -> v == cpy, g.block.symbols)
-		g.block.symbols[k] = org
+		for (k,v) in filter((k,v) -> v == cpy, bl.symbols)
+			g.block.symbols[k] = org
+		end
+		bl.asc, bl.desc = summarize(bl)
 	end
 end
 
 # removes redundant 'copy'
 function fusecopies!(g)
-	for ops in allops(g)
-		del_list = Int64[]
-		for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
-			o.f.val == copy || continue
-			isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+	for bl in allblocks(g)
+		for ops in getops(bl)
+			del_list = Int64[]
+			for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+				isa(o, FOp) || continue
+				o.f.val == copy || continue
+				isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-			push!(del_list, line)
-			# replace occurences of copy by original
-			fuse(o.asc[1], o.desc[1], g)
+				push!(del_list, line)
+				# replace occurences of copy by original
+				fuse(o.asc[1], o.desc[1], g)
+			end
+			deleteat!(ops, del_list)
 		end
-		deleteat!(ops, del_list)
 	end
 end
 
@@ -120,19 +132,22 @@ function removerightneutral!(g)
 								 (*, 1.), (.*, 1.),
 								 (^, 1.), (.^, 1.)]
 
-  for ops in allops(g)
-		del_list = Int64[]
-		for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
-			length(o.asc) == 2 || continue
-			loctype(o.asc[2]) == :constant || continue
-			any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
-			isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+  for bl in allblocks(g)
+		for ops in getops(bl)
+			del_list = Int64[]
+			for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+				isa(o, FOp) || continue
+				length(o.asc) == 2 || continue
+				loctype(o.asc[2]) == :constant || continue
+				any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
+				isfusable(o.asc[1], o.desc[1], g, line+1) || continue
 
-			push!(del_list, line)
-			# replace occurences of copy by original
-			fuse(o.asc[1], o.desc[1], g)
+				push!(del_list, line)
+				# replace occurences of copy by original
+				fuse(o.asc[1], o.desc[1], g)
+			end
+			deleteat!(ops, del_list)
 		end
-		deleteat!(ops, del_list)
 	end
 end
 
@@ -140,18 +155,22 @@ function removeleftneutral!(g)
 	const conds = [(+, 0.), (.+, 0.),
 								 (*, 1.), (.*, 1.)]
 
-  for ops in allops(g)
-		del_list = Int64[]
-		for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
-			length(o.asc) == 2 || continue
-			any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
-			isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+  for bl in allblocks(g)
+		for ops in getops(bl)
+			del_list = Int64[]
+			for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+				isa(o, FOp) || continue
+				length(o.asc) == 2 || continue
+				loctype(o.asc[1]) == :constant || continue
+				any(cp -> cp==(o.f.val, o.asc[1].val), conds) || continue
+				isfusable(o.asc[2], o.desc[1], g, line+1) || continue
 
-			push!(del_list, line)
-			# replace occurences of copy by original
-			fuse(o.asc[1], o.desc[1], g)
+				push!(del_list, line)
+				# replace occurences of copy by original
+				fuse(o.asc[2], o.desc[1], g)
+			end
+			deleteat!(ops, del_list)
 		end
-		deleteat!(ops, del_list)
 	end
 end
 

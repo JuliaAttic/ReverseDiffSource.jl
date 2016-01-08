@@ -182,15 +182,16 @@ ex = quote
 	end
 	x
 end
+fullcycle(ex)
+
 g = tograph(ex)
 prune!(g, [:_result;])
 splitnary!(g)
 fusecopies!(g)
 show(g)
 simplify!(g)
-show(g)
-fullcycle(ex)
 
+show(g)
 tocode(g)
 
 vcat([1,2], [3,4])
@@ -203,11 +204,54 @@ ex = quote
 	end
 	sum(X)
 end
+fullcycle(ex)
+
+
+ex = quote
+  N = 12
+	X = Array(Float64,N)
+  y = 0
+	for i in 1:N
+    y = 13.
+		X[i] = i*i
+	end
+	sum(X)
+end
+fullcycle(ex)
+
 g = tograph(ex)
+prune!(g, [:_result;])
+splitnary!(g)
+fusecopies!(g)
+removerightneutral!(g)
+removeleftneutral!(g)
+
+prune!(g, [:_result;])
+show(g)
+allops(g)
+
+g.block.ops[4]
+g.block.ops[4].f.typ
+
+simplify!(g)
+tocode(g)
 show(g)
 
-ret = allops(g.block)
-ret[1][4]
-allops(ret[1][4])
-typeof(ret[1][4])
-typeof(ret[1][4].f)
+ex = quote
+  N = 12
+	X = Array(Float64,N,N)
+	for i in 1:N
+    for j in 1:N
+  		X[i,j] = i+j
+  	end
+	end
+	sum(X)
+end
+fullcycle(ex)
+g = tograph(ex)
+show(g)
+tocode(g)
+prune!(g, [EXIT_SYM;])
+
+simplify!(g)
+show(g)

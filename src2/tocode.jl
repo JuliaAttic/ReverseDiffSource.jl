@@ -155,18 +155,18 @@ function _tocode(ops, exits, g, locex=Dict{Loc, Any}()) #   exits=[EXIT_SYM;]
     for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
       # TO DO : manage multiple assignment
 
-      ex = isa(o.f.val, AbstractBlock) ? blockcode(o.f.val, locex, o.asc, g) : translate(o)  # translate to Expr
+      ex = isa(o, AbstractBlock) ? blockcode(o, locex, g) : translate(o)  # translate to Expr
 
       if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
         locex[o.desc[1]] = ex
         genassign(o.desc[1], true)
 
+      elseif o.desc[1] in o.asc   # mutating Function
+        push!(out, ex)
+
       elseif any(l -> l in lexits, o.desc) # assignment needed
         locex[o.desc[1]] = ex
         genassign(o.desc[1])
-
-      elseif o.desc[1] in o.asc   # mutating Function
-        push!(out, ex)
 
       else # keep expression for later
         locex[o.desc[1]] = ex

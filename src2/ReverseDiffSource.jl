@@ -1,12 +1,10 @@
 
-
 module ReverseDiffSource
 
 import Base.show
 
 # name for exit variable
 const EXIT_SYM = :_result
-
 
 ######## Location type ##########
 """
@@ -31,47 +29,95 @@ typealias RLoc Loc{:regular}   # regular
 
 loctype{T}(l::Loc{T}) = T
 
+
+
+
+
 ######## Operation type ##########
 """
-Type `Op` is used to represent an operation. The presence of a given Loc in
+Abstract type `Op` is used to represent an operation. The presence of a given Loc in
 both `asc`, the operation's input (its arguments), and `desc`n the operation's
 results indicate that the operation is mutating the Loc.
 
-  - f : the Loc containing the function
+Common fields for this abstract type are :
+
   - asc : a `Vector{Loc}` of the function arguments
   - val : a `Vector{Loc}` of the function results
 """
-type Op
+abstract Op
+
+
+"""
+Type `FOp <: Op` is used to for simple functions.
+
+  - f : the Loc containing the function
+"""
+type FOp <: Op
     f::Loc
     asc::Vector{Loc}  # parent Loc (function arguments)
     desc::Vector{Loc} # descendant Loc (Loc modified/created by function)
 end
 
-######## Block types ##########
-abstract AbstractBlock   # abstract type for all block types
 
-# Plain block
+
 """
-Type `Block` contains the fields :
+Abstract type `AbstractBlock <: Op` is used to for block types (Block,
+ForBlock, etc..)
 
-  - ops : a `Vector{Op}` describing the operations
+Common fields for this abstract type are :
+
   - symbols : a `Dict{Any, Loc}` giving the mapping between symbols and their
   Loc. Several symbols can point to the same Loc. The Dict is shared with the
   parent Block if the block is not a scope block, and distinct otherwise.
 """
+abstract AbstractBlock <: Op  # abstract type for all block types
+
+
+"""
+`getops(bl::AbstractBlock)` returns a Vector{Vector{Op}} of the operations vectors
+in this block. Usually there is a single vector of ops by block, one
+exception being the IfBlock which has 2.
+"""
+getops(bl::AbstractBlock) = Any[bl.ops]
+
+
+"""
+Type `Block` is for simple blocks :
+
+  - ops : a `Vector{Op}` describing the operations
+"""
 type Block <: AbstractBlock
     ops::Vector{Op}
     symbols::Dict{Any, Loc}
+    asc::Vector{Loc}  # parent Loc (block arguments)
+    desc::Vector{Loc} # descendant Loc (Loc modified/created by block)
 end
 
-Block() = Block(Vector{Op}(), Dict{Any, Loc}())
+Block() = Block(Vector{Op}(), Dict{Any, Loc}(), Vector{Loc}(), Vector{Loc}())
 
 
-allops(x::Any)   = Vector{Op}[]
-allops(op::Op)   = allops(op.f.val)
-function allops(bl::AbstractBlock)
-  mapreduce(allops, vcat, Vector{Op}[bl.ops], bl.ops)
+"""
+`allblocks(x)` returns a vector of the blocks in x and below
+"""
+allblocks(op::Op) = []
+allblocks(ops::Vector{Op})   = vcat(map(allblocks, ops)...)
+allblocks(bl::AbstractBlock) = vcat(map(allblocks, getops(bl))...)
+# function allblocks(op::Op)
+#   isa(op.f.val, AbstractBlock) || return []
+#   vcat((op.f.val, op), allblocks(op.f.val)...)
+# end
+
+function summarize(bl::AbstractBlock)
+  asc  = Set()
+  desc = Set()
+  for ops in getops(bl)
+    asc  = mapreduce(o ->  o.asc, union, asc, ops)
+    desc = mapreduce(o -> o.desc, union, asc, ops)
+  end
+  collect(asc), collect(desc)
 end
+
+
 
 ######## Graph type ##########
 """
@@ -104,8 +150,10 @@ function Graph(m::Module=current_module())
          s -> isconst(m,s) )
 end
 
-allops(g::Graph) = allops(g.block)
+allblocks(g::Graph) = vcat(g.block, allblocks(g.block)...)
+getops(g::Graph) = getops(g.block)
 
+# allblocks(g)
 
 ###########  printing methods  ###################
 
@@ -120,27 +168,33 @@ function _printtable(io::IO, t::Array{UTF8String,2})
   end
 end
 
-function show(io::IO, g::Graph)
+function show(io::IO, g::Graph)  # io=STDOUT
   slocs = Array(UTF8String, length(g.locs)+1, 5)
   slocs[1,:] = ["#", "type", "symbol(s)", "cat", "val" ]
   for (i,l) in enumerate(g.locs) # i,l = 1, g.locs[1]
     vs = keys(filter((k,v) -> v===l, g.block.symbols))
-    slocs[i+1,:] = map(string, Any[i, l.typ, join(vs, ","), loctype(l), l.val])
+    sio = IOBuffer(true, true) ; show(sio, l.val)
+    vals = takebuf_string(sio)[1:min(end,30)]  # 30 char max for value
+    vals *= length(vals)==30 ? "..." : ""
+    slocs[i+1,:] = map(string, Any[i, l.typ, join(vs, ","), loctype(l), vals])
   end
   _printtable(io, slocs)
   println(io, "")
 
-  for ops in allops(g)
-    sops = Array(UTF8String, length(ops)+1, 3)
-    sops[1,:] = ["f" "parents" "children"]
-    for (i,o) in enumerate(ops) # i,l = 1, g.ops[1]
-      sio = IOBuffer(true, true)
-      show(sio, o.f)
-      sops[i+1,1] = takebuf_string(sio)
-      sops[i+1,2] = join(indexin( o.asc, g.locs), ",")
-      sops[i+1,3] = join(indexin(o.desc, g.locs), ",")
+  for bl in allblocks(g) # bl = allblocks(g)[1]
+    for ops in getops(bl) # ops = getops(bl)[1]
+      sops = Array(UTF8String, length(ops)+1, 3)
+      sops[1,:] = ["operator" "parents" "children"]
+      for (i,o) in enumerate(ops) # i,l = 1, g.ops[1]
+        sio = IOBuffer(true, true)
+        show(sio, o)
+        sops[i+1,1] = takebuf_string(sio)
+        sops[i+1,2] = join(indexin( o.asc, g.locs), ",")
+        sops[i+1,3] = join(indexin(o.desc, g.locs), ",")
+      end
+      _printtable(io, sops)
+      println(io, "")
     end
-    _printtable(io, sops)
   end
 end
 
@@ -153,7 +207,11 @@ end
 function show(io::IO, bl::AbstractBlock)
   ns = length(bl.symbols)
   no = length(bl.ops)
-  print(io, "$ns syms, $no ops")
+  print(io, "Block $ns symbols, $no ops")
+end
+
+function show(io::IO, op::Op)
+  show(io, op.f)
 end
 
 ##### files to be included

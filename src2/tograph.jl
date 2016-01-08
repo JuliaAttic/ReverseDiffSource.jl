@@ -44,7 +44,7 @@ function tograph(ex, g::Graph=Graph())
   g
 end
 
-# parse expression and add to existing given block/graph
+# parse expression and add to block
 function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # ex = :( z.x )
 
   symbols = thisblock.symbols
@@ -114,7 +114,7 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
           add!(nloc)
       end
 
-      add!( Op(floc, largs, [nloc;]) )
+      add!( FOp(floc, largs, [nloc;]) )
       nloc  # return Loc of result
   end
 
@@ -136,7 +136,7 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
         nloc = RLoc(rloc.val)
         floc = CLoc(copy)
         add!(floc)
-        add!( Op(floc, [rloc;], [nloc;]) )
+        add!( FOp(floc, [rloc;], [nloc;]) )
         add!(nloc)
       else  # array or composite type => '=' is a reference
         nloc = rloc
@@ -166,8 +166,7 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
     try
       blockparse!(ex, thisblock, g)
     catch e
-      println("[tograph] error parsing expr type $(ex.head) in ($ex)")
-      error("$e")
+      error("[tograph] error parsing expr type $(ex.head) in ($ex)")
     end
   end
 
