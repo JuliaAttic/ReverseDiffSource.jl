@@ -15,7 +15,7 @@ Usage examples:
 - derivative of x³
 ```
     julia> rdiff( :(x^3) , x=2.)  # 'x=2.' indicates the type of x to rdiff
-    :(begin 
+    :(begin
         (x^3,3 * x^2.0)  # expression calculates a tuple of (value, derivate)
         end)
 ```
@@ -23,7 +23,7 @@ Usage examples:
 - first 10 derivatives of `sin(x)`  (notice the simplifications)
 ```
     julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
-    :(begin 
+    :(begin
             _tmp1 = sin(x)
             _tmp2 = cos(x)
             _tmp3 = -_tmp1
@@ -44,11 +44,11 @@ Usage examples:
 ```
     # w1-w3 are the hidden layer weight matrices, x1 the input vector
     function ann(w1, w2, w3, x1)
-        x2 = w1 * x1 
+        x2 = w1 * x1
         x2 = log(1. + exp(x2))   # soft RELU unit
-        x3 = w2 * x2 
+        x3 = w2 * x2
         x3 = log(1. + exp(x3))   # soft RELU unit
-        x4 = w3 * x3 
+        x4 = w3 * x3
         1. / (1. + exp(-x4[1]))  # sigmoid output
     end
 
