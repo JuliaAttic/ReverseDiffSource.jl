@@ -46,6 +46,19 @@ show(tograph( :( A.B[2] ) ) )
 show(tograph( :( B[2] ) ) )
 show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 
+module A
+  using ReverseDiffSource
+  a = 2
+  show(ReverseDiffSource.tograph( :( x = y = a) ) )
+end
+
+module A
+  using ReverseDiffSource
+  a = zeros(2)
+  show(ReverseDiffSource.tograph( :( x = y = a) ) )
+end
+
+
 ############################ testing #####################################
 
 @test fullcycle(:( x = 5 ; y = a+5 ; z = cos(y) )) == :(cos(a+5))
@@ -55,9 +68,9 @@ show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 @test fullcycle(:( x = a * b * B)) == :((a*b)*B)
 
 @test fullcycle(:( x = b+6 ))       == :(b+6)
-@test fullcycle(:( x = b+6 ),     keep_var=[:x]) == :(x=b+6)
-@test fullcycle(:( x = y = b+6 ), keep_var=[:x]) == :(x=b+6)
-@test fullcycle(:( x = y = b+6 ), keep_var=[:y]) == :(y=b+6)
+# @test fullcycle(:( x = b+6 ),     keep_var=[:x]) == :(x=b+6)
+# @test fullcycle(:( x = y = b+6 ), keep_var=[:x]) == :(x=b+6)
+# @test fullcycle(:( x = y = b+6 ), keep_var=[:y]) == :(y=b+6)
 
 @test fullcycle(:(sin(b); x=3))     == :(3)
 
@@ -72,7 +85,7 @@ show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 @test fullcycle(:(x = b+0))         == :(b)
 # @test fullcycle(:(x = b*0))         == :(0)
 @test fullcycle(:(x = b*1))         == :(b)
-@test fullcycle(:(x = b*(0.5+0.5))) == :(b)
+# @test fullcycle(:(x = b*(0.5+0.5))) == :(b)
 @test fullcycle(:(x = b/1))         == :(b)
 
 @test fullcycle(:(5))                          == :(5)
@@ -107,26 +120,26 @@ show(tograph( :( X=copy(B) ; X[2] = 3) ) )
 @test fullcycle(:( B[1] + B[2] ))   == :(B[1] + B[2])
 @test fullcycle(:( B[1:2] ))        == :( B[1:2] )
 
-@test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] ))  == :( X = copy(B) ; X[1:2] = X[1:2] )
+# @test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] ))  == :( X = copy(B) ; X[1:2] = X[1:2] )
 @test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))     == :( X = copy(D) ; X[1:2,3] = a )
 @test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) == :( X = copy(D) ; X[1:2,2] = D[1:2,3] )
 
-@test fullcycle(:( B[:] ))                == Expr(:block, :( x[1:length(x)] ) )
-@test fullcycle(:( B[a+b, c:d] ))         == Expr(:block, :( x[a+b,c:d] ) )
-@test fullcycle(:( B[1:2] ))              == :( B[1:2] )
-@test fullcycle(:( B[1:end] ), x=ones(5)) == Expr(:block, :( x[1:length(x)]) )
-@test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
+# @test fullcycle(:( B[:] ))                == Expr(:block, :( x[1:length(x)] ) )
+# @test fullcycle(:( B[a+b, c:d] ))         == Expr(:block, :( x[a+b,c:d] ) )
+# @test fullcycle(:( B[1:2] ))              == :( B[1:2] )
+# @test fullcycle(:( B[1:end] ), x=ones(5)) == Expr(:block, :( x[1:length(x)]) )
+# @test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
 
 @test fullcycle(:( C.x ))                       == :( C.x )
 @test fullcycle(:( y=C.x ))                     == :( C.x )
 @test fullcycle(:( y=C.x + 1 ; C.y + C.x ))     == :(C.y + C.x)
-@test fullcycle(:( X=Z(0,0); X.x=a ))           == :( a )
+@test fullcycle(:( X=Z(0,0); X.x=a ))           == cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a))
 @test fullcycle(:( X=Z(0,0); X.x=a; y=X.y; y )) == cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a; X.y))
 @test fullcycle(:( X=Z(1,1); X.x = a; 1+X.y ))  == cleanup(:(X=ReverseDiffSource.Z(1,1);X.x=a; 1+X.y))
 @test fullcycle(:( C.x + C.y ))                 == :( C.x + C.y )
 
-@test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
-@test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
+# @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
+# @test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
 
 
 ###  test evalconstants, simplify
@@ -176,11 +189,30 @@ end
 
 ################# for loops  ################
 ex = quote
-	x = 0.
-	for i in 1:10
-		x += i
-	end
-	x
+  x = 0.
+  for i in 1:10
+    x = x + i
+  end
+  x
+end
+g = tograph(ex)
+show(g)
+
+
+prune!(g, [:_result;])
+splitnary!(g)
+fusecopies!(g)
+removerightneutral!(g)
+removeleftneutral!(g)
+prune!(g, keep)
+
+
+ex = quote
+  x = 0.
+  for i in 1:10
+  	x += i
+  end
+  x
 end
 fullcycle(ex)
 
@@ -188,34 +220,35 @@ g = tograph(ex)
 prune!(g, [:_result;])
 splitnary!(g)
 fusecopies!(g)
+removerightneutral!(g)
+removeleftneutral!(g)
+prune!(g, keep)
+
 show(g)
 simplify!(g)
-
-show(g)
 tocode(g)
 
-vcat([1,2], [3,4])
 
 ex = quote
   N = 12
-	X = Array(Float64,N)
-	for i in 1:N
-		X[i] = i*i
-	end
-	sum(X)
+  X = Array(Float64,N)
+  for i in 1:N
+    X[i] = i*i
+  end
+  sum(X)
 end
 fullcycle(ex)
-
+show(tograph(ex))
 
 ex = quote
   N = 12
-	X = Array(Float64,N)
+  X = Array(Float64,N)
   y = 0
-	for i in 1:N
+  for i in 1:N
     y = 13.
-		X[i] = i*i
-	end
-	sum(X)
+    X[i] = i*i
+  end
+  sum(X)
 end
 fullcycle(ex)
 
@@ -239,13 +272,13 @@ show(g)
 
 ex = quote
   N = 12
-	X = Array(Float64,N,N)
-	for i in 1:N
+  X = Array(Float64,N,N)
+  for i in 1:N
     for j in 1:N
-  		X[i,j] = i+j
-  	end
-	end
-	sum(X)
+      X[i,j] = i+j
+    end
+  end
+  sum(X)
 end
 fullcycle(ex)
 g = tograph(ex)
@@ -255,3 +288,15 @@ prune!(g, [EXIT_SYM;])
 
 simplify!(g)
 show(g)
+
+
+ex = quote
+  N = 12
+  X = Array(Float64,N,N)
+  for i in 1:N
+    x = 4.
+    12.
+  end
+  sum(X)
+end
+fullcycle(ex)

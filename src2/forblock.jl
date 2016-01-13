@@ -20,51 +20,55 @@ info on the iteration range and the iteration variable :
 type ForBlock <: AbstractBlock
     ops::Vector{Op}
     symbols::Dict{Any, Loc}
+    lops::Vector{Op}
     asc::Vector{Loc}  # parent Loc (block arguments)
     desc::Vector{Loc} # descendant Loc (Loc modified/created by block)
 end
+
+getops(bl::ForBlock) = Any[bl.ops, bl.lops]
 
 function summarize(bl::ForBlock)
   asc  = Set()
   desc = Set()
   for ops in getops(bl)
-    asc  = mapreduce(o ->  o.asc, union, asc, ops)
-    desc = mapreduce(o -> o.desc, union, asc, ops)
+    asc  = mapreduce(o ->  o.asc, union,  asc, ops)
+    desc = mapreduce(o -> o.desc, union, desc, ops)
   end
   # keep var and range in correct positions
   asc = vcat(bl.asc[1:2], setdiff(asc, bl.asc[1:2]))
   asc, desc
 end
 
-function blockparse!(ex::ExFor, parentblock::AbstractBlock, g::Graph)
+function blockparse!(ex::ExFor, parentops, parentsymbols::AbstractBlock, g::Graph)
   # find the iteration variable
   ixs = ex.args[1].args[1]
   isa(ixs, Symbol) || error("[tograph] for loop using several indices : $ixs ")
 
   # explore loop iterable in the parentblock
-  rgl = addtoblock!(ex.args[1].args[2], parentblock, g)
+  rgl = addtoblock!(ex.args[1].args[2], parentops, parentsymbols, g)
 
   # create Loc for iteration variable
   ixl = RLoc( first(rgl.val) ) # first element of iterable
   push!(g.locs, ixl)
 
   # create ForBlock
-  symbols = copy(parentblock.symbols)
+  symbols = copy(parentsymbols)
   symbols[ixs] = ixl  # add iteration var symbol in symbols map
 
   thisblock = ForBlock(Vector{Op}(), symbols, Loc[ixl, rgl], Vector{Loc}())
-  # thisblock = ForBlock(Vector{Op}(), Dict{Any, Loc}(), Vector{Loc}(), Vector{Loc}())
-  # isa(thisblock, AbstractBlock)
   addtoblock!(ex.args[2], thisblock, g) # parse loop contents
-  thisblock.asc, thisblock.desc = summarize(thisblock)
 
-  # update parent block symbols map
-  for k in keys(parentblock.symbols)
-    haskey(symbols, k) || continue
-    parentblock.symbols[k] = symbols[k]
+  # look for symbols that point to a different Loc
+  #  - to update the symbols table of the parent block
+  #  - to update the lops field marking variables updated and used
+  for k in keys(parentsymbols)
+    parentsymbols[k] == symbols[k] && continue # not modified => pass
+    parentsymbols[k] = symbols[k]  # TODO complete here
   end
 
-  push!(parentblock.ops, thisblock) # FIXME: will fail for IfBlock
+  thisblock.asc, thisblock.desc = summarize(thisblock)
+
+  push!(parentops, thisblock)
 
   nothing  # considers that for loops do not return anything (TODO : check)
 end
@@ -83,8 +87,8 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   rgs = locex[rgl]
 
   # expression for inner code
-  exits = 
-  fex = _tocode(bl.ops, [], g, locex)
+  exits = intersect(bl.asc, bl.desc)  # mutated Locs
+  fex = _tocode(bl.ops, collect(exits), bl.symbols, g, locex)
 
   Expr(:for,
        Expr(:(=), ixs, rgs),

@@ -16,16 +16,27 @@ let
   end
 end
 
+"""
+Function `tocode(g, exits)` translates the graph g
+into an expression, with assignments generated for the symbols in `exits`.
+"""
 function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
   # check that variables to be shown are defined in root block
   vset = setdiff(exits, keys(g.block.symbols))
   length(vset) > 0 &&
     error("[tocode] some requested variables were not found : $vset")
 
-  _tocode(g.block.ops, exits, g)
+  lexits = unique( Loc[ g.block.symbols[s] for s in exits ] )
+  _tocode(g.block.ops, lexits, g.block.symbols, g)
 end
 
-function _tocode(ops, exits, g, locex=Dict{Loc, Any}()) #   exits=[EXIT_SYM;]
+"""
+Function `_tocode(ops, lexits, symbols, g, locex)` translates the vector of Op
+`ops` into an expression, with assignments generated for the Locs in lexits.
+`symbols` is used as suggestions for naming Locs, with the symbol `[EXIT_SYM]`
+reserved for the Loc containing the exit value of the block.
+"""
+function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_SYM;]
 
   #### creates expression for names qualified by a module
   mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
@@ -84,37 +95,50 @@ function _tocode(ops, exits, g, locex=Dict{Loc, Any}()) #   exits=[EXIT_SYM;]
 
   function getexpr(l::ELoc)
     # find the symbol defined in env for this Loc
-    syms = collect(keys(g.block.symbols))
-    filter!(s -> g.block.symbols[s]==l, syms)
+    syms = collect(keys(symbols))
+    filter!(s -> symbols[s]==l, syms)
     filter!(g.isdef, syms)
     length(syms)==0 && error("[tocode] no symbol found for external $l")
     syms[1]
   end
 
-  function getexpr(l::Loc) # l = g.locs[1]
+  function getexpr(l::RLoc) # l = g.locs[1]
     haskey(locex, l) && return locex[l]
+    warn("[getexpr] calling genassign for $l")
+    println(Expr(:block, out...))
+    # genassign(l, true)
+    # return locex[l]
     return newvar()
-    error("[tocode] no expression for Loc $l")
+    # error("[tocode] no expression for Loc $l")
   end
 
   ### generates assignment expression for given Loc
   function genassign(l::Loc, force=false)
-    # find symbols to be assigned to among exits
-    syms = Set(filter(s -> g.block.symbols[s]==l, exits))
-    # if force = true, EXIT_SYM is not a valid proposition
-    force && setdiff!(syms, [EXIT_SYM;])
+    # find assignment symbols among defined in g to be assigned to among exits
+    # syms = Set(filter(s -> g.block.symbols[s]==l, exits))
+    if haskey(symbols, EXIT_SYM) && !force && symbols[EXIT_SYM]==l
+      syms = Symbol[]
+    else
+      ks  = collect(keys(symbols))
+      syms = filter(s -> s!=EXIT_SYM && symbols[s]==l, ks)
+      # if still none found, generate one
+      length(syms)==0 && push!(syms, newvar())
+    end
+    #   l = g.locs[12]
+    #
+    # ks = Set(keys(g.block.symbols))
+    # syms = filter(s -> g.block.symbols[s]==l, ks)
+    # # if force = true, EXIT_SYM is not a valid proposition
+    # force && setdiff!(syms, [EXIT_SYM;])
 
     # if none found, try to find one among other symbols
-    if length(syms)==0
-      ss = collect(keys(g.block.symbols))
-      idx = findfirst(s -> g.block.symbols[s]==l, ss)
-      idx != 0 && push!(syms, ss[idx])
-    end
-    # if still none found, generate one
-    length(syms)==0 && push!(syms, newvar())
+    # if length(syms)==0
+    #   ss = collect(keys(g.block.symbols))
+    #   idx = findfirst(s -> g.block.symbols[s]==l, ss)
+    #   idx != 0 && push!(syms, ss[idx])
+    # end
 
-    # generate assignement expression for all symbols in syms, except EXIT_SYM
-    setdiff!(syms, [EXIT_SYM;])
+    # generate assignement expression for all symbols in syms
     push!(out, foldr((x,y) -> Expr(:(=), x, y), getexpr(l), collect(syms) ) )
     length(syms) > 0 && (locex[l] = pop!(syms)) # update locex (if syms not empty)
   end
@@ -145,12 +169,12 @@ function _tocode(ops, exits, g, locex=Dict{Loc, Any}()) #   exits=[EXIT_SYM;]
 
   # if no op, just fetch constant/external associated to an exit
   if length(ops) == 0
-    lexits = unique( Loc[ g.block.symbols[s] for s in exits ] ) # Locs of interest
+    # lexits = unique( Loc[ g.block.symbols[s] for s in exits ] ) # Locs of interest
     map(genassign, lexits)
 
   # otherwise, run through each op
   else
-    lexits = unique( Loc[ g.block.symbols[s] for s in exits ] )
+    # lexits = unique( Loc[ g.block.symbols[s] for s in exits ] )
 
     for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
       # TO DO : manage multiple assignment

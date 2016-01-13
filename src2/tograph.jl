@@ -37,7 +37,7 @@ isRef(ex)   = isa(ex, Expr) && ex.head == :ref # && isa(ex.args[1], Symbol)
 
 # top level entry point
 function tograph(ex, g::Graph=Graph())
-  exitloc = addtoblock!(ex, g.block, g)
+  exitloc = addtoblock!(ex, g.block.ops, g.block.symbols, g)
 
   # if there is a value produced, assign it to symbol EXIT_SYM
   exitloc != nothing && ( g.block.symbols[EXIT_SYM] = exitloc )
@@ -45,10 +45,7 @@ function tograph(ex, g::Graph=Graph())
 end
 
 # parse expression and add to block
-function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # ex = :( z.x )
-
-  symbols = thisblock.symbols
-  ops     = thisblock.ops
+function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
 
   add!(l::Loc) = (push!(g.locs,l) ; l)
   add!(o::Op)  = (push!(ops, o) ; o)
@@ -124,10 +121,14 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
     if isa(lhs, Symbol)
       if haskey(symbols, lhs)
         lloc = symbols[lhs]
-        loctype(lloc)==:external &&
+        loctype(lloc) == :external &&
           error("attempt to modify an external variable in $(toExpr(ex))")
+
+        loctype(lloc) == :constant &&
+          error("attempt to modify a constant in $(toExpr(ex))")
       else
-        g.isdef(lhs) && error("attempt to modify an external variable in $(toExpr(ex))")
+        g.isdef(lhs) &&
+          error("attempt to modify an external variable in $(toExpr(ex))")
       end
 
       rloc = explore(rhs)
@@ -157,14 +158,14 @@ function addtoblock!(ex, thisblock::AbstractBlock, g::Graph)  # env = modenv  # 
 
   ### remaining cases are expressions introducing new blocks and possibly
   ###   scope blocks
-  # simple :block expressions can be unfolded in the current block directly
+  # simple `:block` expressions can be unfolded in the current block directly
   explore(ex::ExBlock)   = map( explore, ex.args )[end]
   # explore(ex::ExBody)    = map( explore, ex.args )[end]
 
   # for the other cases (for-blocks, if-blocks), create a new Block
   function explore(ex::ExH)
     try
-      blockparse!(ex, thisblock, g)
+      blockparse!(ex, ops, symbols, g)
     catch e
       error("[tograph] error parsing expr type $(ex.head) in ($ex)")
     end

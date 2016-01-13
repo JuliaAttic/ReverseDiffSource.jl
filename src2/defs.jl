@@ -8,16 +8,6 @@ type Z ; x ; y ; end
 C = Z(1,2)
 
 function fullcycle(ex; env_var=Dict(), keep_var=[EXIT_SYM;])
-  # psym  = collect(keys(env_var))
-  # pvals = collect(values(env_var))
-  # m = current_module()
-  # function env(s::Symbol)
-  #   i = findfirst(s .== psym)
-  #   i != 0 && return (true, pvals[i], false, nothing)
-  #   isdefined(m, s) || return (false, nothing, nothing, nothing)
-  #   (true, eval(m,s), isconst(m,s), nothing)
-  # end
-
   resetvar()
   g  = tograph(ex) |> simplify!
   c2 = tocode(g, keep_var)

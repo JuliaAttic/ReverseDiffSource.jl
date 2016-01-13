@@ -101,7 +101,20 @@ Block() = Block(Vector{Op}(), Dict{Any, Loc}(), Vector{Loc}(), Vector{Loc}())
 """
 allblocks(op::Op) = []
 allblocks(ops::Vector{Op})   = vcat(map(allblocks, ops)...)
-allblocks(bl::AbstractBlock) = vcat(map(allblocks, getops(bl))...)
+# allblocks(ops::Vector)       = vcat(map(allblocks, ops)...)
+allblocks(bl::AbstractBlock) = vcat(bl, map(allblocks, getops(bl))...)
+# getops(g.block)
+# bl=g.block
+# typeof(getops(bl)[1])
+# isa(getops(bl)[1], Vector{Op})
+# allblocks(getops(bl)[1])
+# allblocks(getops(bl)[1][1])
+# allblocks(getops(bl)[1][2])
+# allblocks(getops(bl)[1][3])
+# isa(getops(bl)[1][3], AbstractBlock)
+# allblocks(g.block)
+# allblocks(getops(bl))
+# allblocks(g)
 # function allblocks(op::Op)
 #   isa(op.f.val, AbstractBlock) || return []
 #   vcat((op.f.val, op), allblocks(op.f.val)...)
@@ -150,7 +163,8 @@ function Graph(m::Module=current_module())
          s -> isconst(m,s) )
 end
 
-allblocks(g::Graph) = vcat(g.block, allblocks(g.block)...)
+allblocks(g::Graph) = allblocks(g.block)
+# allblocks(g)
 getops(g::Graph) = getops(g.block)
 
 # allblocks(g)
@@ -220,5 +234,7 @@ include("tograph.jl")
 include("tocode.jl")
 include("simplify.jl")
 include("forblock.jl")
+include("defs.jl")  # testing stuff
+
 
 end # module

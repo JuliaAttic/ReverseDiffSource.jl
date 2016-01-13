@@ -100,7 +100,7 @@ function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.loc
 			end
 		end
 		for (k,v) in filter((k,v) -> v == cpy, bl.symbols)
-			g.block.symbols[k] = org
+			bl.symbols[k] = org
 		end
 		bl.asc, bl.desc = summarize(bl)
 	end
