@@ -37,7 +37,7 @@ isRef(ex)   = isa(ex, Expr) && ex.head == :ref # && isa(ex.args[1], Symbol)
 
 # top level entry point
 function tograph(ex, g::Graph=Graph())
-  exitloc = addtoblock!(ex, g.block.ops, g.block.symbols, g)
+  exitloc = addtoops!(ex, g.block.ops, g.block.symbols, g)
 
   # if there is a value produced, assign it to symbol EXIT_SYM
   exitloc != nothing && ( g.block.symbols[EXIT_SYM] = exitloc )
@@ -164,11 +164,12 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
 
   # for the other cases (for-blocks, if-blocks), create a new Block
   function explore(ex::ExH)
-    try
-      blockparse!(ex, ops, symbols, g)
-    catch e
-      error("[tograph] error parsing expr type $(ex.head) in ($ex)")
-    end
+    blockparse!(ex, ops, symbols, g)
+    # try
+    #   blockparse!(ex, ops, symbols, g)
+    # catch e
+    #   error("[tograph] error parsing expr type $(ex.head) in ($ex)")
+    # end
   end
 
   explore(ex)

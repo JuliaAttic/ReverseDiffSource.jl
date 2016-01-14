@@ -124,19 +124,6 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
       # if still none found, generate one
       length(syms)==0 && push!(syms, newvar())
     end
-    #   l = g.locs[12]
-    #
-    # ks = Set(keys(g.block.symbols))
-    # syms = filter(s -> g.block.symbols[s]==l, ks)
-    # # if force = true, EXIT_SYM is not a valid proposition
-    # force && setdiff!(syms, [EXIT_SYM;])
-
-    # if none found, try to find one among other symbols
-    # if length(syms)==0
-    #   ss = collect(keys(g.block.symbols))
-    #   idx = findfirst(s -> g.block.symbols[s]==l, ss)
-    #   idx != 0 && push!(syms, ss[idx])
-    # end
 
     # generate assignement expression for all symbols in syms
     push!(out, foldr((x,y) -> Expr(:(=), x, y), getexpr(l), collect(syms) ) )
@@ -145,8 +132,8 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
 
   ### tells if an assignement expression should be generated
   function ispivot(o::Op, line)
-    # checks if desc appear several times afterward
-    #  or if it is mutated
+    # checks if any desc of `o` appears several times afterward
+    #  or if they are modified
     for l in o.desc # l = g.block.ops[1].desc[1] ; line=1
       ct = 0
       for o2 in ops[line+1:end]
@@ -155,12 +142,13 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
         ct > 1 && return true
       end
     end
-    # checks if asc is modified later
+    # checks if any asc of `o` is modified later
     for l in o.asc # l = ops[1].desc[1] ; line=1
       for o2 in ops[line+1:end]
         l in o2.desc && l in o2.asc && return true
       end
     end
+    #
     false
   end
 
@@ -169,33 +157,51 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
 
   # if no op, just fetch constant/external associated to an exit
   if length(ops) == 0
-    # lexits = unique( Loc[ g.block.symbols[s] for s in exits ] ) # Locs of interest
     map(genassign, lexits)
 
-  # otherwise, run through each op
-  else
-    # lexits = unique( Loc[ g.block.symbols[s] for s in exits ] )
+  else # otherwise, run through each op
 
     for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
-      # TO DO : manage multiple assignment
 
-      ex = isa(o, AbstractBlock) ? blockcode(o, locex, g) : translate(o)  # translate to Expr
+      if isa(o, AbstractBlock)
+        exs = blockcode(o, locex, g)
+        append!(out, exs)
+        map(genassign, o.desc)
 
-      if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
-        locex[o.desc[1]] = ex
-        genassign(o.desc[1], true)
+      elseif length(intersect(o.desc, o.asc)) > 0   # mutating Op
+        # assumptions : function modifies a single variable and return
+        # value (if any) is ignored
+        # TODO : extend to remove these constraints ?
+        push!(out, translate(o))
 
-      elseif o.desc[1] in o.asc   # mutating Function
-        push!(out, ex)
+      else # simple, non-mutating func that returns single variable
+        # TODO : manage functions returning multiple values ?
+        locex[o.desc[1]] = translate(o)
 
-      elseif any(l -> l in lexits, o.desc) # assignment needed
-        locex[o.desc[1]] = ex
-        genassign(o.desc[1])
-
-      else # keep expression for later
-        locex[o.desc[1]] = ex
-
+        if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
+          genassign(o.desc[1], true)
+        elseif o.desc[1] in lexits # assignment needed
+          genassign(o.desc[1])
+        end
       end
+
+      # ex = isa(o, AbstractBlock) ? blockcode(o, locex, g) : translate(o)  # translate to Expr
+      #
+      # if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
+      #   locex[o.desc[1]] = ex
+      #   genassign(o.desc[1], true)
+      #
+      # elseif length(intersect(o.desc, o.asc)) > 1   # mutating Op
+      #   push!(out, ex)
+      #
+      # elseif any(l -> l in lexits, o.desc) # assignment needed
+      #   locex[o.desc[1]] = ex
+      #   genassign(o.desc[1])
+      #
+      # else # keep expression for later
+      #   locex[o.desc[1]] = ex
+      #
+      # end
     end
   end
 

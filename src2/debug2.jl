@@ -185,8 +185,6 @@ end
 @test fullcycle(ex) == cleanup(exout)
 
 
-
-
 ################# for loops  ################
 ex = quote
   x = 0.
@@ -195,11 +193,23 @@ ex = quote
   end
   x
 end
+fullcycle(ex)
+
 g = tograph(ex)
+simplify!(g)
 show(g)
+g.locs
 
+tocode(g)
+fullcycle(ex)
 
+g = tograph(ex)
 prune!(g, [:_result;])
+splitnary!(g)
+fusecopies!(g)
+show(g)
+show(tocode(g))
+
 splitnary!(g)
 fusecopies!(g)
 removerightneutral!(g)
