@@ -91,7 +91,10 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
   end
 
   ### returns the correct symbol / expression for given Loc
-  getexpr(l::CLoc) = l.val
+  function getexpr(l::CLoc)
+    haskey(locex, l) && return locex[l]
+    l.val
+  end
 
   function getexpr(l::ELoc)
     # find the symbol defined in env for this Loc
@@ -104,12 +107,10 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
 
   function getexpr(l::RLoc) # l = g.locs[1]
     haskey(locex, l) && return locex[l]
-    warn("[getexpr] calling genassign for $l")
-    println(Expr(:block, out...))
-    # genassign(l, true)
-    # return locex[l]
-    return newvar()
-    # error("[tocode] no expression for Loc $l")
+    # warn("[getexpr] calling genassign for $l")
+    # println(Expr(:block, out...))
+    # return newvar()
+    error("[tocode] no expression for Loc $l")
   end
 
   ### generates assignment expression for given Loc
@@ -166,7 +167,7 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
       if isa(o, AbstractBlock)
         exs = blockcode(o, locex, g)
         append!(out, exs)
-        map(genassign, o.desc)
+        # map(genassign, o.desc)
 
       elseif length(intersect(o.desc, o.asc)) > 0   # mutating Op
         # assumptions : function modifies a single variable and return

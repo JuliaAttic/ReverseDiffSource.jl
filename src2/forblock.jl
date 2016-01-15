@@ -26,6 +26,7 @@ type ForBlock <: AbstractBlock
 end
 
 getops(bl::ForBlock) = Any[bl.ops, bl.lops]
+flatops(bl::ForBlock) = vcat(flatops(bl.ops), bl)  # ignore var looping block
 
 function summarize(bl::ForBlock)
   # note : only `ops` vector considered, `lops` is only implicit assignements
@@ -33,7 +34,7 @@ function summarize(bl::ForBlock)
   desc = mapreduce(o -> o.desc, union, Set(), bl.ops)
   # keep var and range in correct positions
   asc = vcat(bl.asc[1:2], setdiff(asc, bl.asc[1:2]))
-  asc, desc
+  collect(asc), collect(desc)
 end
 
 function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
@@ -52,7 +53,7 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
   symbols = copy(parentsymbols)
   symbols[ixs] = ixl  # add iteration var symbol in symbols map
 
-  thisblock = ForBlock(Op[], Op[], symbols, Loc[ixl, rgl], Vector{Loc}())
+  thisblock = ForBlock(Op[], Op[], symbols, Loc[ixl, rgl], Loc[])
   addtoops!(ex.args[2], thisblock.ops, symbols, g) # parse loop contents
 
   # look for symbols that point to a different Loc
@@ -103,12 +104,14 @@ function blockcode(bl::ForBlock, locex, g::Graph)
 
     # find symbol
     ks  = collect(keys(bl.symbols))
-    syms = filter(s -> s!=EXIT_SYM && bl.symbols[s]==lo, ks)
+    println(bl.symbols)
+    syms = filter(s -> s!=EXIT_SYM && (bl.symbols[s]==lo), ks)
     length(syms)==0 && push!(syms, newvar())
 
     if !haskey(locex, li) # probably a constant
       push!(out, Expr(:(=), syms[1], li.val))
       locex[li] = syms[1]
+      println("$syms    $(li.val)")
     elseif !isa(locex[li], Symbol)
       push!(out, Expr(:(=), syms[1], locex[li]))
       locex[li] = syms[1]

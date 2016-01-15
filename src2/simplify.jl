@@ -20,12 +20,55 @@ function simplify!(g, keep=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
 	g
 end
 
+
+
+#######################################################
+
+flatops(op::Op)            = [op;]
+flatops(bl::AbstractBlock) = vcat(map(flatops, getops(bl))..., bl)
+flatops(ops::Vector{Op})   = vcat(map(flatops, ops)...)
+flatops(g::Graph)          = flatops(g.block)
+
+
+type Walk
+  start::Union{Op, Void}
+  g::Graph
+end
+
+Walk(g::Graph) = Walk(nothing, g) # start from top
+
+function start(w::Walk) # w = Walk(g.block.ops[2], g)
+  ops = flatops(w.g)
+  pos = w.start==nothing ? 1 : findfirst(o -> o == w.start, ops) + 1
+  pos, ops
+end
+
+next(w::Walk, state) = (state[2][state[1]], (state[1]+1, state[2]))
+done(w::Walk, state) = state[1] == length(state[2])+1
+
+type RevWalk
+  start::Union{Op, Void}
+  g::Graph
+end
+
+RevWalk(g::Graph) = RevWalk(nothing, g) # start from top
+
+function start(w::RevWalk) # w = RevWalk(g.block.ops[2], g)
+	ops = flatops(w.g)
+  pos = w.start==nothing ? length(ops) : findfirst(o -> o == w.start, ops) - 1
+  pos, ops
+end
+
+next(w::RevWalk, state) = (state[2][state[1]], (state[1]-1, state[2]))
+done(w::RevWalk, state) = state[1] == 0
+
 # removes unecessary elements (as specified by 'keep')
 function prune!(g, keep)
 	# find all locs that are relevant to calculate 'keep'
 	keep2 = intersect(keep, keys(g.block.symbols))
 	lset = Set{Loc}([ g.block.symbols[s] for s in keep2])
-	for o in reverse(g.block.ops)
+
+	for o in RevWalk(g)
 		if any(l -> l in o.desc, lset)
 			union!(lset, o.asc)
 			isa(o, FOp) && push!(lset, o.f)
@@ -34,11 +77,13 @@ function prune!(g, keep)
 
 	# filter all locs, symbols, ops unrelated to lset
 	filter!(l -> l in lset, g.locs)
-	filter!((s,l) -> l in lset, g.block.symbols)
+
 	for bl in allblocks(g)
+		filter!((s,l) -> l in lset, bl.symbols)
 		for ops in getops(bl)
 			filter!(o -> any(l -> l in o.desc, lset), ops)
 		end
+		bl.asc, bl.desc = summarize(bl)
 	end
 
 	g
@@ -67,28 +112,56 @@ end
 
 # check that 'cpy' can be replaced by 'org'
 # line is the optional beginning of search
-function isfusable(org::Loc, cpy::Loc, g::Graph, line=1) # org, cpy, g = A.g.locsA.g
+# function isfusable(org::Loc, cpy::Loc, g::Graph, line=1)
+# 	# org, cpy, g = o.asc[1], o.desc[1], g
+# 	# if org is external, checks that copy is not mutated
+# 	if loctype(org) == :external
+# 		any(l -> cpy in l.desc, g.block.ops[line:end]) && return false
+# 	end
+#
+# 	# is 'org' written to and 'cpy' used afterward ?
+# 	writ = false
+# 	for o2 in g.block.ops[line:end]
+# 		writ && cpy in o2.asc && return false
+# 		writ = writ || org in o2.desc
+# 	end
+#
+# 	# is 'cpy' written to and 'org' used afterward ?
+# 	writ = false
+# 	for o2 in g.block.ops[line:end]
+# 		writ && org in o2.asc && return false
+# 		writ = writ || cpy in o2.desc
+# 	end
+#
+# 	true
+# end
+
+
+function isfusable(org::Loc, cpy::Loc, w::Walk)
+	# org, cpy, g = o.asc[1], o.desc[1], g
 	# if org is external, checks that copy is not mutated
 	if loctype(org) == :external
-		any(l -> cpy in l.desc, g.block.ops[line:end]) && return false
+		any(l -> cpy in l.desc, w) && return false
 	end
 
 	# is 'org' written to and 'cpy' used afterward ?
 	writ = false
-	for o2 in g.block.ops[line:end]
+	for o2 in w
 		writ && cpy in o2.asc && return false
 		writ = writ || org in o2.desc
 	end
 
 	# is 'cpy' written to and 'org' used afterward ?
 	writ = false
-	for o2 in g.block.ops[line:end]
+	for o2 in w
 		writ && org in o2.asc && return false
 		writ = writ || cpy in o2.desc
 	end
 
 	true
 end
+
+
 
 # replaces occurrences of 'cpy' by 'org'
 function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.locs[3], A.g
@@ -111,10 +184,13 @@ function fusecopies!(g)
 	for bl in allblocks(g)
 		for ops in getops(bl)
 			del_list = Int64[]
-			for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+			for (line, o) in enumerate(ops)
+				# line, o, ops = 1, g.block.ops[1], g.block.ops
+				# line, o, ops = 1, g.block.ops[1], g.block.ops
 				isa(o, FOp) || continue
 				o.f.val == copy || continue
-				isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+				# isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+				isfusable(o.asc[1], o.desc[1], Walk(o,g)) || continue
 
 				push!(del_list, line)
 				# replace occurences of copy by original
@@ -140,7 +216,7 @@ function removerightneutral!(g)
 				length(o.asc) == 2 || continue
 				loctype(o.asc[2]) == :constant || continue
 				any(cp -> cp==(o.f.val, o.asc[2].val), conds) || continue
-				isfusable(o.asc[1], o.desc[1], g, line+1) || continue
+				isfusable(o.asc[1], o.desc[1], Walk(o,g)) || continue
 
 				push!(del_list, line)
 				# replace occurences of copy by original
@@ -163,7 +239,7 @@ function removeleftneutral!(g)
 				length(o.asc) == 2 || continue
 				loctype(o.asc[1]) == :constant || continue
 				any(cp -> cp==(o.f.val, o.asc[1].val), conds) || continue
-				isfusable(o.asc[2], o.desc[1], g, line+1) || continue
+				isfusable(o.asc[2], o.desc[1], Walk(o,g)) || continue
 
 				push!(del_list, line)
 				# replace occurences of copy by original

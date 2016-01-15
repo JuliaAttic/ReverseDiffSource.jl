@@ -77,6 +77,9 @@ end
 @test fullcycle(:(x = b+6; x+=1))   == :((b+6)+1)
 @test fullcycle(:(x = 1; x -= b+6)) == :(1 - (b+6))
 @test fullcycle(:(x = a; x *= b+6)) == :(a * (b+6))
+g = tograph(:(x = a; x *= b+6))
+tocode(g)
+
 @test fullcycle(:(x = b'))          == :( b')
 @test fullcycle(:(x = [1,2]))       == :( [1,2])
 @test fullcycle(:(x = 4:5 ))        == :( 4:5)
@@ -191,30 +194,52 @@ ex = quote
   for i in 1:10
     x = x + i
   end
+  x + 3
+end
+fullcycle(ex)
+
+ex = quote
+  x = a
+  for i in 1:10
+    x = x + i
+  end
+  x + 3
+end
+fullcycle(ex)
+
+ex = quote
+  x = a
+  for i in 1:10
+    x = x + i
+  end
   x
 end
 fullcycle(ex)
 
-g = tograph(ex)
-simplify!(g)
-show(g)
-g.locs
 
-tocode(g)
-fullcycle(ex)
 
 g = tograph(ex)
+flatops(g)
 prune!(g, [:_result;])
 splitnary!(g)
-fusecopies!(g)
+# fusecopies!(g)
 show(g)
 show(tocode(g))
+
+collect(g.block.symbols)
 
 splitnary!(g)
 fusecopies!(g)
 removerightneutral!(g)
 removeleftneutral!(g)
 prune!(g, keep)
+
+g = tograph(:(x=a; x))
+prune!(g, [:_result;])
+splitnary!(g)
+fusecopies!(g)
+show(g)
+show(tocode(g))
 
 
 ex = quote

@@ -1,7 +1,7 @@
 
 module ReverseDiffSource
 
-import Base.show
+import Base: show, start, next, done
 
 # name for exit variable
 const EXIT_SYM = :_result
@@ -93,7 +93,7 @@ type Block <: AbstractBlock
     desc::Vector{Loc} # descendant Loc (Loc modified/created by block)
 end
 
-Block() = Block(Vector{Op}(), Dict{Any, Loc}(), Vector{Loc}(), Vector{Loc}())
+Block() = Block(Op[], Dict{Any, Loc}(), Loc[], Loc[])
 
 
 """
@@ -101,28 +101,12 @@ Block() = Block(Vector{Op}(), Dict{Any, Loc}(), Vector{Loc}(), Vector{Loc}())
 """
 allblocks(op::Op) = []
 allblocks(ops::Vector{Op})   = vcat(map(allblocks, ops)...)
-# allblocks(ops::Vector)       = vcat(map(allblocks, ops)...)
 allblocks(bl::AbstractBlock) = vcat(bl, map(allblocks, getops(bl))...)
-# getops(g.block)
-# bl=g.block
-# typeof(getops(bl)[1])
-# isa(getops(bl)[1], Vector{Op})
-# allblocks(getops(bl)[1])
-# allblocks(getops(bl)[1][1])
-# allblocks(getops(bl)[1][2])
-# allblocks(getops(bl)[1][3])
-# isa(getops(bl)[1][3], AbstractBlock)
-# allblocks(g.block)
-# allblocks(getops(bl))
-# allblocks(g)
-# function allblocks(op::Op)
-#   isa(op.f.val, AbstractBlock) || return []
-#   vcat((op.f.val, op), allblocks(op.f.val)...)
-# end
+
 
 function summarize(bl::AbstractBlock)
-  asc  = Set()
-  desc = Set()
+  asc  = Set{Loc}()
+  desc = Set{Loc}()
   for ops in getops(bl)
     asc  = mapreduce(o ->  o.asc, union, asc, ops)
     desc = mapreduce(o -> o.desc, union, asc, ops)
