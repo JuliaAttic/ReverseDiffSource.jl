@@ -117,43 +117,37 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
 
   function explore(ex::ExEqual) #  ex = toExH(:(a = sin(2)))
     lhs, rhs = ex.args
+    isRef(lhs) && return explore( Expr(:call, :setindex!, lhs.args[1], rhs, lhs.args[2:end]...) )
+    isDot(lhs) && return explore( Expr(:call, :setfield!, lhs.args[1], lhs.args[2], rhs) )
 
-    if isa(lhs, Symbol)
-      if haskey(symbols, lhs)
-        lloc = symbols[lhs]
-        loctype(lloc) == :external &&
-          error("attempt to modify an external variable in $(toExpr(ex))")
+    isa(lhs, Symbol) || error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
 
-        loctype(lloc) == :constant &&
-          error("attempt to modify a constant in $(toExpr(ex))")
-      else
-        g.isdef(lhs) &&
-          error("attempt to modify an external variable in $(toExpr(ex))")
-      end
+    if haskey(symbols, lhs)
+      lloc = symbols[lhs]
+      loctype(lloc) == :external &&
+        error("attempt to modify an external variable in $(toExpr(ex))")
 
-      rloc = explore(rhs)
-
-      if isbits(rloc.typ)  # bitstype => '=' is a copy
-        nloc = RLoc(rloc.val)
-        floc = CLoc(copy)
-        add!(floc)
-        add!( FOp(floc, [rloc;], [nloc;]) )
-        add!(nloc)
-      else  # array or composite type => '=' is a reference
-        nloc = rloc
-      end
-      symbols[lhs] = nloc
-      return nloc
-
-    elseif isRef(lhs)   # x[i] = ....
-      return explore( Expr(:call, :setindex!, lhs.args[1], rhs, lhs.args[2:end]...) )
-
-    elseif isDot(lhs)   # x.field = ....
-      return explore( Expr(:call, :setfield!, lhs.args[1], lhs.args[2], rhs) )
-
+      loctype(lloc) == :constant &&
+        error("attempt to modify a constant in $(toExpr(ex))")
     else
-        error("[tograph] $(toExpr(ex)) not allowed on LHS of assigment")
+      g.isdef(lhs) &&
+        error("attempt to modify an external variable in $(toExpr(ex))")
     end
+
+    rloc = explore(rhs)
+
+    if isimmutable(rloc.val)  # lhs binds to a copy
+      nloc = RLoc(rloc.val)
+      floc = CLoc(copy)
+      add!(floc)
+      add!( FOp(floc, [rloc;], [nloc;]) )
+      add!(nloc)
+    else  # lhs binds to rhs
+      nloc = rloc
+    end
+    symbols[lhs] = nloc
+
+    return nloc
   end
 
   ### remaining cases are expressions introducing new blocks and possibly

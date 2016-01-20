@@ -6,15 +6,12 @@
 
 # in module ReverseDiffSource
 
-# init
-include("defs.jl")
-
 # check for errors
 tograph( :(a = 1) )
 tograph( :(a += 1) )
 tograph( :(B = 1) )
 tograph( :(B[2] = 1) )
-tograph( :(A.B[2] = 1) )
+tograph( :(Main.B[2] = 1) )
 tograph( :(C.x = 1) )
 tograph( :(A.C.x = 1) )
 
