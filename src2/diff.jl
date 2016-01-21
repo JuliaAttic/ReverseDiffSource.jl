@@ -9,100 +9,137 @@ ex = :(2*a*a)
 g = tograph(ex)
 splitnary!(g)
 show(g)
-lexit = g.locs[4]
+lexit = g.block.symbols[EXIT_SYM]
+
+pos  = findlast(o -> lexit in o.desc, g.block.ops)
+dmap = Dict{Loc,Loc}() # Loc to dloc map
+ops = g.block.ops
+i = 2
+dpos = Op[]
+
+dops = _diff(g.block.ops, pos, dmap, g)
+
+append!(g.block.ops, dops)
+simplify!(g)
+
+_tocode(g.block.ops, [g.block.symbols[EXIT_SYM], dmap[g.block.symbols[:a]] ],
+        g.block.symbols, g)
+tocode(g)
+show(g)
 
 function diff(g::Graph, lexit::Loc)
 
-  pos = findlast(o -> lexit in o.desc, g.block.ops)
-  dmap = Dict{Loc,Loc}() # Loc to dloc map
-  dops = _diff(g.block.ops, pos)
+    pos  = findlast(o -> lexit in o.desc, g.block.ops)
+    dmap = Dict{Loc,Loc}() # Loc to dloc map
+    dops = _diff(g.block.ops, pos, dmap, g)
 
 end
 
 
-function _diff(ops, pos) # ops = g.block.ops
+function _diff(ops, pos, dmap, g) # ops = g.block.ops
 
-  dpos = Op[]
-  for i in pos:-1:1  # i = 2
-    op = ops[i]
-    if isa(op, FOp)
-      for (index, arg) in enumerate(op.asc)
-        isa(arg, CLoc) || continue  # if constant, pass
+    dpos = Op[]
+    for i in pos:-1:1  # i = 2
+        op = ops[i]
+        if isa(op, FOp)
+            fun  = op.f.val
+            args = tuple([l.val for l in op.asc]...)
+            for (ord, larg) in enumerate(op.asc) # ord, larg = 1, op.asc[1]
+                isa(larg, CLoc) || continue  # if constant, pass
 
-        if !isa(arg, Union{NConst, NComp})
-          # haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
-          # ddict = drules[(op, index-1)]
-              ddict = getrule(op, index-1)
+                rul = DerivRules.getrule(fun, ord, args)
 
-              targs = Tuple{ Type[ typeof(x.val) for x in n.parents[2:end]]... }
+                # if rule has not yet been compiled to a graph, then this
+                # is the moment to do it with the args provided
+                if !isdefined(rul, :g)
+                    rul.g = Graph()
 
-              sk = tmatch( targs, collect(keys(ddict)) )
-              (sk == nothing) && error("no derivation rule for $(op) at arg #$(index-1) for signature $targs")
+                    function addlocsym(val, sym, g)
+                        l = RLoc(val)
+                        push!(g.locs, l)
+                        g.block.symbols[sym] = l
+                        l
+                    end
 
-              # dg, dd = drules[(op, index-1)][sk]
-              dg, dd = ddict[sk]
-            smap = Dict( zip(dd, [n.parents[2:end]; dnodes[n]]) )
+                    for (i,arg) in enumerate(args)
+                        push!(rul.alocs, addlocsym(arg, rul.syms[i], rul.g))
+                    end
+                    push!(rul.alocs, addlocsym(op.desc[1].val, :ds, rul.g))
 
-              exitnode = addgraph!(dg, g2, smap)
+                    result = addtoops!(rul.ex, rul.g.block.ops, rul.g.block.symbols, rul.g)
+                    if result==nothing
+                        fn = "$fun(" * join(map(typeof, args), ",") * ")"
+                        error("deriv rule for '$fn' at pos $ord did not yield a value")
+                    end
+                    rul.eloc = result
+                end
 
-              vp = addnode!(g2, NConst(+))
-              dnodes[arg] = addnode!(g2, NCall(:call, [vp, dnodes[arg], exitnode]) )
-          end
-      end
+                ## insert rule in graph / block
+                inmap = Dict{Loc,Loc}()
+                for (rl, dl) in zip(rul.alocs, vcat(op.asc, op.desc[1]))
+                    rl in rul.g.locs || continue # pass if variable is unused
+                    inmap[rl] = dl
+                end
 
-    else isa(op, AbstractBlock)
-      diffblock(op)
+                result = insertgraph!(g, dpos, rul.g, inmap, rul.eloc)
+                if haskey(dmap, larg) # deriv loc existing ?
+                    fl = CLoc(+) ; push!(g.locs, fl)
+                    dl = copy(result) ; push!(g.locs, dl)
+                    push!(dpos, FOp(fl, [dmap[larg], result], [dl]))
+                    dmap[larg] = dl
+                else
+                    dmap[larg] = result
+                end
+            end
 
-  end
+        elseif isa(op, AbstractBlock)
+            diffblock(op, ops, pos, dmap, g)
+        end
+    end
 
+    dpos
 end
 
 
-module DRules
-function define(f::Function, sig) # f, sig = sin, Float64
-  eval(Expr(:(=), Expr(:call, symbol("dr$(object_id(f))"), :(x::$sig) ),
-            "$f($sig)"  ) )
-  eval(Expr(:(=), Expr(:call, symbol("dr"), :(x::$sig) ), "$f($sig)"  ) )
-  show(Expr(:(=), Expr(:call, symbol("dr$(object_id(f))"), :(x::$sig) ),
-            "$f($sig)"  ))
+function insertgraph!(destg::Graph, destops::Vector{Op},
+                      src::Graph, inmap::Dict, srcexit::Loc)
+    lmap = copy(inmap)
+    for sl in src.locs
+        haskey(lmap, sl) && continue
+        nl = copy(sl)
+        lmap[sl] = nl
+        push!(destg.locs, nl)
+    end
+
+    append!(destops, remap(src.block.ops, lmap))
+    lmap[srcexit]
 end
 
-function fetchdef(f::Function, val) # f, sig = sin, Float64
-  eval(Expr(:call, symbol("dr$(object_id(f))"), val) )
+function remap(ops::Vector{Op}, lmap)
+    nops = Op[]
+    for op in ops
+        if isa(op, FOp)
+            asc  = Loc[ lmap[l] for l in  op.asc  ]
+            desc = Loc[ lmap[l] for l in  op.desc ]
+            push!(nops, FOp(lmap[op.f], asc, desc))
+        else
+            push!(nops, remap(bl, lmap))
+        end
+    end
+    nops
 end
 
-object_id(sin)
-object_id(cos)
-
+function remap(bl::Block, lmap)
+    Block(remap(bl.ops, lmap),
+          [ lmap[s] => l for (s,l) in bl.symbols ],
+          Loc[ lmap[l] for l in  bl.asc  ],
+          Loc[ lmap[l] for l in  bl.desc ] )
 end
 
-
-DRules.fetchdef(sin, 12.)
-DRules.define(cos, Float64)
-DRules.fetchdef(sin, 12.)
-DRules.fetchdef(cos, 12.)
-DRules.define(cos, Int64)
-DRules.fetchdef(cos, 12.)
-DRules.fetchdef(cos, 12)
-
-whos()
-whos(DRules)
-
-sin(3.)
-sin(sin)
-
-object_id(sin)
-object_id(cos)
-
-DRules.ff
-DRules.ff == sin
-
-
-
-sin(3)
-sin(x) = 12.
-isimmutable(4.)
-isimmutable([0,0])
-dump(:(  abcd(x::Float64) = "") )
-
-DRules.@define(sin, 0., :abcd)
+function remap(bl::ForBlock, lmap)
+    ForBlock(remap(bl.ops, lmap),
+             remap(bl.lops, lmap),
+             [ lmap[s] => l for (s,l) in bl.symbols ],
+             Loc[ lmap[l] for l in  bl.asc  ],
+             Loc[ lmap[l] for l in  bl.desc ] )
+end

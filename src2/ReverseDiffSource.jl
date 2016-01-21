@@ -1,7 +1,7 @@
 
 module ReverseDiffSource
 
-import Base: show, start, next, done
+import Base: show, start, next, done, copy
 
 # name for exit variable
 const EXIT_SYM = :_result
@@ -28,7 +28,7 @@ typealias ELoc Loc{:external}  # external
 typealias RLoc Loc{:regular}   # regular
 
 loctype{T}(l::Loc{T}) = T
-
+copy{T}(l::Loc{T}) = Loc{T}(l.val)
 
 
 
@@ -218,6 +218,8 @@ include("tograph.jl")
 include("tocode.jl")
 include("simplify.jl")
 include("forblock.jl")
+include("deriv_rules.jl")
+include("base_rules.jl")
 include("defs.jl")  # testing stuff
 
 
