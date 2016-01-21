@@ -13,26 +13,45 @@ lexit = g.block.symbols[EXIT_SYM]
 
 pos  = findlast(o -> lexit in o.desc, g.block.ops)
 dmap = Dict{Loc,Loc}() # Loc to dloc map
-ops = g.block.ops
-i = 2
-dpos = Op[]
-
 dops = _diff(g.block.ops, pos, dmap, g)
 
-append!(g.block.ops, dops)
-simplify!(g)
+ex = :(2*a*a)
+g = tograph(ex)
+splitnary!(g)
+gdiff(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
 
-_tocode(g.block.ops, [g.block.symbols[EXIT_SYM], dmap[g.block.symbols[:a]] ],
-        g.block.symbols, g)
+ex = :(a+a)
+g = tograph(ex)
+splitnary!(g)
+gdiff(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+
+ex = :(sin(a))
+g = tograph(ex)
+splitnary!(g)
+gdiff(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+
 tocode(g)
 show(g)
 
-function diff(g::Graph, lexit::Loc)
-
+function gdiff(g::Graph, lexit::Loc, input::Loc)
+  # lexit, input = g.block.symbols[EXIT_SYM], g.locs[3]
     pos  = findlast(o -> lexit in o.desc, g.block.ops)
     dmap = Dict{Loc,Loc}() # Loc to dloc map
     dops = _diff(g.block.ops, pos, dmap, g)
 
+    append!(g.block.ops, dops)
+
+    ds = newvar()
+    g.block.symbols[ds] = dmap[input]
+    keepsym = [EXIT_SYM, ds]
+    simplify!(g, keepsym)
+
+    fl = CLoc(tuple) ; push!(g.locs, fl)
+    dl = RLoc((lexit.val, dmap[input].val)) ; push!(g.locs, dl)
+    push!(g.block.ops, FOp(fl, [lexit, dmap[input]], [dl;]))
+    g.block.symbols[EXIT_SYM] = dl
+
+    _tocode(g.block.ops, [dl;], g.block.symbols, g)
 end
 
 
@@ -40,18 +59,24 @@ function _diff(ops, pos, dmap, g) # ops = g.block.ops
 
     dpos = Op[]
     for i in pos:-1:1  # i = 2
+        println(i)
         op = ops[i]
         if isa(op, FOp)
             fun  = op.f.val
             args = tuple([l.val for l in op.asc]...)
             for (ord, larg) in enumerate(op.asc) # ord, larg = 1, op.asc[1]
-                isa(larg, CLoc) || continue  # if constant, pass
+                println("ord $ord")
+                isa(larg, CLoc) && continue  # if constant, pass
+                println("ok ")
 
                 rul = DerivRules.getrule(fun, ord, args)
 
                 # if rule has not yet been compiled to a graph, then this
                 # is the moment to do it with the args provided
                 if !isdefined(rul, :g)
+                    fn = "$fun(" * join(map(typeof, args), ",") * ")"
+                    println("compile for '$fn' at pos $ord")
+
                     rul.g = Graph()
 
                     function addlocsym(val, sym, g)
@@ -81,7 +106,9 @@ function _diff(ops, pos, dmap, g) # ops = g.block.ops
                     inmap[rl] = dl
                 end
 
+                print("$(length(dpos)) -> ")
                 result = insertgraph!(g, dpos, rul.g, inmap, rul.eloc)
+                println("$(length(dpos))")
                 if haskey(dmap, larg) # deriv loc existing ?
                     fl = CLoc(+) ; push!(g.locs, fl)
                     dl = copy(result) ; push!(g.locs, dl)
