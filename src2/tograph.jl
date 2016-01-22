@@ -96,8 +96,10 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
       largs = map(explore, ex.args[2:end]) # explore arguments
       val = (esf)([x.val for x in largs]...)
 
-      if sprint(show, esf)[end] == '!' # mutating ? TODO : generalize with rules
-          nloc = largs[1]
+      # if sprint(show, esf)[end] == '!' # mutating ? TODO : generalize with rules
+      if ismutating(esf) # mutating ?
+          ord = mutdict[esf] # position of mutated argument
+          nloc = largs[ord]
           loctype(nloc)==:external &&
             error("attempt to modify an external variable in $(toExpr(ex))")
       elseif esf in [getindex, getfield] # propagate type of object to result

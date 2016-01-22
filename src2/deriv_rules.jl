@@ -17,19 +17,18 @@ module DerivRules
         g::Graph               # corresponding graph (initially undefined)
         alocs::Vector{Loc}     # Locs in g for each arg and :ds
         eloc::Loc              # Loc containing result
+        repl::Bool             # should snippet replace diff acc (true) or be added to it (false)
 
-        function Rule(ex, syms)
+        function Rule(ex, syms, repl)
             x = new()
-            x.ex = ex
-            x.syms = syms
-            x.alocs = Loc[]
+            x.ex, x.syms, x.repl, x.alocs = ex, syms, repl, Loc[]
             x
         end
     end
 
     rfsym(f, ord) = symbol("dr_$(ord)_$(object_id(f))")
 
-    function define(f, sig::Vector, ord, payload)
+    function define(f, sig::Vector, ord, payload, repl::Bool)
         global vp
 
         fn = rfsym(f, ord)
@@ -38,7 +37,7 @@ module DerivRules
         isdefined(fn) || eval(Expr(:method, fn) )
 
         # add method
-        vp = Rule(payload, Symbol[ a[1] for a in sig])
+        vp = Rule(payload, Symbol[ a[1] for a in sig], repl)
         fn2 = Expr(:call, fn, [ :( $vn::$typ ) for (vn, typ) in sig ]...)
         @eval let g = vp ; $fn2 = g ; end
     end
@@ -87,11 +86,56 @@ end
 # function form
 function deriv_rule(func::Union{Function, Type},
                     args::Vector, dv::Symbol,
-                    diff::Union{Expr, Symbol, Real})
+                    diff::Union{Expr, Symbol, Real};
+                    repl=false)
     ss  = Symbol[ e[1] for e in args ]
     ord = findfirst(dv .== ss)
     (ord == 0) && error("[deriv_rule] cannot find $dv in function arguments")
 
-    DerivRules.define(func, args, ord, diff)
+    DerivRules.define(func, args, ord, diff, repl)
     nothing
+end
+
+# macro form for mutating functions
+
+mutdict = Dict{Function, Int}()
+ismutating(f) = haskey(mutdict, f)
+
+macro deriv_rule_mut(func::Expr, dv::Symbol, diff)
+    m = current_module()
+
+    args = Tuple{Symbol, Type}[]
+    for e in func.args[2:end]
+        if isa(e, Symbol)
+            push!(args, (e, Any))
+        elseif isa(e, Expr) && e.head== :(::)
+            push!(args, (e.args[1], m.eval(e.args[2])))
+        else
+            error("[deriv_rule] cannot parse $e")
+        end
+    end
+
+    ff = m.eval(func.args[1])
+    ord = findfirst(dv .== Symbol[ e[1] for e in args ])
+
+    deriv_rule(ff, args, dv, diff, repl=true)
+    mutdict[ff] = ord
+end
+
+macro deriv_rule_repl(func::Expr, dv::Symbol, diff)
+    m = current_module()
+
+    args = Tuple{Symbol, Type}[]
+    for e in func.args[2:end]
+        if isa(e, Symbol)
+            push!(args, (e, Any))
+        elseif isa(e, Expr) && e.head== :(::)
+            push!(args, (e.args[1], m.eval(e.args[2])))
+        else
+            error("[deriv_rule] cannot parse $e")
+        end
+    end
+
+    ff = m.eval(func.args[1])
+    deriv_rule(ff, args, dv, diff, repl=true)
 end

@@ -61,6 +61,36 @@ ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        b    0.
 ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    x    reshape(ds, size(x))
 ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    d    0.
 
+# getindex
+@deriv_rule getindex(x, i)               x     (tmp = zeros(x); tmp[i]=ds ; tmp)
+@deriv_rule getindex(x, i)               i     0.
+
+@deriv_rule getindex(x, i1, i2)          x     (tmp = zeros(x); tmp[i1, i2]=ds ; tmp)
+@deriv_rule getindex(x, i1, i2)          i1    0.
+@deriv_rule getindex(x, i1, i2)          i2    0.
+
+@deriv_rule getindex(x, i1, i2, i3)      x     (tmp = zeros(x); tmp[i1, i2, i3]=ds ; tmp)
+@deriv_rule getindex(x, i1, i2, i3)      i1    0.
+@deriv_rule getindex(x, i1, i2, i3)      i2    0.
+@deriv_rule getindex(x, i1, i2, i3)      i3    0.
+
+@deriv_rule getindex(x, i1, i2, i3, i4)  x     (tmp = zeros(x); tmp[i1, i2, i3, i4]=ds ; tmp)
+@deriv_rule getindex(x, i1, i2, i3, i4)  i1    0.
+@deriv_rule getindex(x, i1, i2, i3, i4)  i2    0.
+@deriv_rule getindex(x, i1, i2, i3, i4)  i3    0.
+@deriv_rule getindex(x, i1, i2, i3, i4)  i4    0.
+
+# setindex
+@deriv_rule_mut setindex!(x, y, i)          x     ds[i] = 0.
+@deriv_rule     setindex!(x, y, i)          y     ds[i]
+@deriv_rule     setindex!(x, y::Real, i)    y     sum(ds[i])
+@deriv_rule     setindex!(x, y, i)          i     0.
+
+@deriv_rule_mut setindex!(x, y, i1, i2)    x     ds[i1,i2] = 0.
+@deriv_rule     setindex!(x, y, i1, i2)    y     ds[i1,i2]
+@deriv_rule     setindex!(x, y, i1, i2)    i1    0.
+@deriv_rule     setindex!(x, y, i1, i2)    i2    0.
+
 
 # square root
 ReverseDiffSource.@deriv_rule sqrt(x::Real)              x     0.5 * x ^ (-0.5) * ds
