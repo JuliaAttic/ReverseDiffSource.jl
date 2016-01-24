@@ -80,6 +80,19 @@ exception being the IfBlock which has 2.
 """
 getops(bl::AbstractBlock) = Any[bl.ops]
 
+function remap(ops::Vector{Op}, lmap)
+    nops = Op[]
+    for op in ops
+        if isa(op, FOp)
+            asc  = Loc[ lmap[l] for l in  op.asc  ]
+            desc = Loc[ lmap[l] for l in  op.desc ]
+            push!(nops, FOp(lmap[op.f], asc, desc))
+        else
+            push!(nops, remap(bl, lmap))
+        end
+    end
+    nops
+end
 
 """
 Type `Block` is for simple blocks :
@@ -102,6 +115,14 @@ Block() = Block(Op[], Dict{Any, Loc}(), Loc[], Loc[])
 allblocks(op::Op) = []
 allblocks(ops::Vector{Op})   = vcat(map(allblocks, ops)...)
 allblocks(bl::AbstractBlock) = vcat(bl, map(allblocks, getops(bl))...)
+
+
+function remap(bl::Block, lmap)
+    Block(remap(bl.ops, lmap),
+          [ s => lmap[l] for (s,l) in bl.symbols ],
+          Loc[ lmap[l] for l in  bl.asc  ],
+          Loc[ lmap[l] for l in  bl.desc ] )
+end
 
 
 function summarize(bl::AbstractBlock)
@@ -151,6 +172,20 @@ allblocks(g::Graph) = allblocks(g.block)
 # allblocks(g)
 getops(g::Graph) = getops(g.block)
 
+
+
+function insertgraph!(src::Graph, dest::Graph, inmap::Dict)
+    lmap = copy(inmap)
+    for sl in src.locs
+        haskey(lmap, sl) && continue
+        nl = copy(sl)
+        lmap[sl] = nl
+        push!(dest.locs, nl)
+    end
+
+    (remap(src.block.ops, lmap), lmap[src.block.symbols[EXIT_SYM]])
+end
+
 # allblocks(g)
 
 ###########  printing methods  ###################
@@ -198,8 +233,7 @@ end
 
 function show(io::IO, l::Loc)
   print(io, "($(l.typ)) ")
-  sio = IOBuffer(true, true)
-  show(io, l.val)
+  print(io, l.val)
 end
 
 function show(io::IO, bl::AbstractBlock)
@@ -214,12 +248,14 @@ end
 
 ##### files to be included
 
+include("snippet.jl")
 include("tograph.jl")
 include("tocode.jl")
 include("simplify.jl")
 include("forblock.jl")
 include("deriv_rules.jl")
 include("base_rules.jl")
+include("diff.jl")
 include("defs.jl")  # testing stuff
 
 

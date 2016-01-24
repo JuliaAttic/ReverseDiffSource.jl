@@ -4,7 +4,14 @@
 #
 ################################################################################
 
-
+# each block should define :
+#   - a xxBlock type, children of AbstractBlock
+#   - a getops(bl::xxBlock) function
+#   - a summarize(bl::xxBlock) function
+#   - a remap(bl::xxBlock, lmap) function
+#   - a blockparse!(ex::xxExpr, parentops, parentsymbols, g::Graph) function
+#   - a blockcode(bl::xxBlock, locex, g::Graph) function
+#   - a blockdiff(bl::xxBlock, dmap, g) function
 
 """
 Type `ForBlock` contains the block inside the for loop and additional
@@ -18,11 +25,11 @@ info on the iteration range and the iteration variable :
   - desc : generated Locs
 """
 type ForBlock <: AbstractBlock
-    ops::Vector{Op}
-    lops::Vector{Op}
-    symbols::Dict{Any, Loc}
-    asc::Vector{Loc}  # parent Loc (block arguments)
-    desc::Vector{Loc} # descendant Loc (Loc modified/created by block)
+  ops::Vector{Op}
+  lops::Vector{Op}
+  symbols::Dict{Any, Loc}
+  asc::Vector{Loc}  # parent Loc (block arguments)
+  desc::Vector{Loc} # descendant Loc (Loc modified/created by block)
 end
 
 getops(bl::ForBlock) = Any[bl.ops, bl.lops]
@@ -36,6 +43,18 @@ function summarize(bl::ForBlock)
   asc = vcat(bl.asc[1:2], setdiff(asc, bl.asc[1:2]))
   collect(asc), collect(desc)
 end
+
+
+
+function remap(bl::ForBlock, lmap)
+  ForBlock(remap(bl.ops, lmap),
+           remap(bl.lops, lmap),
+           [ s => lmap[l] for (s,l) in bl.symbols ],
+           Loc[ lmap[l] for l in  bl.asc  ],
+           Loc[ lmap[l] for l in  bl.desc ] )
+end
+
+
 
 function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
   # find the iteration variable
@@ -74,6 +93,13 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
     parentsymbols[k] = dloc
   end
 
+  # for externals found update symbols in parentblock
+  for (s,l) in symbols
+    loctype(l) == :external || continue
+    haskey(parentsymbols, s) && continue
+    parentsymbols[s] = l
+  end
+
   thisblock.asc, thisblock.desc = summarize(thisblock)
 
   push!(parentops, thisblock)
@@ -86,7 +112,7 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   # iteration variable Loc is in pos # 1
   ixl = bl.asc[1]
   if !haskey(locex, ixl) # if no name, create one
-      locex[ixl] = newvar()
+    locex[ixl] = newvar()
   end
   ixs = locex[ixl]
 
@@ -97,7 +123,7 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   # exits = intersect(bl.asc, bl.desc)  # mutated Locs
   out = Expr[]
 
-  # for each updated variable ( <> mutated variables) : force creation of
+  # for each updated variable ( != mutated variables) : force creation of
   # variable before loop if there isn't one
   for lop in bl.lops
     li, lo = lop.asc
@@ -128,4 +154,27 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   push!(out, Expr(:for, Expr(:(=), ixs, rgs), fex))
 
   out
+end
+
+function blockdiff(bl::ForBlock, dmap, g)
+  # create Loc for iteration variable
+  # ixl = copy( bl.asc[1] )
+  # push!(g.locs, ixl)
+  ixl = bl.asc[1]
+
+  # create Loc for iteration range
+  # rgl = copy( bl.asc[2] )
+  # push!(g.locs, rgl)
+  rgl = bl.asc[2]
+
+  # create ForBlock
+  symbols = Dict{Any, Loc}() # no need for symbols
+  thisblock = ForBlock(Op[], Op[], copy(bl.symbols), Loc[ixl, rgl], Loc[])
+
+  pos = length(bl.ops) # start at the last position
+  thisblock.ops  = _diff(bl.ops, pos, dmap, g)
+  thisblock.lops = remap(bl.lops, dmap)
+
+  thisblock.asc, thisblock.desc = summarize(thisblock)
+  thisblock
 end

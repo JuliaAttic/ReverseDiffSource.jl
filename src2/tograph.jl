@@ -139,11 +139,12 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
     rloc = explore(rhs)
 
     if isimmutable(rloc.val)  # lhs binds to a copy
-      nloc = RLoc(rloc.val)
-      floc = CLoc(copy)
-      add!(floc)
-      add!( FOp(floc, [rloc;], [nloc;]) )
-      add!(nloc)
+      # nloc = RLoc(rloc.val)
+      # floc = CLoc(copy)
+      # add!(floc)
+      # add!( FOp(floc, [rloc;], [nloc;]) )
+      # add!(nloc)
+      nloc = rloc
     else  # lhs binds to rhs
       nloc = rloc
     end

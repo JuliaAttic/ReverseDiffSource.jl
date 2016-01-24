@@ -99,8 +99,11 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
   function getexpr(l::ELoc)
     # find the symbol defined in env for this Loc
     syms = collect(keys(symbols))
+    println(syms)
     filter!(s -> symbols[s]==l, syms)
+    println(syms)
     filter!(g.isdef, syms)
+    println(syms)
     length(syms)==0 && error("[tocode] no symbol found for external $l")
     syms[1]
   end
@@ -172,7 +175,6 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
       elseif length(intersect(o.desc, o.asc)) > 0   # mutating Op
         # assumptions : function modifies a single variable and return
         # value (if any) is ignored
-        # TODO : extend to remove these constraints ?
         push!(out, translate(o))
 
       else # simple, non-mutating func that returns single variable
