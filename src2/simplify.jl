@@ -8,7 +8,10 @@
 #
 #########################################################################
 
-function simplify!(g, keep=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
+function simplify!(g, keeps=[EXIT_SYM;]) # g = A.g ; keep = [A.EXIT_SYM;]
+
+	keeps2 = intersect(keeps, keys(g.block.symbols))
+	keep = Set{Loc}([ g.block.symbols[s] for s in keeps2])
 
 	prune!(g, keep)
 	splitnary!(g)
@@ -63,31 +66,53 @@ next(w::RevWalk, state) = (state[2][state[1]], (state[1]-1, state[2]))
 done(w::RevWalk, state) = state[1] == 0
 
 # removes unecessary elements (as specified by 'keep')
-function prune!(g, keep)
-	# find all locs that are relevant to calculate 'keep'
-	keep2 = intersect(keep, keys(g.block.symbols))
-	lset = Set{Loc}([ g.block.symbols[s] for s in keep2])
+# function prune!(g, keep)
+# 	# find all locs that are relevant to calculate 'keep'
+# 	keep2 = intersect(keep, keys(g.block.symbols))
+# 	lset = Set{Loc}([ g.block.symbols[s] for s in keep2])
+#
+# 	for o in RevWalk(g)
+# 		if any(l -> l in o.desc, lset)
+# 			union!(lset, o.asc)
+# 			isa(o, FOp) && push!(lset, o.f)
+# 		end
+# 	end
+#
+# 	# filter all locs, symbols, ops unrelated to lset
+# 	filter!(l -> l in lset, g.locs)
+#
+# 	for bl in allblocks(g)
+# 		filter!((s,l) -> l in lset, bl.symbols)
+# 		for ops in getops(bl)
+# 			filter!(o -> any(l -> l in o.desc, lset), ops)
+# 		end
+# 		bl.asc, bl.desc = summarize(bl)
+# 	end
+#
+# 	g
+# end
 
-	for o in RevWalk(g)
-		if any(l -> l in o.desc, lset)
-			union!(lset, o.asc)
-			isa(o, FOp) && push!(lset, o.f)
+
+prune!(g::Graph, keep::Set{Loc}) = prune!(g.block, keep)
+
+function prune!(bl::AbstractBlock, keep::Set{Loc})
+	del_list = Int64[]
+	iop = collect(enumerate(bl.ops))
+	for (i, op) in reverse(iop) # i,op = iop[9]
+		if any(l -> l in op.desc, keep)
+			println("keep $i")
+			isa(op, AbstractBlock) && prune!(op, keep)
+			union!(keep, op.asc)
+		else
+			println("remove $i")
+			push!(del_list,i)
 		end
 	end
-
-	# filter all locs, symbols, ops unrelated to lset
-	filter!(l -> l in lset, g.locs)
-
-	for bl in allblocks(g)
-		filter!((s,l) -> l in lset, bl.symbols)
-		for ops in getops(bl)
-			filter!(o -> any(l -> l in o.desc, lset), ops)
-		end
-		bl.asc, bl.desc = summarize(bl)
-	end
-
-	g
+	deleteat!(bl.ops, reverse(del_list))
+	bl.asc, bl.desc = summarize(bl)
 end
+
+
 
 # splits n-ary functions into binary ones
 function splitnary!(g)
@@ -108,34 +133,6 @@ function splitnary!(g)
 	end
 	g
 end
-
-
-# check that 'cpy' can be replaced by 'org'
-# line is the optional beginning of search
-# function isfusable(org::Loc, cpy::Loc, g::Graph, line=1)
-# 	# org, cpy, g = o.asc[1], o.desc[1], g
-# 	# if org is external, checks that copy is not mutated
-# 	if loctype(org) == :external
-# 		any(l -> cpy in l.desc, g.block.ops[line:end]) && return false
-# 	end
-#
-# 	# is 'org' written to and 'cpy' used afterward ?
-# 	writ = false
-# 	for o2 in g.block.ops[line:end]
-# 		writ && cpy in o2.asc && return false
-# 		writ = writ || org in o2.desc
-# 	end
-#
-# 	# is 'cpy' written to and 'org' used afterward ?
-# 	writ = false
-# 	for o2 in g.block.ops[line:end]
-# 		writ && org in o2.asc && return false
-# 		writ = writ || cpy in o2.desc
-# 	end
-#
-# 	true
-# end
-
 
 function isfusable(org::Loc, cpy::Loc, w::Walk)
 	# org, cpy, g = o.asc[1], o.desc[1], g
@@ -160,8 +157,6 @@ function isfusable(org::Loc, cpy::Loc, w::Walk)
 
 	true
 end
-
-
 
 # replaces occurrences of 'cpy' by 'org'
 function fuse(org::Loc, cpy::Loc, g::Graph) # org, cpy, g = A.g.locs[1], A.g.locs[3], A.g

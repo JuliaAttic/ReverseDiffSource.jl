@@ -44,53 +44,8 @@ module DerivRules
   end
 end
 
-#### function derivation rules declaration functions/macros
-
-# macro form
-macro deriv_rule(func::Expr, dv::Symbol, diff)
-  m = current_module()
-  ff = m.eval(func.args[1])
-  args = formatargs(func.args[2:end])
-  deriv_rule(m.eval(func.args[1]), args, dv, diff)
-end
-
-# function form
-function deriv_rule(func::Union{Function, Type},
-                    args::Vector, dv::Symbol,
-                    diff::Union{Expr, Symbol, Real};
-                    repl=false)
-  ss  = Symbol[ e[1] for e in args ]
-  ord = findfirst(dv .== ss)
-  (ord == 0) && error("[deriv_rule] cannot find $dv in function arguments")
-
-  payload = ( Snippet(diff, vcat(ss, :ds)), repl )
-  DerivRules.define(func, args, ord, payload)
-  nothing
-end
-
-# macro form for mutating functions
-
-mutdict = Dict{Function, Int}()
-ismutating(f) = haskey(mutdict, f)
-
-macro deriv_rule_mut(func::Expr, dv::Symbol, diff)
-    m = current_module()
-    ff = m.eval(func.args[1])
-    args = formatargs(func.args[2:end])
-    deriv_rule(ff, args, dv, diff, repl=true)
-
-    ord = findfirst(dv .== Symbol[ e[1] for e in args ])
-    mutdict[ff] = ord
-end
-
-macro deriv_rule_repl(func::Expr, dv::Symbol, diff)
-    m = current_module()
-    ff = m.eval(func.args[1])
-    args = formatargs(func.args[2:end])
-    deriv_rule(ff, args, dv, diff, repl=true)
-end
-
-function formatargs(fargs)
+### converts argument expressions to a vector of tuples (symbol, type)
+function _formatargs(fargs)
   m = current_module()
   args = Tuple{Symbol, Type}[]
   for e in fargs
@@ -103,4 +58,91 @@ function formatargs(fargs)
       end
   end
   args
+end
+
+# packages rule before calling DerivRules.define
+function _deriv_rule(func::Union{Function, Type},
+                    args::Vector, dv::Symbol,
+                    diff::Union{Expr, Symbol, Real};
+                    repl=false)
+  ss  = Symbol[ e[1] for e in args ]
+  ord = findfirst(dv .== ss)
+  (ord == 0) && error("[deriv_rule] cannot find $dv in function arguments")
+
+  payload = ( Snippet(diff, vcat(ss, :ds)), repl )
+  DerivRules.define(func, args, ord, payload)
+  nothing
+end
+
+
+#### function derivation rules declaration functions/macros
+
+# list of mutating functions, with position of mutated variable
+mutdict = Dict{Function, Int}()
+ismutating(f) = haskey(mutdict, f)
+
+
+# macro form
+"""
+The `@deriv_rule(func::Expr, dv::Symbol, diff)` macro defines a derivation rule,
+or more precisely the value that should be added to the derivative accumulator
+in the reverse differentiation process.
+- func : is the method whose rule is defined, the full signature should be
+specified (for example `+(x::Int64, y::AbstractArray)` for a rule applying to
+additions between and interger and an array).
+- dv : is the symbol of the variable among the arguments on which the derivation
+rule applies.
+- diff : is the expression of the rule. The symbol `ds` is reserved to represent
+the derivative accumulator of the function result.
+"""
+macro deriv_rule(func::Expr, dv::Symbol, diff)
+  m = current_module()
+  ff = m.eval(func.args[1])
+  args = _formatargs(func.args[2:end])
+  _deriv_rule(m.eval(func.args[1]), args, dv, diff)
+end
+
+
+# macro form for mutating functions
+"""
+The `@deriv_rule_mut(func::Expr, dv::Symbol, diff)` macro defines a derivation
+rule **and indicates to ReverseDiffSource that the function is mutating the
+variable dv**.
+In this case the rule is not an expression added to the derivative accumulator
+but a mutating expression that is run.
+- func : is the method whose rule is defined, the full signature should be
+specified (for example `+(x::Int64, y::AbstractArray)` for a rule applying to
+additions between and interger and an array).
+- dv : is the symbol of the variable among the arguments on which the derivation
+rule applies.
+- diff : is the expression of the rule. The symbol `ds` is reserved to represent
+the derivative accumulator of the function result.
+"""
+macro deriv_rule_mut(func::Expr, dv::Symbol, diff)
+    m = current_module()
+    ff = m.eval(func.args[1])
+    args = _formatargs(func.args[2:end])
+    _deriv_rule(ff, args, dv, diff, repl=true)
+
+    ord = findfirst(dv .== Symbol[ e[1] for e in args ])
+    mutdict[ff] = ord
+end
+
+"""
+The `@deriv_rule_repl(func::Expr, dv::Symbol, diff)` macro defines a derivation
+rule as a mutating expression. To be used when is results in more efficient
+code (for example for `getindex()` derivation).
+- func : is the method whose rule is defined, the full signature should be
+specified (for example `+(x::Int64, y::AbstractArray)` for a rule applying to
+additions between and interger and an array).
+- dv : is the symbol of the variable among the arguments on which the derivation
+rule applies.
+- diff : is the expression of the rule. The symbol `ds` is reserved to represent
+the derivative accumulator of the function result.
+"""
+macro deriv_rule_repl(func::Expr, dv::Symbol, diff)
+    m = current_module()
+    ff = m.eval(func.args[1])
+    args = _formatargs(func.args[2:end])
+    _deriv_rule(ff, args, dv, diff, repl=true)
 end

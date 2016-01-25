@@ -46,8 +46,11 @@ end
 
 
 
-function insertsnippet!(src::Snippet, dest::Graph, args::Vector{Loc})
+function appendsnippet!(src::Snippet, dest::Vector{Op},
+                        args::Vector{Loc}, g::Graph)
   iscompiled(src) || compile!(src, args)
   inmap = Dict{Loc,Loc}(zip(src.inputs, args))
-  insertgraph!(src.g, dest, inmap)
+  nops, result = insertgraph!(src.g, g, inmap)
+  append!(dest, nops)
+  result
 end

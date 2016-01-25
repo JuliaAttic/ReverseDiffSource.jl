@@ -31,6 +31,7 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
 end
 
 """
+
 Function `_tocode(ops, lexits, symbols, g, locex)` translates the vector of Op
 `ops` into an expression, with assignments generated for the Locs in lexits.
 `symbols` is used as suggestions for naming Locs, with the symbol `[EXIT_SYM]`
@@ -188,23 +189,6 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
         end
       end
 
-      # ex = isa(o, AbstractBlock) ? blockcode(o, locex, g) : translate(o)  # translate to Expr
-      #
-      # if ispivot(o, line) # assignment needed (force a symbol if EXIT_SYM)
-      #   locex[o.desc[1]] = ex
-      #   genassign(o.desc[1], true)
-      #
-      # elseif length(intersect(o.desc, o.asc)) > 1   # mutating Op
-      #   push!(out, ex)
-      #
-      # elseif any(l -> l in lexits, o.desc) # assignment needed
-      #   locex[o.desc[1]] = ex
-      #   genassign(o.desc[1])
-      #
-      # else # keep expression for later
-      #   locex[o.desc[1]] = ex
-      #
-      # end
     end
   end
 

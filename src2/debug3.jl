@@ -56,6 +56,8 @@ gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
 simplify!(g)
 dex = tocode(g)
 show(g)
+prune!(g, Set{Loc}([g.block.symbols[EXIT_SYM];]) )
+
 g.block.ops[8]
 l0 = g.block.ops[8].asc[2]
 l0 in g.locs
@@ -73,6 +75,7 @@ show(g)
 	prune!(g, keep)
 	g
 
+###################  for loops  #####################
 
 ex = quote
     X = ones(3,3)
@@ -93,22 +96,71 @@ show(dex)
 @eval let a = 1.0; $dex ; end
 @eval let a = 1.00001; $dex ; end
 
+ops = g.block.ops[4].ops
+ispivot(ops[1],1)
+function ispivot(o::Op, line)
+  # checks if any desc of `o` appears several times afterward
+  #  or if they are modified
+  o, line = ops[1],1
+  for l in o.desc # l = o.desc[1]
+    ct = 0
+    for o2 in ops[line+1:end]
+      l in o2.desc && println("1")
+      ct += l in o2.asc
+      ct > 1 && println("2")
+    end
+  end
+  # checks if any asc of `o` is modified later
+  for l in o.asc # l = o.asc[1]
+    for o2 in ops[line+1:end]
+      l in o2.desc && l in o2.asc && println("3")
+    end
+  end
+  #
+  false
+end
+
+ex = quote
+    x = 0.
+    for i in 1:10
+      x += a^i
+    end
+    x
+end
 
 
-bl.symbols[:a]
+Loc{:regular} <: Loc
+Vector{Loc{:regular}} <: Vector{Loc}
 
-l = g.block.ops[4].symbols[:a]
+g = tograph(ex)
+simplify!(g)
+# gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+gdiff!(g, g.block.symbols[EXIT_SYM], g.locs[16])
+simplify!(g)
+dex = tocode(g)
+show(g)
 
-syms = collect(keys(g.block.ops[4].symbols))
-filter!(s -> g.block.ops[4].symbols[s]==l, syms)
-filter!(g.isdef, syms)
-g.isdef(:a)
-length(syms)==0 && error("[tocode] no symbol found for external $l")
+####################  if  #####################
 
+ex = quote
+  x = 0.
+  if a > 2
+    x = a
+  else
+    x = a*a
+  end
+  x
+end
 
+g = tograph(ex)
+simplify!(g)
+# gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+gdiff!(g, g.block.symbols[EXIT_SYM], g.locs[16])
+simplify!(g)
+dex = tocode(g)
+show(g)
 
-loctype(l)
-haskey(g.block.symbols, :a)
+####################  types  #####################
 
 module Sandbox
     type Abcd

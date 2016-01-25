@@ -75,7 +75,7 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
   thisblock = ForBlock(Op[], Op[], symbols, Loc[ixl, rgl], Loc[])
   addtoops!(ex.args[2], thisblock.ops, symbols, g) # parse loop contents
 
-  # look for symbols that point to a different Loc
+  # look for variable rebindings (symbols that point to a different Loc)
   #  - to update the symbols table of the parent block
   #  - to update the lops field marking variables updated and used
   for k in keys(parentsymbols)
@@ -85,9 +85,12 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
     # into the original variable
     oloc = parentsymbols[k]
     dloc = symbols[k]
-    fcop = CLoc(copy!)
-    push!(g.locs, fcop)
-    push!(thisblock.lops, FOp(fcop, [oloc, dloc], [oloc;]))
+
+    ns = Snippet(:(copy!(a,b)), [:a, :b])
+    appendsnippet!(ns, thisblock.lops, Loc[oloc, dloc], g)
+    # fcop = CLoc(copy!)
+    # push!(g.locs, fcop)
+    # push!(thisblock.lops, FOp(fcop, [oloc, dloc], [oloc;]))
 
     # update the parents' symbol map
     parentsymbols[k] = dloc
@@ -123,7 +126,7 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   # exits = intersect(bl.asc, bl.desc)  # mutated Locs
   out = Expr[]
 
-  # for each updated variable ( != mutated variables) : force creation of
+  # for each variable rebinding ( != mutated variables) : force creation of
   # variable before loop if there isn't one
   for lop in bl.lops
     li, lo = lop.asc

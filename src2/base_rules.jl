@@ -43,16 +43,16 @@ ReverseDiffSource.@deriv_rule tuple(x,y,z,t)  x     ds[3]
 ReverseDiffSource.@deriv_rule tuple(x,y,z,t)  t     ds[4]
 
 #  vcat
-ReverseDiffSource.@deriv_rule vcat(x)        x     ds[1]
-ReverseDiffSource.@deriv_rule vcat(x,y)      x     ds[1]
-ReverseDiffSource.@deriv_rule vcat(x,y)      y     ds[2]
-ReverseDiffSource.@deriv_rule vcat(x,y,z)    x     ds[1]
-ReverseDiffSource.@deriv_rule vcat(x,y,z)    y     ds[2]
-ReverseDiffSource.@deriv_rule vcat(x,y,z)    z     ds[3]
-ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  x     ds[1]
-ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  y     ds[2]
-ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  x     ds[3]
-ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  t     ds[4]
+# ReverseDiffSource.@deriv_rule vcat(x)        x     ds[1]
+# ReverseDiffSource.@deriv_rule vcat(x,y)      x     ds[1]
+# ReverseDiffSource.@deriv_rule vcat(x,y)      y     ds[2]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z)    x     ds[1]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z)    y     ds[2]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z)    z     ds[3]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  x     ds[1]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  y     ds[2]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  x     ds[3]
+# ReverseDiffSource.@deriv_rule vcat(x,y,z,t)  t     ds[4]
 
 # reshape
 ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        x    reshape(ds, size(x))
@@ -60,6 +60,14 @@ ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        a    0.
 ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, a, b)        b    0.
 ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    x    reshape(ds, size(x))
 ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    d    0.
+
+# copy
+@deriv_rule     copy(x)     x   ds
+
+# copy!
+@deriv_rule_mut copy!(x,y)  x   fill!(ds, 0.)
+@deriv_rule     copy!(x,y)  y   ds
+
 
 # getindex
 @deriv_rule getindex(x, i)               x     (tmp = zeros(x); tmp[i]=ds ; tmp)

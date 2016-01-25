@@ -48,34 +48,27 @@ function _diff(ops, pos, dmap, g) # ops = g.block.ops
         push!(largs, tmp)
       end
 
-      args = tuple([l.val for l in op.asc]...)
+      vargs  = tuple([l.val for l in op.asc]...)
+      dlargs = vcat(op.asc, dmap[op.desc[1]])
       for (ord, larg) in largs # ord, larg = 1, op.asc[1]
         isa(larg, CLoc) && continue  # if constant, skip
 
-        rul, repl = DerivRules.getrule(fun, ord, args)
+        rul, repl = DerivRules.getrule(fun, ord, vargs)
 
-        # if rule has not yet been compiled to a graph, then this
-        # is the moment to do it with the args provided
         if !iscompiled(rul)
-          fn = "$fun(" * join(map(typeof, args), ",") * ")"
-          println("compile for '$fn' at pos $ord")
+          fn = "$fun(" * join(map(typeof, vargs), ",") * ")"
+          println("compiling '$fn' at pos $ord")
         end
 
-        nops, result = insertsnippet!(rul, g, vcat(op.asc, dmap[op.desc[1]]))
-        append!(dops, nops)
+        result = appendsnippet!(rul, dops, dlargs, g)
 
         if repl  # snippet replaces, is not added
           ### what if not present yet ?
           dmap[larg] = result
         elseif haskey(dmap, larg) # deriv loc existing ?
           ns = Snippet(:(a+b), [:a, :b])
-          nops2, res2 = insertsnippet!(ns, g, Loc[dmap[larg], result])
-          append!(dops, nops2)
+          res2 = appendsnippet!(ns, dops, Loc[dmap[larg], result], g)
           dmap[larg] = res2
-          # fl = CLoc(+) ; push!(g.locs, fl)
-          # dl = copy(result) ; push!(g.locs, dl)
-          # push!(dops, FOp(fl, [dmap[larg], result], [dl]))
-          # dmap[larg] = dl
         else
           dmap[larg] = result
         end
