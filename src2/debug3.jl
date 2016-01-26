@@ -87,8 +87,7 @@ end
 
 g = tograph(ex)
 simplify!(g)
-# gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
-gdiff!(g, g.block.symbols[EXIT_SYM], g.locs[16])
+gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
 simplify!(g)
 dex = tocode(g)
 show(g)
@@ -96,29 +95,37 @@ show(dex)
 @eval let a = 1.0; $dex ; end
 @eval let a = 1.00001; $dex ; end
 
+ispivot(rest(g.block.ops,1))
+ispivot(rest(g.block.ops,2))
+ispivot(rest(g.block.ops,3))
+ispivot(rest(g.block.ops,4))
+ispivot(rest(g.block.ops,5))
+
 ops = g.block.ops[4].ops
-ispivot(ops[1],1)
-function ispivot(o::Op, line)
-  # checks if any desc of `o` appears several times afterward
-  #  or if they are modified
-  o, line = ops[1],1
-  for l in o.desc # l = o.desc[1]
-    ct = 0
-    for o2 in ops[line+1:end]
-      l in o2.desc && println("1")
-      ct += l in o2.asc
-      ct > 1 && println("2")
-    end
-  end
-  # checks if any asc of `o` is modified later
-  for l in o.asc # l = o.asc[1]
-    for o2 in ops[line+1:end]
-      l in o2.desc && l in o2.asc && println("3")
-    end
-  end
-  #
-  false
+ispivot(rest(ops,1))
+ispivot(rest(ops,2))
+ispivot(rest(ops,3))
+ispivot(rest(ops,4))
+
+
+o, line = ops[4], 4
+l = o.desc[1]
+writ = false
+used = false
+for o2 in ops[line+1:end]
+    l in o2.desc && println("true 1") # result is mutated
+    writ = any(a -> a in o2.desc, o.asc) # ascendants of results modified
+    l in o2.asc || continue
+    used && println("true 2") # result is used at least twice
+    writ && println("true 3") # result is used after ascendants modification
+    used = true
 end
+
+a = [1,2,3,4]
+start(a)
+next(a,2)
+done(a,4)
+done(a,5)
 
 ex = quote
     x = 0.

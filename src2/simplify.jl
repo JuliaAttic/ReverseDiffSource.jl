@@ -28,7 +28,7 @@ end
 #######################################################
 
 flatops(op::Op)            = [op;]
-flatops(bl::AbstractBlock) = vcat(map(flatops, getops(bl))..., bl)
+flatops(bl::AbstractBlock) = vcat(map(flatops, getops(bl))...)
 flatops(ops::Vector{Op})   = vcat(map(flatops, ops)...)
 flatops(g::Graph)          = flatops(g.block)
 
@@ -66,33 +66,6 @@ next(w::RevWalk, state) = (state[2][state[1]], (state[1]-1, state[2]))
 done(w::RevWalk, state) = state[1] == 0
 
 # removes unecessary elements (as specified by 'keep')
-# function prune!(g, keep)
-# 	# find all locs that are relevant to calculate 'keep'
-# 	keep2 = intersect(keep, keys(g.block.symbols))
-# 	lset = Set{Loc}([ g.block.symbols[s] for s in keep2])
-#
-# 	for o in RevWalk(g)
-# 		if any(l -> l in o.desc, lset)
-# 			union!(lset, o.asc)
-# 			isa(o, FOp) && push!(lset, o.f)
-# 		end
-# 	end
-#
-# 	# filter all locs, symbols, ops unrelated to lset
-# 	filter!(l -> l in lset, g.locs)
-#
-# 	for bl in allblocks(g)
-# 		filter!((s,l) -> l in lset, bl.symbols)
-# 		for ops in getops(bl)
-# 			filter!(o -> any(l -> l in o.desc, lset), ops)
-# 		end
-# 		bl.asc, bl.desc = summarize(bl)
-# 	end
-#
-# 	g
-# end
-
-
 prune!(g::Graph, keep::Set{Loc}) = prune!(g.block, keep)
 
 function prune!(bl::AbstractBlock, keep::Set{Loc})
@@ -100,11 +73,11 @@ function prune!(bl::AbstractBlock, keep::Set{Loc})
 	iop = collect(enumerate(bl.ops))
 	for (i, op) in reverse(iop) # i,op = iop[9]
 		if any(l -> l in op.desc, keep)
-			println("keep $i")
+			# println("keep $i")
 			isa(op, AbstractBlock) && prune!(op, keep)
 			union!(keep, op.asc)
 		else
-			println("remove $i")
+			# println("remove $i")
 			push!(del_list,i)
 		end
 	end
@@ -135,9 +108,9 @@ function splitnary!(g)
 end
 
 function isfusable(org::Loc, cpy::Loc, w::Walk)
-	# org, cpy, g = o.asc[1], o.desc[1], g
+	# org, cpy, w = o.asc[1], o.desc[1], Walk(o,g)
 	# if org is external, checks that copy is not mutated
-	if loctype(org) == :external
+	if loctype(org) in [:external, :constant]
 		any(l -> cpy in l.desc, w) && return false
 	end
 
@@ -206,7 +179,7 @@ function removerightneutral!(g)
   for bl in allblocks(g)
 		for ops in getops(bl)
 			del_list = Int64[]
-			for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
+			for (line, o) in enumerate(ops) # line=1 ; o = g.block.ops[1]
 				isa(o, FOp) || continue
 				length(o.asc) == 2 || continue
 				loctype(o.asc[2]) == :constant || continue

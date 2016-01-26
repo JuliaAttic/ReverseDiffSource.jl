@@ -68,21 +68,21 @@ end
 # @test fullcycle(:( x = b+6 ),     keep_var=[:x]) == :(x=b+6)
 # @test fullcycle(:( x = y = b+6 ), keep_var=[:x]) == :(x=b+6)
 # @test fullcycle(:( x = y = b+6 ), keep_var=[:y]) == :(y=b+6)
+# @test fullcycle(:( x = 3.; y = b+6 ), keep_var=[:x]) == :(y=b+6)
+
 
 @test fullcycle(:(sin(b); x=3))     == :(3)
 
 @test fullcycle(:(x = b+6; x+=1))   == :((b+6)+1)
 @test fullcycle(:(x = 1; x -= b+6)) == :(1 - (b+6))
 @test fullcycle(:(x = a; x *= b+6)) == :(a * (b+6))
-g = tograph(:(x = a; x *= b+6))
-tocode(g)
-
 @test fullcycle(:(x = b'))          == :( b')
 @test fullcycle(:(x = [1,2]))       == :( [1,2])
 @test fullcycle(:(x = 4:5 ))        == :( 4:5)
 
 @test fullcycle(:(x = b+4+5))       == :((b+4)+5)
 @test fullcycle(:(x = b+0))         == :(b)
+
 # @test fullcycle(:(x = b*0))         == :(0)
 @test fullcycle(:(x = b*1))         == :(b)
 # @test fullcycle(:(x = b*(0.5+0.5))) == :(b)
@@ -122,6 +122,8 @@ tocode(g)
 
 # @test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] ))  == :( X = copy(B) ; X[1:2] = X[1:2] )
 @test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))     == :( X = copy(D) ; X[1:2,3] = a )
+show(simplify!(tograph(:( X = copy(D) ; X[1:2,3] = a ))))
+g = simplify!(tograph(:( X = copy(D) ; X[1:2,3] = a )))
 @test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) == :( X = copy(D) ; X[1:2,2] = D[1:2,3] )
 
 # @test fullcycle(:( B[:] ))                == Expr(:block, :( x[1:length(x)] ) )
@@ -140,7 +142,7 @@ tocode(g)
 
 # @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
 # @test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
-
+z = Z(0,0).x = a
 
 ###  test evalconstants, simplify
 ex = quote
@@ -186,6 +188,39 @@ end
 
 
 ################# for loops  ################
+ex = quote
+  x = 0.
+  for i in 1:3
+    x = x + i
+  end
+  x
+end
+fullcycle(ex)
+g = tograph(ex)
+show(g)
+tocode(g)
+simplify!(g)
+
+o = g.block.ops[1]
+isfusable(o.asc[1], o.desc[1], Walk(o,g))
+
+
+keeps2 = intersect([EXIT_SYM;], keys(g.block.symbols))
+keep = Set{Loc}([ g.block.symbols[s] for s in keeps2])
+
+prune!(g, keep)
+splitnary!(g)
+
+fusecopies!(g)
+removerightneutral!(g)
+removeleftneutral!(g)
+prune!(g, keep)
+
+
+
+
+
+
 ex = quote
   x = 0.
   for i in 1:10

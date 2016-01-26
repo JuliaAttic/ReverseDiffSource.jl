@@ -36,9 +36,14 @@ getops(bl::ForBlock) = Any[bl.ops, bl.lops]
 flatops(bl::ForBlock) = vcat(flatops(bl.ops), bl)  # ignore var looping block
 
 function summarize(bl::ForBlock)
-  # note : only `ops` vector considered, `lops` is only implicit assignements
-  asc  = mapreduce(o ->  o.asc, union, Set(), bl.ops)
-  desc = mapreduce(o -> o.desc, union, Set(), bl.ops)
+  # # note : only `ops` vector considered, `lops` is only implicit assignements
+  # asc  = mapreduce(o ->  o.asc, union, Set(), bl.ops)
+  # desc = mapreduce(o -> o.desc, union, Set(), bl.ops)
+  asc  = mapreduce(o ->   o.asc, union, Set{Loc}(),  bl.ops)
+  asc  = mapreduce(o ->   o.asc, union,        asc, bl.lops)
+  desc = mapreduce(o ->  o.desc, union, Set{Loc}(),  bl.ops)
+  desc = mapreduce(o ->  o.desc, union,       desc, bl.lops)
+
   # keep var and range in correct positions
   asc = vcat(bl.asc[1:2], setdiff(asc, bl.asc[1:2]))
   collect(asc), collect(desc)
@@ -86,11 +91,11 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
     oloc = parentsymbols[k]
     dloc = symbols[k]
 
-    ns = Snippet(:(copy!(a,b)), [:a, :b])
-    appendsnippet!(ns, thisblock.lops, Loc[oloc, dloc], g)
-    # fcop = CLoc(copy!)
-    # push!(g.locs, fcop)
-    # push!(thisblock.lops, FOp(fcop, [oloc, dloc], [oloc;]))
+    # ns = Snippet(:(a=b), [:a, :b])
+    # appendsnippet!(ns, thisblock.lops, Loc[oloc, dloc], g)
+    fcop = CLoc(copy)
+    push!(g.locs, fcop)
+    push!(thisblock.lops, FOp(fcop, [dloc;], [oloc;]))
 
     # update the parents' symbol map
     parentsymbols[k] = dloc
@@ -129,7 +134,7 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   # for each variable rebinding ( != mutated variables) : force creation of
   # variable before loop if there isn't one
   for lop in bl.lops
-    li, lo = lop.asc
+    li, lo = lop.asc, lop.desc
 
     # find symbol
     ks  = collect(keys(bl.symbols))
@@ -148,11 +153,14 @@ function blockcode(bl::ForBlock, locex, g::Graph)
   end
 
   # for updated and mutated variables : mark as exit for code generation
-  exits = copy(bl.desc)
-  append!(exits, Loc[ op.asc[2] for op in bl.lops])
+  # exits = copy(bl.desc)
+  # append!(exits, Loc[ op.asc[2] for op in bl.lops])
+  exits = Loc[ op.asc[1] for op in bl.lops]
 
   # expression for inner code
+  println("in")
   fex = _tocode(bl.ops, exits, bl.symbols, g, locex)
+  println("out")
 
   push!(out, Expr(:for, Expr(:(=), ixs, rgs), fex))
 

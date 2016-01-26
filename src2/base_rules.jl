@@ -91,7 +91,7 @@ ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    d    0.
 # setindex
 @deriv_rule_mut setindex!(x, y, i)          x     ds[i] = 0.
 @deriv_rule     setindex!(x, y, i)          y     ds[i]
-@deriv_rule     setindex!(x, y::Real, i)    y     sum(ds[i])
+@deriv_rule     setindex!(x, y::Real, i::Range)    y     sum(ds[i])
 @deriv_rule     setindex!(x, y, i)          i     0.
 
 @deriv_rule_mut setindex!(x, y, i1, i2)    x     ds[i1,i2] = 0.
@@ -143,7 +143,7 @@ ReverseDiffSource.@deriv_rule .-(x               , y::AbstractArray)    y     -d
 
 # sum()
 ReverseDiffSource.@deriv_rule sum(x::Real )                            x     ds
-ReverseDiffSource.@deriv_rule sum(x::AbstractArray)                    x     ones(size(x)).*ds
+ReverseDiffSource.@deriv_rule sum(x::AbstractArray)                    x     ones(x).*ds
 
 # dot()
 ReverseDiffSource.@deriv_rule dot(x::Real         , y::Real )          x     y * ds

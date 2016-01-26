@@ -46,6 +46,34 @@ function summarize(bl::IfBlock)
   collect(asc), collect(desc)
 end
 
+function prune!(bl::IfBlock, keep::Set{Loc})
+	del_list = Int64[]
+	iop = collect(enumerate(bl.trueops))
+	for (i, op) in reverse(iop) # i,op = iop[9]
+		if any(l -> l in op.desc, keep)
+			isa(op, AbstractBlock) && prune!(op, keep)
+			union!(keep, op.asc)
+		else
+			push!(del_list,i)
+		end
+	end
+	deleteat!(bl.trueops, reverse(del_list))
+
+  del_list = Int64[]
+  iop = collect(enumerate(bl.falseops))
+	for (i, op) in reverse(iop) # i,op = iop[9]
+		if any(l -> l in op.desc, keep)
+			isa(op, AbstractBlock) && prune!(op, keep)
+			union!(keep, op.asc)
+		else
+			push!(del_list,i)
+		end
+	end
+	deleteat!(bl.falseops, reverse(del_list))
+
+	bl.asc, bl.desc = summarize(bl)
+end
+
 
 function show(io::IO, bl::IfBlock)
   nt = length(bl.trueops)

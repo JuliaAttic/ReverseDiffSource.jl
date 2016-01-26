@@ -157,16 +157,14 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
   ###   scope blocks
   # simple `:block` expressions can be unfolded in the current block directly
   explore(ex::ExBlock)   = map( explore, ex.args )[end]
-  # explore(ex::ExBody)    = map( explore, ex.args )[end]
 
   # for the other cases (for-blocks, if-blocks), create a new Block
-  function explore(ex::ExH)
-    blockparse!(ex, ops, symbols, g)
-    # try
-    #   blockparse!(ex, ops, symbols, g)
-    # catch e
-    #   error("[tograph] error parsing expr type $(ex.head) in ($ex)")
-    # end
+  function explore(ex::ExH)  # ex = ExFor()
+    if method_exists(blockparse!, (typeof(ex), Any, Any, Graph))
+      blockparse!(ex, ops, symbols, g)
+    else
+      error("[tograph] error parsing expr type $(ex.head) in ($ex)")
+    end
   end
 
   explore(ex)
