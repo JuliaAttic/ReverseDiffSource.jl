@@ -69,8 +69,13 @@ done(w::RevWalk, state) = state[1] == 0
 prune!(g::Graph, keep::Set{Loc}) = prune!(g.block, keep)
 
 function prune!(bl::AbstractBlock, keep::Set{Loc})
+	prune!(bl.ops, keep)
+	bl.asc, bl.desc = summarize(bl)
+end
+
+function prune!(ops::Vector{Op}, keep::Set{Loc})
 	del_list = Int64[]
-	iop = collect(enumerate(bl.ops))
+	iop = collect(enumerate(ops))
 	for (i, op) in reverse(iop) # i,op = iop[9]
 		if any(l -> l in op.desc, keep)
 			# println("keep $i")
@@ -81,11 +86,8 @@ function prune!(bl::AbstractBlock, keep::Set{Loc})
 			push!(del_list,i)
 		end
 	end
-	deleteat!(bl.ops, reverse(del_list))
-	bl.asc, bl.desc = summarize(bl)
+	deleteat!(ops, reverse(del_list))
 end
-
-
 
 # splits n-ary functions into binary ones
 function splitnary!(g)

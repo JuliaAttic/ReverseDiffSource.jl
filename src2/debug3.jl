@@ -152,12 +152,29 @@ show(g)
 ex = quote
   x = 0.
   if a > 2
+    y = sin(b)
+    x = a*y
+  else
+    z = cos(a)
+    x = a^z
+  end
+  x
+end
+    g = tograph(ex)
+    dex = tocode(g)
+
+
+ex = quote
+  x = 0.
+  if a > 2
     x = a
   else
     x = a*a
   end
   x
 end
+    g = tograph(ex)
+    dex = tocode(g)
 
 g = tograph(ex)
 simplify!(g)
@@ -166,6 +183,20 @@ gdiff!(g, g.block.symbols[EXIT_SYM], g.locs[16])
 simplify!(g)
 dex = tocode(g)
 show(g)
+
+
+ex = quote
+  if a > 2
+    x = a
+  else
+    y = b
+  end
+  y
+end
+
+g = tograph(ex)
+
+
 
 ####################  types  #####################
 

@@ -111,27 +111,10 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     # warn("[getexpr] calling genassign for $l")
     # println(Expr(:block, out...))
     # return newvar()
-    error("[tocode] no expression for Loc $l")
+    error("[tocode] no expression for Loc $l  (# $(indexin([l;], g.locs)))")
   end
 
   ### generates assignment expression for given Loc
-  # function genassign(l::Loc, force=false)
-  #   # find assignment symbols among defined in g to be assigned to among exits
-  #   # syms = Set(filter(s -> g.block.symbols[s]==l, exits))
-  #   if haskey(symbols, EXIT_SYM) && !force && symbols[EXIT_SYM]==l
-  #     syms = Symbol[]
-  #   else
-  #     ks  = collect(keys(symbols))
-  #     syms = filter(s -> s!=EXIT_SYM && symbols[s]==l, ks)
-  #     # if still none found, generate one
-  #     length(syms)==0 && push!(syms, newvar())
-  #   end
-  #
-  #   # generate assignement expression for all symbols in syms
-  #   push!(out, foldr((x,y) -> Expr(:(=), x, y), getexpr(l), collect(syms) ) )
-  #   length(syms) > 0 && (locex[l] = pop!(syms)) # update locex (if syms not empty)
-  # end
-
   function genassign(l::Loc, force=false)
     sym = get(sdict, l, newvar())
     if sym == EXIT_SYM && !force
@@ -158,6 +141,9 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     pdict[l]    = pos
   end
 
+  println("sdict $sdict")
+  println("pdict $pdict")
+
   # first process lexits that are not created by any op
   for (l,p) in pdict
     p==0 && genassign(l)
@@ -167,7 +153,7 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
   for (line, o) in enumerate(ops) # line=1 ; o = ops[1]
 
     if isa(o, AbstractBlock)
-      exs = blockcode(o, locex, g)
+      exs = blockcode(o, locex, symbols, g)
       append!(out, exs)
       # for desc in o.desc
       #   if haskey(sdict, o.desc[1]) && sdict[o.desc[1]]==EXIT_SYM && pdict[o.desc[1]]==line
