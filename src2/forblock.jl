@@ -116,7 +116,7 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
 end
 
 
-function blockcode(bl::ForBlock, locex, g::Graph)
+function blockcode(bl::ForBlock, locex, symbols, g::Graph)
   # iteration variable Loc is in pos # 1
   ixl = bl.asc[1]
   if !haskey(locex, ixl) # if no name, create one

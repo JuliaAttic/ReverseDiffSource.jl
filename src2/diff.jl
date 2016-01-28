@@ -9,25 +9,125 @@ function gdiff!(g::Graph, lexit::Loc, input::Loc)
     pos  = findlast(o -> lexit in o.desc, g.block.ops)
     dmap = Dict{Loc,Loc}() # Loc to dloc map
 
-    # create start Loc for Derivation
-    sn = CLoc(1.0)
-    push!(g.locs, sn)
-    dmap[lexit] = sn
+    if lexit.typ <: Real  # scalar exit value
+      # create start Loc for Derivation
+      sn = CLoc(1.0)
+      push!(g.locs, sn)
+      dmap[lexit] = sn
 
-    dops = _diff(g.block.ops, pos, dmap, g)
-    append!(g.block.ops, dops)
+      dops = _diff(g.block.ops, pos, dmap, g)
+      append!(g.block.ops, dops)
 
-    fl = CLoc(tuple) ; push!(g.locs, fl)
-    dl = RLoc((lexit.val, dmap[input].val)) ; push!(g.locs, dl)
-    push!(g.block.ops, FOp(fl, [lexit, dmap[input]], [dl;]))
-    g.block.symbols[EXIT_SYM] = dl
+      ns = Snippet(:((a,b)), [:a, :b])
+      result = appendsnippet!(ns, g.block.ops, Loc[lexit, dmap[input]], g)
+      g.block.symbols[EXIT_SYM] = result
 
-    # for (k,v) in dmap
-    #     ki = findfirst(k .== g.locs)
-    #     vi = findfirst(v .== g.locs)
-    #     println("$ki => $vi")
-    # end
+    elseif lexit.typ <: AbstractArray && eltype(lexit.typ) <: Real
 
+ex = quote
+  B * B'
+end
+g = tograph(ex)
+lexit = g.block.symbols[EXIT_SYM]
+input = g.block.symbols[:B]
+
+sn   = Snippet(:(Array(Float64, length(I), length(O))), [:I, :O] )
+acc  = appendsnippet!(sn, g.block.ops, Loc[input, lexit], g)
+
+sn   = Snippet(:(zeros(exit)), [:exit;] )
+acc2 = appendsnippet!(sn, g.block.ops, Loc[lexit;], g)
+
+sn   = Snippet(:(1), Loc[] )
+lidx = appendsnippet!(sn, g.block.ops, Loc[], g)
+
+sn   = Snippet(:(fill!(dexit, 0.);dexit[idx] = 1.0;dexit), [:dexit, :idx] )
+stn  = appendsnippet!(sn, g.block.ops, Loc[acc2, lidx], g)
+
+n = length(g.block.ops)
+fops = splice!(g.block.ops, n-1:n)
+
+stn == acc2
+dmap[lexit] = acc2
+dops = _diff(g.block.ops, pos, dmap, g)
+append!(fops, dops)
+
+sn   = Snippet(:(acc[:,idx] = result), [:acc, :idx, :result] )
+acc3 = appendsnippet!(sn, g.block.ops, Loc[acc, lidx, dmap[input]], g)
+
+n = length(g.block.ops)
+push!(fops, pop!(g.block.ops))
+
+sn  = Snippet(:(1:length(exit)), [:exit;] )
+lrg = appendsnippet!(sn, g.block.ops, Loc[lexit;], g)
+
+fbl = ForBlock(fops, Op[], g.block.symbols, Loc[lidx, lrg], Loc[])
+fbl.asc, fbl.desc = summarize(fbl)
+
+push!(g.block.ops, fbl)
+
+sn  = Snippet(:((a,b)), [:a, :b])
+res = appendsnippet!(sn, g.block.ops, Loc[lexit, acc3], g)
+g.block.symbols[EXIT_SYM] = res
+
+show(g)
+dex = tocode(g)
+
+simplify!(g)
+
+@eval let B = ones(4)*2. ; $dex ; end
+
+g.block.symbols[EXIT_SYM] = result
+
+
+dmap[lexit] = acc2
+dops = _diff(g.block.ops, pos, dmap, g)
+
+
+
+
+tocode(g)
+dops = Op[]
+
+
+
+zzerosquote
+                dO = Array(Float64, length(I), length(O))
+                for i in 1:length(O)
+                  dO[:,i] = result
+                end
+                dO
+             end, [:I, :O])
+
+result = appendsnippet!(ns, g.block.ops, Loc[input, lexit], g)
+
+      sn = CLoc(1.0)
+      push!(g.locs, sn)
+      dmap[lexit] = sn
+
+      dops = _diff(g.block.ops, pos, dmap, g)
+      append!(g.block.ops, dops)
+
+
+
+      ns = Snippet(quote
+                      dO = Array(Float64, length(I), length(O))
+                      for i in 1:length(O)
+                        dO[:,i] = result
+                      end
+                      dO
+                   end, [:I, :O])
+
+      result = appendsnippet!(ns, g.block.ops, Loc[input, lexit], g)
+
+
+      F = rand(3,3)
+      G = reshape(F,9)
+      G[1]  = 0
+      F
+    else
+      error("[gdiff] result is neither a Real nor an Array{Real} : $(lexit.typ)")
+
+    end
     g
 end
 
@@ -55,31 +155,25 @@ function _diff(ops, pos, dmap, g) # ops = g.block.ops
 
         rul, repl = DerivRules.getrule(fun, ord, vargs)
 
-        if !iscompiled(rul)
-          fn = "$fun(" * join(map(typeof, vargs), ",") * ")"
-          println("compiling '$fn' at pos $ord")
-        end
-
         result = appendsnippet!(rul, dops, dlargs, g)
 
         if repl  # snippet replaces, is not added
-          ### what if not present yet ?
+          # FIXME : what if not present yet ?
           dmap[larg] = result
-        elseif haskey(dmap, larg) # deriv loc existing ?
+        elseif haskey(dmap, larg) # deriv loc existing ? => add to it
           ns = Snippet(:(a+b), [:a, :b])
           res2 = appendsnippet!(ns, dops, Loc[dmap[larg], result], g)
           dmap[larg] = res2
-        else
-          dmap[larg] = result
+        else # else create new starting point
+          ns = Snippet(:(copy(a)), [:a;])
+          res2 = appendsnippet!(ns, dops, Loc[result;], g)
+          dmap[larg] = res2
         end
       end
 
     elseif isa(op, AbstractBlock)
-      println("enter")
       push!(dops, blockdiff(op, dmap, g))
-      println("exit")
     end
-    println(" nops $(length(dops)) locs $(length(g.locs))")
   end
 
   dops

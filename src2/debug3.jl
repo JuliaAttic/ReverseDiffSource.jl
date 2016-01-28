@@ -162,6 +162,7 @@ ex = quote
 end
     g = tograph(ex)
     dex = tocode(g)
+show(g)
 
 
 ex = quote
@@ -171,19 +172,47 @@ ex = quote
   else
     x = a*a
   end
-  x
+  x+2
 end
     g = tograph(ex)
     dex = tocode(g)
 
+ex = quote
+  x = 0.
+  if b > 2
+    x = a
+  else
+    x = a*a
+  end
+  x
+end
+    g = tograph(ex)
+    gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+    dex = tocode(g)
+show(g)
+
 g = tograph(ex)
 simplify!(g)
-# gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
-gdiff!(g, g.block.symbols[EXIT_SYM], g.locs[16])
+gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
 simplify!(g)
 dex = tocode(g)
 show(g)
 
+ex = quote
+  x = 0.
+  if b > 2
+    x = a*a
+  else
+    x = a
+  end
+  x
+end
+    g = tograph(ex)
+    gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+    dex = tocode(g)
+@eval let a = 1.0; $dex ; end
+@eval let a = 1.0001; $dex ; end
+b=1.2
 
 ex = quote
   if a > 2

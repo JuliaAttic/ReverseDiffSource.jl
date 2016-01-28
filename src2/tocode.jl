@@ -141,8 +141,8 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     pdict[l]    = pos
   end
 
-  println("sdict $sdict")
-  println("pdict $pdict")
+  # println("sdict $sdict")
+  # println("pdict $pdict")
 
   # first process lexits that are not created by any op
   for (l,p) in pdict
@@ -155,6 +155,12 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     if isa(o, AbstractBlock)
       exs = blockcode(o, locex, symbols, g)
       append!(out, exs)
+
+      for d in o.desc
+        if haskey(sdict, d) && sdict[d]==EXIT_SYM && pdict[d]==line
+          push!(out, locex[d])
+        end
+      end
       # for desc in o.desc
       #   if haskey(sdict, o.desc[1]) && sdict[o.desc[1]]==EXIT_SYM && pdict[o.desc[1]]==line
       #     push!(out, locex[o.desc[1]])
