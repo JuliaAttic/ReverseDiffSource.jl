@@ -18,6 +18,7 @@ Type `ForBlock` contains the block inside the for loop and additional
 info on the iteration range and the iteration variable :
 
   - ops : a `Vector{Op}` describing the operations
+  - rops : a `Vector{Op}` describing the var rebindings done by the loop
   - symbols : a `Dict{Any, Loc}` giving the mapping between symbols and their
   Loc. Since for blocks are scope blocks the symbols map is distinct
   from the parent's map.
@@ -26,40 +27,42 @@ info on the iteration range and the iteration variable :
 """
 type ForBlock <: AbstractBlock
   ops::Vector{Op}
-  lops::Vector{Op}
+  rops::Vector{Op}
   symbols::Dict{Any, Loc}
   asc::Vector{Loc}  # parent Loc (block arguments)
   desc::Vector{Loc} # descendant Loc (Loc modified/created by block)
 end
 
-getops(bl::ForBlock) = Any[bl.ops, bl.lops]
-flatops(bl::ForBlock) = vcat(flatops(bl.ops), bl)  # ignore var looping block
+getops(bl::ForBlock) = Any[bl.ops, bl.rops]
+flatops(bl::ForBlock) = vcat(map(flatops, getops(bl))...)
 
 function summarize(bl::ForBlock)
-  # # note : only `ops` vector considered, `lops` is only implicit assignements
-  # asc  = mapreduce(o ->  o.asc, union, Set(), bl.ops)
-  # desc = mapreduce(o -> o.desc, union, Set(), bl.ops)
-  asc  = mapreduce(o ->   o.asc, union, Set{Loc}(),  bl.ops)
-  asc  = mapreduce(o ->   o.asc, union,        asc, bl.lops)
-  desc = mapreduce(o ->  o.desc, union, Set{Loc}(),  bl.ops)
-  desc = mapreduce(o ->  o.desc, union,       desc, bl.lops)
-
+  fops = flatops(bl)
+  asc  = mapreduce(o ->   o.asc, union, Set{Loc}(), fops)
   # keep var and range in correct positions
   asc = vcat(bl.asc[1:2], setdiff(asc, bl.asc[1:2]))
+
+  desc = mapreduce(o ->  o.desc, union, Set{Loc}(), fops)
+  desc = union(desc, Loc[o.asc[1] for o in bl.rops]) # these count as modified too
+
   collect(asc), collect(desc)
 end
 
-
-
 function remap(bl::ForBlock, lmap)
   ForBlock(remap(bl.ops, lmap),
-           remap(bl.lops, lmap),
+           remap(bl.rops, lmap),
            [ s => lmap[l] for (s,l) in bl.symbols ],
            Loc[ lmap[l] for l in  bl.asc  ],
            Loc[ lmap[l] for l in  bl.desc ] )
 end
 
+function prune!(bl::ForBlock, keep::Set{Loc})
+  prune!(bl.rops, keep)  # start with rebindings
+  prune!(bl.ops, keep)
+	bl.asc, bl.desc = summarize(bl)
+end
 
+rebind(x) = x  # dummy function to signify rebindings
 
 function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
   # find the iteration variable
@@ -82,7 +85,7 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
 
   # look for variable rebindings (symbols that point to a different Loc)
   #  - to update the symbols table of the parent block
-  #  - to update the lops field marking variables updated and used
+  #  - to update the rops field marking variables updated and used
   for k in keys(parentsymbols)
     parentsymbols[k] == symbols[k] && continue # not modified => pass
 
@@ -91,11 +94,9 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
     oloc = parentsymbols[k]
     dloc = symbols[k]
 
-    # ns = Snippet(:(a=b), [:a, :b])
-    # appendsnippet!(ns, thisblock.lops, Loc[oloc, dloc], g)
-    fcop = CLoc(copy)
+    fcop = CLoc(rebind)
     push!(g.locs, fcop)
-    push!(thisblock.lops, FOp(fcop, [dloc;], [oloc;]))
+    push!(thisblock.rops, FOp(fcop, [oloc;], [dloc,oloc]))
 
     # update the parents' symbol map
     parentsymbols[k] = dloc
@@ -133,8 +134,8 @@ function blockcode(bl::ForBlock, locex, symbols, g::Graph)
 
   # for each variable rebinding ( != mutated variables) : force creation of
   # variable before loop if there isn't one
-  for lop in bl.lops
-    li, lo = lop.asc, lop.desc
+  for lop in bl.rops
+    li, lo = lop.asc[1], lop.desc[1]
 
     # find symbol
     ks  = collect(keys(bl.symbols))
@@ -154,13 +155,31 @@ function blockcode(bl::ForBlock, locex, symbols, g::Graph)
 
   # for updated and mutated variables : mark as exit for code generation
   # exits = copy(bl.desc)
-  # append!(exits, Loc[ op.asc[2] for op in bl.lops])
-  exits = Loc[ op.asc[1] for op in bl.lops]
+  # append!(exits, Loc[ op.asc[2] for op in bl.rops])
+  # exits = Loc[ op.desc[1] for op in bl.rops]
+
+  syms, exits = filter((k,v)->k!=EXIT_SYM,symbols), Loc[]
+  for o in bl.rops
+    fl, rl = o.asc[1], o.desc[1]
+    push!(exits, rl)
+    # tmp = collect(filter(s -> syms[s]==rl, keys(syms)))
+    # ns = length(tmp)==0 ? newvar() : tmp[1]
+    ns = locex[fl]
+    # ns = newvar()
+    syms = filter!((k,v)-> v != rl, syms)
+    syms[ns] = rl
+    locex[rl] = ns
+  end
+
+  numb(l) = indexin([l;], g.locs)[1]
+  # println("syms  $syms  - $(map(numb, values(syms)))")
+  for (k,v) in syms
+    println("$k =>> $v  ($(numb(v)))")
+  end
+  println("exits $exits  - $(map(numb, exits))")
 
   # expression for inner code
-  println("in")
-  fex = _tocode(bl.ops, exits, bl.symbols, g, locex)
-  println("out")
+  fex = _tocode(bl.ops, exits, syms, g, locex)
 
   push!(out, Expr(:for, Expr(:(=), ixs, rgs), fex))
 
@@ -184,7 +203,7 @@ function blockdiff(bl::ForBlock, dmap, g)
 
   pos = length(bl.ops) # start at the last position
   thisblock.ops  = _diff(bl.ops, pos, dmap, g)
-  thisblock.lops = remap(bl.lops, dmap)
+  thisblock.rops = remap(bl.rops, dmap)
 
   thisblock.asc, thisblock.desc = summarize(thisblock)
   thisblock

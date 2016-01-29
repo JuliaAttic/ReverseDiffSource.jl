@@ -161,6 +161,7 @@ ex = quote
   x
 end
     g = tograph(ex)
+    simplify!(g)
     dex = tocode(g)
 show(g)
 

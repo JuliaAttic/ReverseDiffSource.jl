@@ -102,16 +102,17 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     syms = collect(keys(symbols))
     filter!(s -> symbols[s]==l, syms)
     filter!(g.isdef, syms)
-    length(syms)==0 && error("[tocode] no symbol found for external $l")
+    if length(syms)==0
+      Base.show_backtrace(STDERR, backtrace())
+      error("[tocode] no symbol found for external $l (# $(indexin([l;], g.locs)[1]))")
+    end
     syms[1]
   end
 
   function getexpr(l::RLoc) # l = g.locs[1]
     haskey(locex, l) && return locex[l]
-    # warn("[getexpr] calling genassign for $l")
-    # println(Expr(:block, out...))
-    # return newvar()
-    error("[tocode] no expression for Loc $l  (# $(indexin([l;], g.locs)))")
+    Base.show_backtrace(STDERR, backtrace())
+    error("[tocode] no expression for Loc $l (# $(indexin([l;], g.locs)[1]))")
   end
 
   ### generates assignment expression for given Loc
@@ -141,9 +142,6 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     pdict[l]    = pos
   end
 
-  # println("sdict $sdict")
-  # println("pdict $pdict")
-
   # first process lexits that are not created by any op
   for (l,p) in pdict
     p==0 && genassign(l)
@@ -161,11 +159,6 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
           push!(out, locex[d])
         end
       end
-      # for desc in o.desc
-      #   if haskey(sdict, o.desc[1]) && sdict[o.desc[1]]==EXIT_SYM && pdict[o.desc[1]]==line
-      #     push!(out, locex[o.desc[1]])
-      #   end
-      # end
 
     elseif length(intersect(o.desc, o.asc)) > 0   # mutating Op
       push!(out, translate(o))

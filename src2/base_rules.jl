@@ -68,6 +68,9 @@ ReverseDiffSource.@deriv_rule reshape(x::AbstractArray, d::Tuple)    d    0.
 @deriv_rule_mut copy!(x,y)  x   fill!(ds, 0.)
 @deriv_rule     copy!(x,y)  y   ds
 
+# fill!
+@deriv_rule_mut fill!(x,y)  x   fill!(ds, 0.)
+@deriv_rule     fill!(x,y)  y   sum(ds)
 
 # getindex
 @deriv_rule getindex(x, i)               x     (tmp = zeros(x); tmp[i]=ds ; tmp)

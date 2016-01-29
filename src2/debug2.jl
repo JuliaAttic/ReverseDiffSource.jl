@@ -109,40 +109,50 @@ end
 @test fullcycle(:(y = B[2]; y[1] ))             == :( B[2][1] )
 
 @test fullcycle(:(y = zeros(B); y[1] = B[2]; y[1] )) ==
-        cleanup(:(y = zeros(B); y[1] = B[2]; y[1]))
-@test fullcycle(:(y = B+1 ; y[2]+y[1] ))        == :(y = B+1 ; y[2]+y[1])
+      cleanup(:(_tmp1 = zeros(B); _tmp1[1] = B[2]; _tmp1[1]))
+@test fullcycle(:(y = B+1 ; y[2]+y[1] ))        == :(_tmp1 = B+1 ; _tmp1[2]+_tmp1[1])
 @test fullcycle(:(Y = zeros(B); Y[2]=a ; a ))   == :(a)
-@test fullcycle(:(Y = copy(B); Y[2]=a ; Y[1] )) == cleanup(:(Y=copy(B); Y[2]=a ; Y[1]))
+@test fullcycle(:(Y = copy(B); Y[2]=a ; Y[1] )) == cleanup(:(_tmp1=copy(B); _tmp1[2]=a ; _tmp1[1]))
 
 @test fullcycle(:( x = a ; Y = copy(B) ; Y[2] = x; 1 + Y[1] ))  ==
-         cleanup(:(Y = copy(B) ; Y[2] = a; 1 + Y[1]))
+      cleanup(:(_tmp1 = copy(B) ; _tmp1[2] = a; 1 + _tmp1[1]))
 
 @test fullcycle(:( B[1] + B[2] ))   == :(B[1] + B[2])
 @test fullcycle(:( B[1:2] ))        == :( B[1:2] )
 
-# @test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] ))  == :( X = copy(B) ; X[1:2] = X[1:2] )
-@test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))     == :( X = copy(D) ; X[1:2,3] = a )
-show(simplify!(tograph(:( X = copy(D) ; X[1:2,3] = a ))))
-g = simplify!(tograph(:( X = copy(D) ; X[1:2,3] = a )))
-@test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) == :( X = copy(D) ; X[1:2,2] = D[1:2,3] )
+# @test fullcycle(:( X = copy(B) ; X[1:2] = X[1:2] ))  ==
+#       cleanup( :( X = copy(B) ; X[1:2] = X[1:2] ) )
+@test fullcycle(:( X = copy(D) ; X[1:2,3] = a ))  ==
+      cleanup( :( _tmp2 = copy(D) ; _tmp2[1:2,3] = a ; _tmp2) )
+@test fullcycle(:( X = copy(D) ; X[1:2,2] = D[1:2,3] )) ==
+      cleanup( :( _tmp2 = copy(D) ; _tmp2[1:2,2] = D[1:2,3] ; _tmp2) )
 
-# @test fullcycle(:( B[:] ))                == Expr(:block, :( x[1:length(x)] ) )
-# @test fullcycle(:( B[a+b, c:d] ))         == Expr(:block, :( x[a+b,c:d] ) )
-# @test fullcycle(:( B[1:2] ))              == :( B[1:2] )
-# @test fullcycle(:( B[1:end] ), x=ones(5)) == Expr(:block, :( x[1:length(x)]) )
-# @test fullcycle(:( a[1:end, :, 10:15] )) == Expr(:block, :( a[1:size(a,1),1:size(a,2),10:15]) )
+@test fullcycle(:( B[:] ))                == :( B[1:length(B)] )
+@test fullcycle(:( D[:] ))                == :( D[1:length(D)] )
+@test fullcycle(:( B[1:2] ))              == :( B[1:2] )
+@test fullcycle(:( B[1:end-1] ))          == :( B[1:length(B)-1] )
+@test fullcycle(:( B[end-1:end] ))        == cleanup(:(_tmp1=length(B);B[_tmp1-1:_tmp1] ))
+
+@test fullcycle(:( D[4:11] ))             == :( D[4:11] )
+@test fullcycle(:( D[:] ))                == :( D[1:length(D)] )
+@test fullcycle(:( D[3:end-2] ))          == :( D[3:length(D)-2] )
+@test fullcycle(:( D[2,:,2:3] ))          == :( D[2,1:size(D,2),2:3] )
+@test fullcycle(:( D[1:end,3,end-2:end-1] )) ==
+      cleanup(:(_tmp1=size(D,3) ; D[1:size(D,1), 3, _tmp1-2:_tmp1-1] ))
+
 
 @test fullcycle(:( C.x ))                       == :( C.x )
 @test fullcycle(:( y=C.x ))                     == :( C.x )
 @test fullcycle(:( y=C.x + 1 ; C.y + C.x ))     == :(C.y + C.x)
-@test fullcycle(:( X=Z(0,0); X.x=a ))           == cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a))
-@test fullcycle(:( X=Z(0,0); X.x=a; y=X.y; y )) == cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a; X.y))
-@test fullcycle(:( X=Z(1,1); X.x = a; 1+X.y ))  == cleanup(:(X=ReverseDiffSource.Z(1,1);X.x=a; 1+X.y))
 @test fullcycle(:( C.x + C.y ))                 == :( C.x + C.y )
+# @test fullcycle(:( X=Z(0,0); X.x=a ))           ==
+#       cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a))
+# @test fullcycle(:( X=Z(0,0); X.x=a; y=X.y; y )) ==
+#       cleanup(:(X=ReverseDiffSource.Z(0,0);X.x=a; X.y))
+# @test fullcycle(:( X=Z(1,1); X.x = a; 1+X.y ))  ==
+#       cleanup(:(X=ReverseDiffSource.Z(1,1);X.x=a; 1+X.y))
 
-# @test fullcycle(:( a = b.f[i]))        == Expr(:block, :(a = b.f[i]) )
-# @test fullcycle(:( a = b[j].f[i]))     == Expr(:block, :(a = b[j].f[i]) )
-z = Z(0,0).x = a
+# z = Z(0,0).x = a
 
 ###  test evalconstants, simplify
 ex = quote
@@ -164,9 +174,9 @@ ex = quote
     sum(x)
 end
 exout = quote
-    x = zeros(2)
-    x[2] = a
-    sum(x)
+    _tmp1 = zeros(2)
+    _tmp1[2] = a
+    sum(_tmp1)
 end
 @test fullcycle(ex) == cleanup(exout)
 
@@ -185,6 +195,123 @@ exout = quote
     x + sum(z)
 end
 @test fullcycle(ex) == cleanup(exout)
+# FIXME
+
+############## if blocks  ###################
+ex = quote
+  x = 0.
+  if a > 2
+    y = sin(b)
+    x = a*y
+  else
+    z = cos(a)
+    x = a^z
+  end
+  x
+end
+  exout = quote
+    if >(a,2)
+      _tmp1 = a*sin(b)
+    else
+      _tmp1 = a^cos(a)
+    end
+    _tmp1
+  end
+  @test fullcycle(ex) == cleanup(exout)
+
+ex = quote
+  x = 0.
+  if a > 2
+    x = 3
+    y = sin(b)
+  else
+    z = cos(a)
+    x = 5
+  end
+  x
+end
+  exout = quote
+    if >(a,2)
+      _tmp1 = 3
+    else
+      _tmp1 = 5
+    end
+    _tmp1
+  end
+  @test fullcycle(ex) == cleanup(exout)
+
+ex = quote
+  if a > 2
+    x = 3
+  else
+    x = 5
+  end
+  x
+end
+  exout = quote
+    if >(a,2)
+      _tmp1 = 3
+    else
+      _tmp1 = 5
+    end
+    _tmp1
+  end
+  @test fullcycle(ex) == cleanup(exout)
+
+ex = quote
+  x = 0.
+  if a > 2
+    x += 3
+  end
+  x
+end
+  exout = quote
+    if >(a,2)
+      _tmp1 = 3.
+    else
+      _tmp1 = 0.
+    end
+    _tmp1
+  end
+  @test fullcycle(ex) == cleanup(exout)
+
+
+ex = quote
+  x = a
+  if a > 2
+    x += 3
+  end
+  x
+end
+  exout = quote
+    if >(a,2)
+      _tmp1 = 3.
+    else
+      _tmp1 = 0.
+    end
+    _tmp1
+  end
+  fullcycle(ex)
+@test fullcycle(ex) == cleanup(exout)
+
+g = tograph(ex)
+simplify!(g)
+tocode(g)
+show(g)
+keep = Set{Loc}([ g.block.symbols[s] for s in [EXIT_SYM;]])
+prune!(g, keep)
+splitnary!(g)
+fusecopies!(g)
+removerightneutral!(g)
+removeleftneutral!(g)
+prune!(g, keep)
+show(tocode(g))
+
+show(backtrace())
+catch_backtrace()
+
+Base.show_backtrace(STDOUT, catch_backtrace())
+Base.show_backtrace(STDOUT, backtrace())
 
 
 ################# for loops  ################
@@ -193,17 +320,18 @@ ex = quote
   for i in 1:3
     x = x + i
   end
-  x
+  x+2
 end
-fullcycle(ex)
+  fullcycle(ex)
+
 g = tograph(ex)
 show(g)
 tocode(g)
 simplify!(g)
+show(tocode(g))
 
 o = g.block.ops[1]
 isfusable(o.asc[1], o.desc[1], Walk(o,g))
-
 
 keeps2 = intersect([EXIT_SYM;], keys(g.block.symbols))
 keep = Set{Loc}([ g.block.symbols[s] for s in keeps2])
@@ -223,12 +351,32 @@ prune!(g, keep)
 
 ex = quote
   x = 0.
+  y = 12.
   for i in 1:10
     x = x + i
+    y = y + i*i
   end
-  x + 3
+  x + 3 + y
 end
-fullcycle(ex)
+  fullcycle(ex)
+
+g = tograph(ex)
+show(g)
+tocode(g)
+simplify!(g)
+
+keeps2 = intersect([EXIT_SYM;], keys(g.block.symbols))
+keep = Set{Loc}([ g.block.symbols[s] for s in keeps2])
+prune!(g, keep)
+splitnary!(g)
+fusecopies!(g)
+removerightneutral!(g)
+removeleftneutral!(g)
+prune!(g, keep)
+
+
+
+
 
 ex = quote
   x = a
@@ -237,16 +385,16 @@ ex = quote
   end
   x + 3
 end
-fullcycle(ex)
+  fullcycle(ex)
 
 ex = quote
   x = a
   for i in 1:10
-    x = x + i
+    y = x + i*a
   end
   x
 end
-fullcycle(ex)
+  fullcycle(ex)
 
 
 
@@ -281,7 +429,7 @@ ex = quote
   end
   x
 end
-fullcycle(ex)
+  fullcycle(ex)
 
 g = tograph(ex)
 prune!(g, [:_result;])
@@ -304,7 +452,7 @@ ex = quote
   end
   sum(X)
 end
-fullcycle(ex)
+  fullcycle(ex)
 show(tograph(ex))
 
 ex = quote
@@ -317,7 +465,7 @@ ex = quote
   end
   sum(X)
 end
-fullcycle(ex)
+  fullcycle(ex)
 
 g = tograph(ex)
 prune!(g, [:_result;])
@@ -347,7 +495,7 @@ ex = quote
   end
   sum(X)
 end
-fullcycle(ex)
+  fullcycle(ex)
 g = tograph(ex)
 show(g)
 tocode(g)
@@ -366,4 +514,4 @@ ex = quote
   end
   sum(X)
 end
-fullcycle(ex)
+  fullcycle(ex)

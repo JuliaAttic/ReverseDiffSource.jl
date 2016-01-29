@@ -15,16 +15,24 @@ function fullcycle(ex; env_var=Dict(), keep_var=[EXIT_SYM;])
 end
 
 ## removes linenumbers from expression to ease comparisons
-function cleanup(ex::Expr)
+function cleanup(ex::Expr) #  ex = a
     args = Any[]
-    for a in ex.args
+    for a in ex.args  # a = ex.args[2]
         isa(a, LineNumberNode) && continue
         isa(a, Expr) && a.head==:line && continue
-        if isa(a, Expr) && a.head==:block
-          args = vcat(args, a.args)
+        push!(args, isa(a,Expr) ? cleanup(a) : a )
+    end
+    # remove useless :block
+    if length(args) > 1 && ex.head == :block
+      args2 = Any[]
+      for a in args
+        if !isa(a, Expr) || a.head != :block
+          push!(args2,a)
         else
-          push!(args, isa(a,Expr) ? cleanup(a) : a )
+          append!(args2, a.args)
         end
+      end
+      args = args2
     end
     Expr(ex.head, args...)
 end

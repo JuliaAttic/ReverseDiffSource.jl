@@ -93,10 +93,19 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
       floc  = explore(ex.args[1])
       esf   = floc.val
 
-      largs = map(explore, ex.args[2:end]) # explore arguments
+      ### explore function arguments, with special treatment of
+      #     ":" / "end" in indices of getindex and setindex!
+      if esf == setindex!
+        largs = map(explore, ex.args[2:3])
+        append!(largs, exploreidx(ex.args[4:end], largs[1], ops, symbols, g))
+      elseif esf == getindex
+        largs = Loc[ explore(ex.args[2]) ;]
+        append!(largs, exploreidx(ex.args[3:end], largs[1], ops, symbols, g))
+      else
+        largs = map(explore, ex.args[2:end])
+      end
       val = (esf)([x.val for x in largs]...)
 
-      # if sprint(show, esf)[end] == '!' # mutating ? TODO : generalize with rules
       if ismutating(esf) # mutating ?
           ord = mutdict[esf] # position of mutated argument
           nloc = largs[ord]
@@ -104,7 +113,6 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
             error("attempt to modify an external variable in $(toExpr(ex))")
       elseif esf in [getindex, getfield] # propagate type of object to result
           # if module mark as external directly
-          # ntyp = largs[1].typ==Module ? :external : loctype(largs[1])
           ntyp = largs[1].typ==Module ? :external : :regular
           nloc = Loc{ntyp}(val)
           add!(nloc)
@@ -119,6 +127,8 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
 
   function explore(ex::ExEqual) #  ex = toExH(:(a = sin(2)))
     lhs, rhs = ex.args
+
+    # some assignments expressions translate to setindex! or setfield!
     isRef(lhs) && return explore( Expr(:call, :setindex!, lhs.args[1], rhs, lhs.args[2:end]...) )
     isDot(lhs) && return explore( Expr(:call, :setfield!, lhs.args[1], lhs.args[2], rhs) )
 
@@ -170,6 +180,38 @@ function addtoops!(ex, ops, symbols, g::Graph)  # env = modenv  # ex = :( z.x )
   explore(ex)
 end
 
+function exploreidx(aexs, xloc, ops, symbols, g)
+  localsyms = copy(symbols)
+  alocs = Array(Loc, length(aexs))
+  for (i,aex) in enumerate(aexs)
+    aex==:(:) && ( aex = Expr(:(:), 1, :end) )  # rewrite (:) as (1:end)
+
+    if length(aexs)==1 # single dimension
+      sn = Snippet(:( length(X) ), [:X;])
+    else # several dimensions
+      sn = Snippet(:( size(X,$i) ), [:X;])
+    end
+
+    sx = appendsnippet!(sn, ops, Loc[xloc;], g)
+    localsyms[:end] = sx
+
+    alocs[i] = addtoops!(aex, ops, localsyms, g)
+  end
+  alocs
+end
+
+# g = tograph(:( X = rand(2,2) ) )
+#
+# dump(:( X[1,2] = 3 ))
+#
+# ex = :( X[1,:,4:5,1:end, end-2, end-2:end-1] )
+# ex.args[2]
+#
+# exploreidx( ex.args[[2,3,4,5,6;]], g.block.symbols[:X],
+#            g.block.ops, g.block.symbols, g)
+# sn = Snippet()
+# push!(g.block.ops)
+# show(g)
 #
 # function indexspec(nv, as)
 #     p  = ExNode[]

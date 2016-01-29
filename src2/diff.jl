@@ -31,6 +31,10 @@ g = tograph(ex)
 lexit = g.block.symbols[EXIT_SYM]
 input = g.block.symbols[:B]
 
+pos  = findlast(o -> lexit in o.desc, g.block.ops)
+dmap = Dict{Loc,Loc}() # Loc to dloc map
+
+
 sn   = Snippet(:(Array(Float64, length(I), length(O))), [:I, :O] )
 acc  = appendsnippet!(sn, g.block.ops, Loc[input, lexit], g)
 
@@ -76,54 +80,7 @@ simplify!(g)
 
 @eval let B = ones(4)*2. ; $dex ; end
 
-g.block.symbols[EXIT_SYM] = result
 
-
-dmap[lexit] = acc2
-dops = _diff(g.block.ops, pos, dmap, g)
-
-
-
-
-tocode(g)
-dops = Op[]
-
-
-
-zzerosquote
-                dO = Array(Float64, length(I), length(O))
-                for i in 1:length(O)
-                  dO[:,i] = result
-                end
-                dO
-             end, [:I, :O])
-
-result = appendsnippet!(ns, g.block.ops, Loc[input, lexit], g)
-
-      sn = CLoc(1.0)
-      push!(g.locs, sn)
-      dmap[lexit] = sn
-
-      dops = _diff(g.block.ops, pos, dmap, g)
-      append!(g.block.ops, dops)
-
-
-
-      ns = Snippet(quote
-                      dO = Array(Float64, length(I), length(O))
-                      for i in 1:length(O)
-                        dO[:,i] = result
-                      end
-                      dO
-                   end, [:I, :O])
-
-      result = appendsnippet!(ns, g.block.ops, Loc[input, lexit], g)
-
-
-      F = rand(3,3)
-      G = reshape(F,9)
-      G[1]  = 0
-      F
     else
       error("[gdiff] result is neither a Real nor an Array{Real} : $(lexit.typ)")
 

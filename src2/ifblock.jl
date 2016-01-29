@@ -70,6 +70,8 @@ function remap(bl::IfBlock, lmap)
           Loc[ lmap[l] for l in  bl.desc ] )
 end
 
+chose(a,b) = a  # dummy function to use in collector block
+
 function blockparse!(ex::ExIf, parentops, parentsymbols, g::Graph)
   # explore condition expression in the parentblock
   condl = addtoops!(ex.args[1], parentops, parentsymbols, g)
@@ -87,12 +89,14 @@ function blockparse!(ex::ExIf, parentops, parentsymbols, g::Graph)
   end
 
   fsyms = copy(parentsymbols)
-  exitloc = addtoops!(ex.args[3], thisblock.falseops, fsyms, g) # parse false block
-  exitloc != nothing && ( fsyms[EXIT_SYM] = exitloc )
-  for (s,l) in fsyms
-    loctype(l) == :external || continue
-    haskey(parentsymbols, s) && continue
-    parentsymbols[s] = l
+  if length(ex.args) == 3 # check that there is an else clause
+    exitloc = addtoops!(ex.args[3], thisblock.falseops, fsyms, g) # parse false block
+    exitloc != nothing && ( fsyms[EXIT_SYM] = exitloc )
+    for (s,l) in fsyms
+      loctype(l) == :external || continue
+      haskey(parentsymbols, s) && continue
+      parentsymbols[s] = l
+    end
   end
 
   ### generate collector, for all changed bindings
@@ -113,7 +117,7 @@ function blockparse!(ex::ExIf, parentops, parentsymbols, g::Graph)
     tloc==nothing && oloc==nothing && continue # variable cannot be used if cond true, pass
     floc==nothing && oloc==nothing && continue # variable cannot be used if cond false, pass
 
-    fop = CLoc(+)
+    fop = CLoc(chose)
     push!(g.locs, fop)
     cloc = RLoc(nloc.val)
     push!(g.locs, cloc)
@@ -134,17 +138,18 @@ function blockparse!(ex::ExIf, parentops, parentsymbols, g::Graph)
 end
 
 function blockcode(bl::IfBlock, locex, symbols, g::Graph)
-  tsyms = copy(symbols)
-  fsyms = copy(symbols)
-  texits = Loc[]
-  fexits = Loc[]
+  tsyms, texits = copy(symbols), Loc[]
+  fsyms, fexits = copy(symbols), Loc[]
   for o in bl.collector
     tl, fl, rl = o.asc[1], o.asc[2], o.desc[1]
     push!(texits, tl)
     push!(fexits, fl)
     ns = newvar()
+    tsyms = filter!((k,v)-> v != tl, tsyms)
     tsyms[ns] = tl
+    fsyms = filter!((k,v)-> v != fl, fsyms)
     fsyms[ns] = fl
+
     locex[rl] = ns
   end
 
