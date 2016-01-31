@@ -194,8 +194,7 @@ exout = quote
     z[2] = 1
     x + sum(z)
 end
-@test fullcycle(ex) == cleanup(exout)
-# FIXME
+@test fullcycle(ex) == cleanup(exout) # FIXME
 
 ############## if blocks  ###################
 ex = quote
@@ -291,7 +290,7 @@ end
     end
     _tmp1
   end
-  fullcycle(ex)
+  fullcycle(ex) # FIXME
 @test fullcycle(ex) == cleanup(exout)
 
 g = tograph(ex)
@@ -322,7 +321,15 @@ ex = quote
   end
   x+2
 end
-  fullcycle(ex)
+  exout = quote
+    _tmp1 = 0.
+    for i in 1:3
+      _tmp1 = _tmp1 + i
+    end
+    _tmp1+2
+  end
+  @test fullcycle(ex) == cleanup(exout)
+  # FIXME
 
 g = tograph(ex)
 show(g)
@@ -358,7 +365,16 @@ ex = quote
   end
   x + 3 + y
 end
-  fullcycle(ex)
+  exout = quote
+    _tmp1 = 0.
+    _tmp2 = 12.
+    for i in 1:10
+      _tmp1 = _tmp1 + i
+      _tmp2 = _tmp2 + i*i
+    end
+    _tmp1 + 3 + _tmp2
+  end
+  @test fullcycle(ex) == cleanup(exout) # FIXME
 
 g = tograph(ex)
 show(g)
@@ -385,7 +401,14 @@ ex = quote
   end
   x + 3
 end
-  fullcycle(ex)
+  exout = quote
+    _tmp1 = a
+    for i in 1:10
+      _tmp1 = _tmp1 + i
+    end
+    _tmp1 + 3
+  end
+  @test fullcycle(ex) == cleanup(exout) # FIXME
 
 ex = quote
   x = a
@@ -394,33 +417,7 @@ ex = quote
   end
   x
 end
-  fullcycle(ex)
-
-
-
-g = tograph(ex)
-flatops(g)
-prune!(g, [:_result;])
-splitnary!(g)
-# fusecopies!(g)
-show(g)
-show(tocode(g))
-
-collect(g.block.symbols)
-
-splitnary!(g)
-fusecopies!(g)
-removerightneutral!(g)
-removeleftneutral!(g)
-prune!(g, keep)
-
-g = tograph(:(x=a; x))
-prune!(g, [:_result;])
-splitnary!(g)
-fusecopies!(g)
-show(g)
-show(tocode(g))
-
+  @test fullcycle(ex) == :( a )
 
 ex = quote
   x = 0.
@@ -429,7 +426,14 @@ ex = quote
   end
   x
 end
-  fullcycle(ex)
+  exout = quote
+    _tmp1 = 0.
+    for i in 1:10
+    	_tmp1 += i
+    end
+    _tmp1
+  end
+  @test fullcycle(ex) == cleanup(exout) # FIXME
 
 g = tograph(ex)
 prune!(g, [:_result;])
@@ -452,8 +456,15 @@ ex = quote
   end
   sum(X)
 end
-  fullcycle(ex)
-show(tograph(ex))
+  exout = quote
+    _tmp1 = Array(Float64,12)
+    for _tmp2 in 1:12
+      _tmp1[_tmp2] = _tmp2*_tmp2
+    end
+    sum(_tmp1)
+  end
+  @test fullcycle(ex) == cleanup(exout)
+
 
 ex = quote
   N = 12
@@ -465,25 +476,14 @@ ex = quote
   end
   sum(X)
 end
-  fullcycle(ex)
-
-g = tograph(ex)
-prune!(g, [:_result;])
-splitnary!(g)
-fusecopies!(g)
-removerightneutral!(g)
-removeleftneutral!(g)
-
-prune!(g, [:_result;])
-show(g)
-allops(g)
-
-g.block.ops[4]
-g.block.ops[4].f.typ
-
-simplify!(g)
-tocode(g)
-show(g)
+  exout = quote
+    _tmp1 = Array(Float64,12)
+    for _tmp2 in 1:12
+      _tmp1[_tmp2] = _tmp2*_tmp2
+    end
+    sum(_tmp1)
+  end
+  @test fullcycle(ex) == cleanup(exout)
 
 ex = quote
   N = 12
@@ -495,14 +495,16 @@ ex = quote
   end
   sum(X)
 end
-  fullcycle(ex)
-g = tograph(ex)
-show(g)
-tocode(g)
-prune!(g, [EXIT_SYM;])
-
-simplify!(g)
-show(g)
+  exout = quote
+    _tmp1 = Array(Float64,12,12)
+    for _tmp2 in 1:12
+      for _tmp3 in 1:12
+        _tmp1[_tmp2,_tmp3] = _tmp2+_tmp3
+      end
+    end
+    sum(_tmp1)
+  end
+  @test fullcycle(ex) == cleanup(exout)
 
 
 ex = quote
@@ -514,4 +516,13 @@ ex = quote
   end
   sum(X)
 end
-  fullcycle(ex)
+  exout = quote
+    _tmp1 = Array(Float64,12,12)
+    for _tmp2 in 1:12
+      for _tmp3 in 1:12
+        _tmp1[_tmp2,_tmp3] = _tmp2+_tmp3
+      end
+    end
+    sum(_tmp1)
+  end
+  @test fullcycle(ex) == :( sum(Array(Float64,12,12)) )

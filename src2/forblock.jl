@@ -154,29 +154,22 @@ function blockcode(bl::ForBlock, locex, symbols, g::Graph)
   end
 
   # for updated and mutated variables : mark as exit for code generation
-  # exits = copy(bl.desc)
-  # append!(exits, Loc[ op.asc[2] for op in bl.rops])
-  # exits = Loc[ op.desc[1] for op in bl.rops]
-
   syms, exits = filter((k,v)->k!=EXIT_SYM,symbols), Loc[]
   for o in bl.rops
     fl, rl = o.asc[1], o.desc[1]
     push!(exits, rl)
-    # tmp = collect(filter(s -> syms[s]==rl, keys(syms)))
-    # ns = length(tmp)==0 ? newvar() : tmp[1]
     ns = locex[fl]
-    # ns = newvar()
     syms = filter!((k,v)-> v != rl, syms)
     syms[ns] = rl
     locex[rl] = ns
   end
 
-  numb(l) = indexin([l;], g.locs)[1]
+  # numb(l) = indexin([l;], g.locs)[1]
   # println("syms  $syms  - $(map(numb, values(syms)))")
-  for (k,v) in syms
-    println("$k =>> $v  ($(numb(v)))")
-  end
-  println("exits $exits  - $(map(numb, exits))")
+  # for (k,v) in syms
+  #   println("$k =>> $v  ($(numb(v)))")
+  # end
+  # println("exits $exits  - $(map(numb, exits))")
 
   # expression for inner code
   fex = _tocode(bl.ops, exits, syms, g, locex)
@@ -188,22 +181,35 @@ end
 
 function blockdiff(bl::ForBlock, dmap, g)
   # create Loc for iteration variable
-  # ixl = copy( bl.asc[1] )
-  # push!(g.locs, ixl)
-  ixl = bl.asc[1]
+  ixl = copy( bl.asc[1] )
+  push!(g.locs, ixl)
+  # ixl = bl.asc[1]
 
-  # create Loc for iteration range
-  # rgl = copy( bl.asc[2] )
-  # push!(g.locs, rgl)
+  # same iteration range
   rgl = bl.asc[2]
 
   # create ForBlock
   symbols = Dict{Any, Loc}() # no need for symbols
   thisblock = ForBlock(Op[], Op[], copy(bl.symbols), Loc[ixl, rgl], Loc[])
 
-  pos = length(bl.ops) # start at the last position
-  thisblock.ops  = _diff(bl.ops, pos, dmap, g)
-  thisblock.rops = remap(bl.rops, dmap)
+  fdmap = merge(dmap, [ o.asc[1] => dmap[o.desc[1]] for o in bl.rops])
+
+  thisblock.ops  = _diff(bl.ops, length(bl.ops), dmap, g)
+
+  # changed dmaps become rebindings
+  for sloc in keys(fdmap)
+    oloc = get( dmap, sloc, nothing)
+    nloc = get(fdmap, sloc, nothing)
+
+    oloc == nloc && continue # deriv unchanged, pass
+
+    fcop = CLoc(rebind)
+    push!(g.locs, fcop)
+    push!(thisblock.rops, FOp(fcop, [oloc;], [nloc,oloc]))
+
+    dmap[sloc] = nloc
+    # println("symbol $sloc  $oloc $tloc $floc $cloc -- $nloc ($(typeof(nloc)))")
+  end
 
   thisblock.asc, thisblock.desc = summarize(thisblock)
   thisblock

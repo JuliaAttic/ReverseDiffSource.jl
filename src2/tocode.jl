@@ -94,8 +94,10 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
   ### returns the correct symbol / expression for given Loc
   function getexpr(l::CLoc)
     haskey(locex, l) && return locex[l]
-    l.val
+    isa(l.val, Real) ? l.val : symbol(l.val)
   end
+
+  symbol(Float64)
 
   function getexpr(l::ELoc)
     # find the symbol defined in env for this Loc

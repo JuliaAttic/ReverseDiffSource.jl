@@ -167,10 +167,6 @@ function blockdiff(bl::IfBlock, dmap, g)
 
   l = g.block.symbols[EXIT_SYM]
   tdmap = merge(dmap, [ o.asc[1] => dmap[o.desc[1]] for o in bl.collector])
-  # tdmap = copy(dmap)
-  # for o in bl.collector
-  #   tdmap[o.asc[1]] = dmap[o.desc[1]]
-  # end
   thisblock.trueops   = _diff( bl.trueops, length( bl.trueops), tdmap, g)
 
   fdmap = merge(dmap, [ o.asc[2] => dmap[o.desc[1]] for o in bl.collector])
