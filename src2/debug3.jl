@@ -122,13 +122,13 @@ end
     g = tograph(ex)
     simplify!(g)
     gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
-    simplify!(g)
+    # simplify!(g)
     dex = tocode(g)
 show(g)
 show(tocode(g))
 
 @eval let a = 1.0; $dex ; end
-@eval let a = 1.01; $dex ; end
+@eval let a = 1.001; $dex ; end
 @eval let a = 2.0; $dex ; end
 
 ####################  if  #####################

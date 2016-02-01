@@ -138,14 +138,12 @@ function blockcode(bl::ForBlock, locex, symbols, g::Graph)
 
     # find symbol
     ks  = collect(keys(bl.symbols))
-    println(bl.symbols)
     syms = filter(s -> s!=EXIT_SYM && (bl.symbols[s]==lo), ks)
     length(syms)==0 && push!(syms, newvar())
 
     if !haskey(locex, li) # probably a constant
       push!(out, Expr(:(=), syms[1], li.val))
       locex[li] = syms[1]
-      println("$syms    $(li.val)")
     elseif !isa(locex[li], Symbol)
       push!(out, Expr(:(=), syms[1], locex[li]))
       locex[li] = syms[1]
@@ -162,13 +160,6 @@ function blockcode(bl::ForBlock, locex, symbols, g::Graph)
     syms[ns] = rl
     locex[rl] = ns
   end
-
-  # numb(l) = indexin([l;], g.locs)[1]
-  # println("syms  $syms  - $(map(numb, values(syms)))")
-  # for (k,v) in syms
-  #   println("$k =>> $v  ($(numb(v)))")
-  # end
-  # println("exits $exits  - $(map(numb, exits))")
 
   # expression for inner code
   fex = _tocode(bl.ops, exits, syms, g, locex)
@@ -191,7 +182,7 @@ function blockdiff(bl::ForBlock, dmap, g)
   symbols = Dict{Any, Loc}() # no need for symbols
   thisblock = ForBlock(Op[], Op[], copy(bl.symbols), Loc[ixl, rgl], Loc[])
 
-  fdmap = copy(dmap)
+  # for o in intersect(Set(bl.asc[3:end]), Set(bl.desc))
   for o in bl.asc[3:end]
     if o.typ <: Real
       nloc = CLoc(0.)
@@ -202,9 +193,9 @@ function blockdiff(bl::ForBlock, dmap, g)
     else
       error("problem here ! [forblock-blockdiff]")
     end
-    fdmap[o] = nloc
     dmap[o] = nloc
   end
+  fdmap = copy(dmap)
 
   # for o in bl.rops
   #   nloc = RLoc(dmap[o.desc[1]].val)
@@ -233,6 +224,7 @@ function blockdiff(bl::ForBlock, dmap, g)
     nloc = get(fdmap, sloc, nothing)
 
     oloc == nloc && continue # deriv unchanged, pass
+    oloc == nothing && continue
 
     oloc == nothing && (oloc = nloc)
     fcop = CLoc(rebind)

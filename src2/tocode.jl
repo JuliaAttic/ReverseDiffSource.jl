@@ -31,7 +31,6 @@ function tocode(g::Graph, exits=[EXIT_SYM;]) #   exits=[EXIT_SYM;]
 end
 
 """
-
 Function `_tocode(ops, lexits, symbols, g, locex)` translates the vector of Op
 `ops` into an expression, with assignments generated for the Locs in lexits.
 `symbols` is used as suggestions for naming Locs, with the symbol `[EXIT_SYM]`
@@ -96,8 +95,6 @@ function _tocode(ops, lexits, symbols, g, locex=Dict{Loc, Any}()) # exits=[EXIT_
     haskey(locex, l) && return locex[l]
     isa(l.val, Real) ? l.val : symbol(l.val)
   end
-
-  symbol(Float64)
 
   function getexpr(l::ELoc)
     # find the symbol defined in env for this Loc
