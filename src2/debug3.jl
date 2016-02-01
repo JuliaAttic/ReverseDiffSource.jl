@@ -27,9 +27,6 @@ tocode(g)
 show(g)
 
 
-
-
-
 ex = quote
     X = ones(3,3) .* a
     3 ^ X[2,2]
@@ -100,17 +97,39 @@ show(dex)
 ex = quote
     x = 0.
     for i in 1:10
-      x += a^i
+      x += a
     end
     x
 end
-
-g = tograph(ex)
-simplify!(g)
-gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
-simplify!(g)
-dex = tocode(g)
+    g = tograph(ex)
+    simplify!(g)
+    gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+    simplify!(g)
+    dex = tocode(g)
 show(g)
+
+@eval let a = 1.0; $dex ; end
+@eval let a = 2.0; $dex ; end
+@eval let a = 1.00001; $dex ; end
+
+ex = quote
+    x = 0.
+    for i in 1:10
+      x += a*i
+    end
+    x
+end
+    g = tograph(ex)
+    simplify!(g)
+    gdiff!(g, g.block.symbols[EXIT_SYM], g.block.symbols[:a])
+    simplify!(g)
+    dex = tocode(g)
+show(g)
+show(tocode(g))
+
+@eval let a = 1.0; $dex ; end
+@eval let a = 1.01; $dex ; end
+@eval let a = 2.0; $dex ; end
 
 ####################  if  #####################
 

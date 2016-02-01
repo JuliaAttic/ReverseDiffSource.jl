@@ -116,7 +116,6 @@ function blockparse!(ex::ExFor, parentops, parentsymbols, g::Graph)
   nothing  # considers that for loops do not return anything (TODO : check)
 end
 
-
 function blockcode(bl::ForBlock, locex, symbols, g::Graph)
   # iteration variable Loc is in pos # 1
   ixl = bl.asc[1]
@@ -181,9 +180,9 @@ end
 
 function blockdiff(bl::ForBlock, dmap, g)
   # create Loc for iteration variable
-  ixl = copy( bl.asc[1] )
-  push!(g.locs, ixl)
-  # ixl = bl.asc[1]
+  # ixl = copy( bl.asc[1] )
+  # push!(g.locs, ixl)
+  ixl = bl.asc[1]
 
   # same iteration range
   rgl = bl.asc[2]
@@ -192,9 +191,41 @@ function blockdiff(bl::ForBlock, dmap, g)
   symbols = Dict{Any, Loc}() # no need for symbols
   thisblock = ForBlock(Op[], Op[], copy(bl.symbols), Loc[ixl, rgl], Loc[])
 
-  fdmap = merge(dmap, [ o.asc[1] => dmap[o.desc[1]] for o in bl.rops])
+  fdmap = copy(dmap)
+  for o in bl.asc[3:end]
+    if o.typ <: Real
+      nloc = CLoc(0.)
+      push!(g.locs, nloc)
+    elseif o.typ <: AbstractArray && eltype(o.typ) <: Real
+      sn = Snippet(:(zeros(X)), [:X;])
+      nloc = appendsnippet!(sn, g.block.ops, Loc[o;], g)
+    else
+      error("problem here ! [forblock-blockdiff]")
+    end
+    fdmap[o] = nloc
+    dmap[o] = nloc
+  end
 
-  thisblock.ops  = _diff(bl.ops, length(bl.ops), dmap, g)
+  # for o in bl.rops
+  #   nloc = RLoc(dmap[o.desc[1]].val)
+  #   push!(g.locs, nloc)
+  #   fdmap[o.asc[1]] = nloc
+  # end
+  # fdmap = merge(dmap, [ o.asc[1] => dmap[o.desc[1]] for o in bl.rops])
+  # fdmap = copy(dmap)
+
+  thisblock.ops  = _diff(bl.ops, length(bl.ops), fdmap, g)
+
+  numb(l) = indexin([l;], g.locs)[1]
+  for (k,v) in dmap
+    nk, nv = numb(k), numb(v)
+    println("dmap : $nk -> $nv")
+  end
+  for (k,v) in fdmap
+    nk, nv = numb(k), numb(v)
+    println("fdmap : $nk -> $nv")
+  end
+
 
   # changed dmaps become rebindings
   for sloc in keys(fdmap)
@@ -203,12 +234,12 @@ function blockdiff(bl::ForBlock, dmap, g)
 
     oloc == nloc && continue # deriv unchanged, pass
 
+    oloc == nothing && (oloc = nloc)
     fcop = CLoc(rebind)
     push!(g.locs, fcop)
-    push!(thisblock.rops, FOp(fcop, [oloc;], [nloc,oloc]))
+    push!(thisblock.rops, FOp(fcop, Loc[oloc;], Loc[nloc,oloc]))
 
     dmap[sloc] = nloc
-    # println("symbol $sloc  $oloc $tloc $floc $cloc -- $nloc ($(typeof(nloc)))")
   end
 
   thisblock.asc, thisblock.desc = summarize(thisblock)
