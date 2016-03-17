@@ -7,15 +7,22 @@
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allorders=true, params...)
+function rdiff(ex;
+               outsym    = nothing,
+               order::Int= 1,
+               evalmod   = Main,
+               debug     = false,
+               allorders = true,
+               ignore    = nothing,
+               params...)
 
     length(params) >= 1 || error("There should be at least one parameter specified, none found")
-    
-    order <= 1 || 
+
+    order <= 1 ||
     length(params) == 1 || error("Only one param allowed for order >= 2")
-    
-    order <= 1 || 
-    isa(params[1][2], Vector) || 
+
+    order <= 1 ||
+    isa(params[1][2], Vector) ||
     isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
 
     paramsym    = Symbol[ e[1] for e in params]
@@ -24,16 +31,16 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
 
     g = tograph(ex, evalmod)
 
-    hassym(g.seti, outsym) || 
+    hassym(g.seti, outsym) ||
         error("can't find output var $( outsym==nothing ? "" : outsym)")
 
     # reduce to variable of interest
-    g.seti = NSMap([getnode(g.seti, outsym)], [ outsym ])    
+    g.seti = NSMap([getnode(g.seti, outsym)], [ outsym ])
 
     g |> splitnary! |> prune! |> simplify!
     calc!(g, params=parval, emod=evalmod)
 
-    ov = getnode(g.seti, outsym).val 
+    ov = getnode(g.seti, outsym).val
     isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
     voi = Any[ outsym ]
@@ -61,7 +68,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             push!(voi, ns)
 
             g |> splitnary! |> prune! |> simplify!
-            
+
             calc!(g, params=parval, emod=evalmod)
         end
 
@@ -76,7 +83,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
         g |> splitnary! |> prune! |> simplify!
 
         # now order 2 to n
-        for i in 2:order  
+        for i in 2:order
             # launch derivation on a single value of the preceding
             #   derivation vector
             no = getnode(g.seti, voi[i])
@@ -116,7 +123,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
 
                         nn = NRef(:getidx, [ nmap[no], nmap[ni] ])
                         push!(dg2, nn)
-                        nmap[ns] = nn                            
+                        nmap[ns] = nn
 
                     elseif !(np in dg.nodes) # it's not in dg (but in g)
                         sn = newvar()
@@ -127,7 +134,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
                         n.parents[j] = nn
                         nmap[np] = nn
 
-                    end    
+                    end
                 end
 
                 # update onodes in for loops
@@ -140,7 +147,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
                     end
                 end
             end
-            append!(dg.nodes, dg2)    
+            append!(dg.nodes, dg2)
             # dg |> prune! |> simplify!
 
             # create for loop node
@@ -164,7 +171,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), 
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ),
                             g, @compat Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
@@ -173,7 +180,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             push!(nf.parents, nsa)
 
             # create result node update (in subgraph)
-            nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
+            nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg,
                               @compat Dict(:res  => insa,
                                            :sidx => nmap[ni],
                                            :st   => inst,
@@ -214,4 +221,3 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
     resetvar()
     debug ? g : tocode(g)
 end
-
