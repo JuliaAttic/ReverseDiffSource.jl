@@ -10,17 +10,19 @@ Arguments
 
 :ex: is a Julia Expression containing the code to derive
 
-:outsym: (keyword arg, default = nothing) is the symbol of the variable within ``ex`` containing the expression output (the result whose derivatives are needed). This variable must evaluate to a ``Real``. If not specified, ``outsym`` defaults to ``nothing`` which signals to ``rdiff`` that the last statement is the result of interest for derivation.
+:outsym: (default = nothing) is the symbol of the variable within ``ex`` containing the expression output (the result whose derivatives are needed). This variable must evaluate to a ``Real``. If not specified, ``outsym`` defaults to ``nothing`` which signals to ``rdiff`` that the last statement is the result of interest for derivation.
 
-:order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce an expression that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
+:order: (default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce an expression that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 
-:init: (multiple keyword arguments) is one or several symbol / value pairs indicating which variables appearing in ``ex`` should be used for the derivation of ``outsym``. An example value for each variable needs to be specified in order to fully evaluate ``ex``. This is necessary for the derivation algorithm because the generated code will depend on the type of each intermediate result. 
+:init: (multiple keyword arguments) is one or several symbol / value pairs indicating a reference value for variables appearing in ``ex`` (a reference value for each variable is needed in order to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
 
 :evalmod: (default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
 
-:debug: (default=false) if true ``rdiff`` dumps the graph of the generating expression, instead of the expression.
+:debug: (default=false) indicates if ``rdiff`` should dump the graph of the generating expression, instead of returning the expression itself.
 
-:allorders: (default=true) tells rdiff whether to generate the code for all orders up to ``order`` (true) or only the last order.
+:allorders: (default=true) indicates whether to generate the code for all orders up to ``order`` (true) or only the last order.
+
+:ignore: (default=[]) do not differentiate against the listed variables, useful if you are not interested in having the derivative of one of several variables in ``init``.
 
 Output
 ^^^^^^
@@ -31,28 +33,28 @@ An expression which, when evaluated, will return a tuple containing the expressi
 Usage
 ^^^^^
 
-``rdiff`` takes an expression consisting of a subset of Julia statements ( assigments, getindex, setindex!, for loops, function calls ) and transforms it into a new expression whose evaluation will provide the derivatives at all orders between 0 and the order specified (unless ``allorders`` is false). 
+``rdiff`` takes an expression consisting of a subset of Julia statements ( assignments, getindex, setindex!, for loops, function calls ) and transforms it into a new expression whose evaluation will provide the derivatives at all orders between 0 and the order specified (unless ``allorders`` is false).
 
-The generated expression will attempt to remove all uneeded calculations (e.g.  x + 0) and factorize repeated function calls as much as possible.
+The generated expression will attempt to remove all unneeded calculations (e.g.  x + 0) and factorize repeated function calls as much as possible.
 
-All the variables appearing in the init argument are considered as the expression's arguments and a derivative is calculated for it (and cross derivatives if order is >= 2). The other variables, if not defined by the expression, are expected to be top level variables in ``evalmod``. If they are not defined there an error will be thrown.
+All the variables appearing in the ``init`` argument are considered as the expression's arguments and a derivative is calculated for it (and cross derivatives if order is >= 2), *unless they are listed in the ``ignore`` argument*. The other variables, if not defined by the expression, are expected to be top level variables in ``evalmod``. If they are not defined there an error will be thrown.
 
 For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. For orders 0 and 1 variables can be of type Real, Vector or Matrix and can be in an unlimited number::
 
     julia> rdiff( :(x^3) , x=2.)  # first order
-    :(begin 
+    :(begin
         (x^3,3 * x^2.0)
         end)
 
     julia> rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
-    :(begin 
+    :(begin
             (x^3,3 * x^2.0,2.0 * (x * 3),6.0)
         end)
 
 ``rdiff`` runs several simplification heuristics on the generated code to remove neutral statements and factorize repeated calculations. For instance calculating the derivatives of ``sin(x)`` for large orders will reduce to the calculations of ``sin(x)`` and ``cos(x)``::
 
     julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
-    :(begin 
+    :(begin
             _tmp1 = sin(x)
             _tmp2 = cos(x)
             _tmp3 = -_tmp1
@@ -72,7 +74,7 @@ When a second derivative expression is needed, only a single derivation variable
 
     julia> ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
     julia> res = rdiff(ex, x=zeros(2), order=2)
-    :(begin 
+    :(begin
         _tmp1 = 1
         _tmp2 = 2
         _tmp3 = 100.0
@@ -131,7 +133,7 @@ However simple accumulations are an instance of recursive calculations that will
         # will work
         for i in 1:n
             a += b[i]    # new a value depends on previous a
-        end 
+        end
 
 * ``for`` loops are limited to a single index. If you have a ``for i,j in 1:10, 1:10`` in your expression you will have to translate it to nested loops as a workaround
 
@@ -140,5 +142,3 @@ However simple accumulations are an instance of recursive calculations that will
 * Only a limited set of Julia semantics are supported at this stage. Some frequently used statements such as comprehensions, ``if else``, ``while`` loops cannot be used in the expression.
 
 * Mutating functions cannot be used (with the exception of ``setindex!`` and ``setfield!``).
-
-

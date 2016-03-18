@@ -7,42 +7,109 @@
 ######### expression version   ################
 # TODO : break this huge function in smaller blocks
 
-function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allorders=true, params...)
+"""
+Generates an expression calculating the derivative(s) for a given expression
 
-    length(params) >= 1 || error("There should be at least one parameter specified, none found")
-    
-    order <= 1 || 
-    length(params) == 1 || error("Only one param allowed for order >= 2")
-    
-    order <= 1 || 
-    isa(params[1][2], Vector) || 
-    isa(params[1][2], Real)   || error("Param should be a real or vector for order >= 2")
+    rdiff( ex::Expr; kwargs... )
 
-    paramsym    = Symbol[ e[1] for e in params]
-    paramvalues = [ e[2] for e in params]
-    parval      = Dict(zip(paramsym, paramvalues))
+Arguments:
+
+- ex: is a Julia Expression containing the code to derive
+- outsym: (default = nothing) is the symbol of the variable within ``ex`` containing the expression output (the result whose derivatives are needed). This variable must evaluate to a ``Real``. If not specified, ``outsym`` defaults to ``nothing`` which signals to ``rdiff`` that the last statement is the result of interest for derivation.
+- order: (default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce an expression that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
+- init: (multiple keyword arguments) is one or several symbol / value pairs indicating a reference value for variables appearing in ``ex`` (a reference value for each variable is needed in order to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+- evalmod: (default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
+- debug: (default=false) indicates if ``rdiff`` should dump the graph of the generating expression, instead of returning the expression itself.
+- allorders: (default=true) indicates whether to generate the code for all orders up to ``order`` (true) or only the last order.
+- ignore: (default=[]) do not differentiate against the listed variables, useful if you are not interested in having the derivative of one of several variables in ``init``.
+
+Usage:
+```julia
+julia> rdiff( :(x^3) , x=2.)  # first order
+:(begin
+    (x^3,3 * x^2.0)
+    end)
+
+julia> rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
+:(begin
+        (x^3,3 * x^2.0,2.0 * (x * 3),6.0)
+    end)
+
+julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
+:(begin
+        _tmp1 = sin(x)
+        _tmp2 = cos(x)
+        _tmp3 = -_tmp1
+        _tmp4 = -_tmp2
+        _tmp5 = -_tmp3
+        (_tmp1,_tmp2,_tmp3,_tmp4,_tmp5,_tmp2,_tmp3,_tmp4,_tmp5,_tmp2,_tmp3)
+    end)
+
+julia> ex = :(p^3+y)
+julia> rdiff( ex , p=2., y=3., ignore=:y) # derive for p, not for y
+```
+"""
+function rdiff(ex;
+               outsym    = nothing,
+               order::Int= 1,
+               evalmod   = Main,
+               debug     = false,
+               allorders = true,
+               ignore    = Symbol[],
+               params...)
+
+    # format parameters in `params`
+    paramsym  = Symbol[ e[1] for e in params]
+    paramval  = [ e[2] for e in params]
+    pardict   = Dict(zip(paramsym, paramval))
+
+    # list of variables to differentiate against
+    paramdiff = if isa(ignore, Symbol)
+                    setdiff(paramsym, [ignore;])
+                elseif isa(ignore, Union{Vector,Tuple}) && eltype(ignore)==Symbol
+                    setdiff(paramsym, ignore)
+                else
+                    error("'ignore' arg should be a Symbol or Vector/Tuple of Symbol")
+                end
+
+    # controls
+    length(paramsym) >= 1 ||
+        error("There should be at least one variable specified, none found")
+
+    length(paramdiff) >= 1 ||
+        error("There should be at least one variable for differentiation, none found")
+
+    order <= 1 ||
+        length(paramdiff) == 1 ||
+        error("Only one differentiation variable allowed for order >= 2")
+
+    order <= 1 ||
+        isa(paramval[1], Vector) ||
+        isa(paramval[1], Real)   ||
+        error("Param should be a real or vector for order >= 2")
+
 
     g = tograph(ex, evalmod)
 
-    hassym(g.seti, outsym) || 
+    hassym(g.seti, outsym) ||
         error("can't find output var $( outsym==nothing ? "" : outsym)")
 
     # reduce to variable of interest
-    g.seti = NSMap([getnode(g.seti, outsym)], [ outsym ])    
+    g.seti = NSMap([getnode(g.seti, outsym)], [ outsym ])
 
     g |> splitnary! |> prune! |> simplify!
-    calc!(g, params=parval, emod=evalmod)
+    calc!(g, params=pardict, emod=evalmod)
 
-    ov = getnode(g.seti, outsym).val 
+    ov = getnode(g.seti, outsym).val
     isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
 
     voi = Any[ outsym ]
 
     if order == 1
-        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
+        dg = reversegraph(g, getnode(g.seti, outsym), paramdiff)
         append!(g.nodes, dg.nodes)
 
-        for p in paramsym
+        for p in paramdiff
             nn = getnode(dg.seti, dprefix(p))  # find the exit node of deriv of p
             ns = newvar("_dv")
             g.seti[nn] = ns
@@ -51,9 +118,9 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
 
         g |> splitnary! |> prune! |> simplify!
 
-    elseif order > 1 && isa(paramvalues[1], Real)
+    elseif order > 1 && isa(pardict[paramdiff[1]], Real)
         for i in 1:order
-            dg = reversegraph(g, getnode(g.seti, voi[i]), paramsym)
+            dg = reversegraph(g, getnode(g.seti, voi[i]), paramdiff)
             append!(g.nodes, dg.nodes)
             nn = collect(nodes(dg.seti))[1]  # only a single node produced
             ns = newvar("_dv")
@@ -61,13 +128,13 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             push!(voi, ns)
 
             g |> splitnary! |> prune! |> simplify!
-            
-            calc!(g, params=parval, emod=evalmod)
+
+            calc!(g, params=pardict, emod=evalmod)
         end
 
-    elseif order > 1 && isa(paramvalues[1], Vector)
+    elseif order > 1 && isa(pardict[paramdiff[1]], Vector)
         # do first order as usual
-        dg = reversegraph(g, getnode(g.seti, outsym), paramsym)
+        dg = reversegraph(g, getnode(g.seti, outsym), paramdiff)
         append!(g.nodes, dg.nodes)
         ns = newvar(:_dv)
         g.seti[ collect(nodes(dg.seti))[1] ] = ns
@@ -76,7 +143,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
         g |> splitnary! |> prune! |> simplify!
 
         # now order 2 to n
-        for i in 2:order  
+        for i in 2:order
             # launch derivation on a single value of the preceding
             #   derivation vector
             no = getnode(g.seti, voi[i])
@@ -84,8 +151,8 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             ni = addnode!(g, NExt(si))
             ns = addnode!(g, NRef(:getidx, [ no, ni ]))
 
-            calc!(g, params=Dict(zip([paramsym; si], [paramvalues; 1])), emod=evalmod)
-            dg = reversegraph(g, ns, paramsym)
+            calc!(g, params=Dict(zip([paramsym; si], [paramval; 1])), emod=evalmod)
+            dg = reversegraph(g, ns, paramdiff)
 
             #### We will now wrap dg in a loop scanning all the elements of 'no'
             # first create ext nodes to make dg a complete subgraph
@@ -116,7 +183,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
 
                         nn = NRef(:getidx, [ nmap[no], nmap[ni] ])
                         push!(dg2, nn)
-                        nmap[ns] = nn                            
+                        nmap[ns] = nn
 
                     elseif !(np in dg.nodes) # it's not in dg (but in g)
                         sn = newvar()
@@ -127,7 +194,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
                         n.parents[j] = nn
                         nmap[np] = nn
 
-                    end    
+                    end
                 end
 
                 # update onodes in for loops
@@ -140,14 +207,14 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
                     end
                 end
             end
-            append!(dg.nodes, dg2)    
+            append!(dg.nodes, dg2)
             # dg |> prune! |> simplify!
 
             # create for loop node
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create param size node
-            nsz = addgraph!( :( length( x ) ), g, @compat Dict( :x => getnode(g.exti, paramsym[1]) ) )
+            nsz = addgraph!( :( length( x ) ), g, @compat Dict( :x => getnode(g.exti, paramdiff[1]) ) )
 
             # create (n-1)th derivative size node
             ndsz = addgraph!( :( sz ^ $(i-1) ), g, @compat Dict( :sz => nsz ) )
@@ -164,7 +231,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             push!(nf.parents, nsz)
 
             # create result node (alloc in parent graph)
-            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ), 
+            nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ),
                             g, @compat Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
@@ -173,7 +240,7 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
             push!(nf.parents, nsa)
 
             # create result node update (in subgraph)
-            nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg, 
+            nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg,
                               @compat Dict(:res  => insa,
                                            :sidx => nmap[ni],
                                            :st   => inst,
@@ -214,4 +281,3 @@ function rdiff(ex; outsym=nothing, order::Int=1, evalmod=Main, debug=false, allo
     resetvar()
     debug ? g : tocode(g)
 end
-
