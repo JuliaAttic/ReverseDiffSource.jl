@@ -6,6 +6,27 @@
 
 ### main function
 
+"""
+Generates the derivative function for a given function
+
+	rdiff( func::Function, init::Tuple; kwargs...)
+
+Arguments:
+
+- func: is a Julia generic function.
+- init: is a tuple containing initial values for each parameter of ``func``. These reference values are needed to to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+- order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce a function that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
+- evalmod: (keyword arg, default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
+- debug: (keyword arg, default=false) if true ``rdiff`` dumps the graph of the generating expression, instead of the expression.
+- allorders: (keyword arg, default=true) tells rdiff whether to generate the code for all orders up to ``order`` (true) or only the last order.
+- ignore: (keyword arg, default=[]) do not differentiate against the listed variables, useful if you are not interested in having the derivative of one of several variables in ``init``.
+
+```julia
+julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
+julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+```
+
+"""
 function rdiff(f::Function, sig0::Tuple; args...)
     # f = tf ; sig0 = (0.,)
     sig = map( typeof, sig0 )
@@ -29,7 +50,7 @@ end
 ### translation functions to recover a workable expression that can be differentiated
 
 # Simplifies expressions for processing
-#  - removes Topnodes and linenumbers, 
+#  - removes Topnodes and linenumbers,
 #  - replaces GenSym() with actual symbol
 function streamline(ex0::Expr)
     ex = copy(ex0)
@@ -50,11 +71,11 @@ function streamline(ex0::Expr)
              end
         push!(args, ar)
     end
-    Expr(ex.head, args...)   
+    Expr(ex.head, args...)
 end
 
 # converts expression to searchable strings
-function _e2s(ex::Expr, escape=false) 
+function _e2s(ex::Expr, escape=false)
     ex.head == :macrocall && ex.args[1] == symbol("@rg_str") && return(ex.args[2])
 
     if ex.head == :call && ex.args[1] == :gotoifnot
@@ -105,7 +126,7 @@ end
 
 
 # converts searchable strings back to expressions
-function _s2e(s::AbstractString, pos=1) 
+function _s2e(s::AbstractString, pos=1)
     cap = match( r"↑([^→↓]*)(.*)", s, pos )
     if cap == nothing # skip junk characters (Labelnodes,..) and return
         cap = match( r".*?↑(.*)", s, pos )
@@ -122,7 +143,7 @@ function _s2e(s::AbstractString, pos=1)
         cap1 = cap.captures[1]
         if cap1[1] == '↑'
             ex, pos2 = _s2e(s, cap.offsets[1])
-        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes        
+        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
             ex = QuoteNode(symbol(cap1[4:end-1]))
             pos2 = cap.offsets[2]
         elseif cap1[1] == ':'        # symbols
@@ -195,7 +216,3 @@ function transform(ex::Expr)
 
     tex
 end
-
-
-
-

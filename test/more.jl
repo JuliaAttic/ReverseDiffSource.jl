@@ -1,5 +1,5 @@
 ##################################################
-#  More tests to improve coverage 
+#  More tests to improve coverage
 ##################################################
 
 # using Base.Test
@@ -15,7 +15,7 @@ ex = m.rdiff( :( sum( x .+ [1., 2.]) ), x=1., allorders=false)
 
 ######### plot  ############
 
-ex = quote 
+ex = quote
 	a = 0.
 	for i in 1:10
 		a += i
@@ -30,6 +30,50 @@ m.plot( m.tograph(ex) )
 g = m.tograph(ex)
 println(g.nodes[4])
 println(g)
+
+
+########## 'ignore' argument  ##########
+
+ex = :(p^3+y)
+
+@test m.rdiff( ex , p=2., y=3., ignore=:y) ==
+        striplinenumbers(:(begin ; (p ^ 3 + y,3 * p ^ 2) ; end))
+@test m.rdiff( ex , p=2., y=3., ignore=:p) ==
+        striplinenumbers(:(begin ; (p ^ 3 + y,1.0) ; end))
+@test m.rdiff( ex , p=2., y=3., ignore=[:p;]) ==
+        striplinenumbers(:(begin ; (p ^ 3 + y,1.0) ; end))
+
+@test m.rdiff( ex , p=2., y=3., ignore=:p, order=3) ==
+        striplinenumbers(:(begin ; (p ^ 3 + y,1.0, 0.0, 0.0) ; end))
+
+@test_throws ErrorException m.rdiff( ex , p=2., y=3., order=3)
+@test_throws ErrorException m.rdiff( ex , p=2., y=3., ignore=(:y,:p), order=3)
+
+
+ex = :(dot(p,p) ^ sum(y))
+
+m.rdiff( ex , p=[1.,2.], y=[3.,1.], ignore=[:p;])
+m.rdiff( ex , p=[1.,2.], y=[3.,1.], ignore=[:y;])
+m.rdiff( ex , p=[1.,2.], y=2, ignore=[:y;])
+m.rdiff( ex , p=[1.,2.], y=2, ignore=[:p;])
+
+m.rdiff( ex , p=[1.,2.], y=2, ignore=[:y;], order=2)
+m.rdiff( ex , p=[1.,2.], y=2, ignore=[:p;], order=2)
+
+function ploglikelihood(p::Vector{Float64}, v::Vector)
+  Xp = v[2]*p
+  dot(Xp, v[3])-sum(log(1+exp(Xp)))
+end
+
+
+args = (ones(3), Any[1.,2.,[3.,2.,-2]])
+
+dplog = m.rdiff( ploglikelihood, args, ignore=[:v;])
+dplog(ones(3), Any[1.,2.,[3.,2.,-2]])
+
+@test ploglikelihood(args...) == dplog(args...)[1]
+dplog(args...)[2]
+
 
 
 ####### error conditions  #############
@@ -49,5 +93,3 @@ m.rdiff( :( log(x) ), x=1., allorders=false)
 ###### BitArray type  ############
 
 m.rdiff( :( sum(x .* falses(2)) ), x=1.  )
-
-
