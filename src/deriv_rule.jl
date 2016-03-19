@@ -20,7 +20,7 @@ macro deriv_rule(func::Expr, dv::Symbol, diff)
             push!(ss, e)
             push!(ts, Any)
 
-        elseif isa(e, Expr) && e.head== :(::)  
+        elseif isa(e, Expr) && e.head== :(::)
             push!(ss, e.args[1])
             push!(ts, emod.eval(e.args[2]))
 
@@ -44,14 +44,20 @@ function deriv_rule(func::Union{Function, Type},
     (index == 0) && error("[deriv_rule] cannot find $dv in function arguments")
 
     # non generic functions are matched by their name
-    fidx = isa(func, Function) && isa(func.env, Symbol) ? func.env : func
+    if VERSION >= v"0.5.0-"
+      fidx = isa(func, Function) && isa(func, Builtin) ?
+                  function_name(func) : func
+    else
+      fidx = isa(func, Function) && isa(func.env, Symbol) ?
+                  func.env : func
+    end
 
     haskey(drules, (fidx, index)) || (drules[(fidx, index)] = Dict())
 
     g = tograph(diff, emod)  # make the graph
     push!(ss, :ds)
 
-    drules[(fidx, index)][sig] = (g, ss) 
+    drules[(fidx, index)][sig] = (g, ss)
     nothing
 end
 
@@ -66,7 +72,7 @@ function getrule(f, pos)
     if isa(f, Function) && isa(f.env, Symbol) # non generic functions are matched by their name
         haskey(drules, (f.env, pos)) && return drules[(f.env, pos)]
     else
-        haskey(drules, (f, pos)) && return drules[(f, pos)]  
+        haskey(drules, (f, pos)) && return drules[(f, pos)]
     end
     error("no derivation rule for $(f) at arg #$(pos)")
 end
