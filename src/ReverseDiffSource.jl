@@ -10,7 +10,7 @@ module ReverseDiffSource
 
   import Base.show, Base.copy
 
-  
+
   using Compat  # for Julia v0.x compatibility issues
 
   # naming conventions
@@ -32,7 +32,6 @@ module ReverseDiffSource
       vcount[radix] = haskey(vcount, radix) ? vcount[radix]+1 : 1
       return symbol("$(radix)$(vcount[radix])")
     end
-    newvar() = newvar(TEMP_NAME)
 
     global resetvar
     function resetvar()
@@ -56,13 +55,12 @@ module ReverseDiffSource
   include("frdiff.jl")
 
   ######  Exports  ######
-  export 
+  export
     rdiff,
-    @deriv_rule, deriv_rule, 
+    @deriv_rule, deriv_rule,
     @typeequiv, typeequiv
 
   ######  Initializations (for the deriv rules)  ######
   __init__() = include(joinpath(Pkg.dir("ReverseDiffSource"), "src/base_rules.jl"))
 
 end # module ReverseDiffSource
-

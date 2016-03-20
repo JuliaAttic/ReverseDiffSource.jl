@@ -19,7 +19,7 @@
   typealias ExPEqual   ExH{:(+=)}
   typealias ExMEqual   ExH{:(-=)}
   typealias ExTEqual   ExH{:(*=)}
-  typealias ExTrans    ExH{symbol("'")} 
+  typealias ExTrans    ExH{symbol("'")}
   typealias ExCall     ExH{:call}
   typealias ExBlock    ExH{:block}
   typealias ExLine     ExH{:line}
@@ -85,6 +85,12 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     function explore(ex::ExCall)
         sf  = ex.args[1]
+
+        # catch comparisons (they are :call since julia 0.5)
+        if sf in [:(>), :(<), :(<=), :(>=)]
+            return addnode!(g, NComp(ex.args[1], [explore(ex.args[2]), explore(ex.args[3])]))
+        end
+            
         # catch getindex, etc. qualified by a module
         sf2 = if isa(sf, Expr) && sf.head == :. && isa(sf.args[2], QuoteNode)
                 sf.args[2].value
@@ -98,7 +104,7 @@ function tograph(s, evalmod=Main, svars=Any[])
             return addnode!(g, NRef(:getidx, vcat([nv], ps)))
 
         elseif sf == :setindex! || sf2 == :setindex!
-            isa(ex.args[2], Symbol) || 
+            isa(ex.args[2], Symbol) ||
                 error("[tograph] setindex! only allowed on variables, $(ex.args[2]) found")
 
             nv  = explore(ex.args[2]) # node whose subpart is assigned
@@ -106,7 +112,7 @@ function tograph(s, evalmod=Main, svars=Any[])
             rhn = addnode!(g, NSRef(:setidx,
                                     [ nv,                               # var modified in pos #1
                                       explore(ex.args[3]),              # value affected in pos #2
-                                      ps...] ))                         # dims 
+                                      ps...] ))                         # dims
 
             rhn.precedence = filter(n -> nv in n.parents && n != rhn, g.nodes)
             g.seti[rhn] = ex.args[2]
@@ -117,7 +123,7 @@ function tograph(s, evalmod=Main, svars=Any[])
             return addnode!(g, NDot(ex.args[3], [ explore(ex.args[2]) ]))
 
         elseif sf == :setfield! || sf2 == :setfield!
-            isa(ex.args[2], Symbol) || 
+            isa(ex.args[2], Symbol) ||
                 error("[tograph] setfield! only allowed on variables, $(ex.args[2]) found")
 
             nv  = explore(ex.args[2]) # node whose subpart is assigned
@@ -130,22 +136,22 @@ function tograph(s, evalmod=Main, svars=Any[])
 
             return nothing
 
-        else 
-            return addnode!(g, NCall(  :call, 
+        else
+            return addnode!(g, NCall(  :call,
                                         map(explore, ex.args[1:end]) ))
         end
     end
 
-    function explore(ex::ExEqual) 
+    function explore(ex::ExEqual)
         lhs = ex.args[1]
-        
+
         if isSymbol(lhs)  # x = ....
             lhss = lhs
 
             # set before ? call explore
             if lhss in union(svars, collect(syms(g.seti)))
                 vn = explore(lhss)
-                rhn  = addnode!(g, NSRef(:setidx, 
+                rhn  = addnode!(g, NSRef(:setidx,
                                          [ vn,                     # var modified in pos #1
                                            explore(ex.args[2]) ])) # value affected in pos #2
                 rhn.precedence = filter(n -> vn in n.parents && n != rhn, g.nodes)
@@ -155,7 +161,7 @@ function tograph(s, evalmod=Main, svars=Any[])
 
                 # we test if RHS has already a symbol
                 # if it does, to avoid loosing it, we create an NIn node
-                if hasnode(g.seti, rhn) 
+                if hasnode(g.seti, rhn)
                     rhn = addnode!(g, NIn(lhss, [rhn]))
                 end
             end
@@ -180,13 +186,13 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     function explore(ex::ExFor)
         is = ex.args[1].args[1]
-        isa(is, Symbol) || 
+        isa(is, Symbol) ||
             error("[tograph] for loop using several indexes : $is ")
 
         # explore the index range
         nir = explore(ex.args[1].args[2])
 
-        # explore the for block as a separate graph 
+        # explore the for block as a separate graph
         nsvars = union(svars, collect(syms(g.seti)))
         g2 = tograph(ex.args[2], evalmod, nsvars)
 
@@ -254,12 +260,12 @@ function tograph(s, evalmod=Main, svars=Any[])
     #  top level graph
     g = ExGraph()
 
-    exitnode = explore(s)  
+    exitnode = explore(s)
     # exitnode = nothing if only variable assigments in expression
     #          = ExNode of last calc otherwise
 
     # id is 'nothing' for unnassigned last statement
-    exitnode!=nothing && ( g.seti[exitnode] = nothing ) 
+    exitnode!=nothing && ( g.seti[exitnode] = nothing )
 
     # Resolve external symbols that are Functions, DataTypes or Modules
     # and turn them into constants
@@ -277,7 +283,3 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     g
 end
-
-
-
-

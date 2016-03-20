@@ -44,13 +44,8 @@ function deriv_rule(func::Union{Function, Type},
     (index == 0) && error("[deriv_rule] cannot find $dv in function arguments")
 
     # non generic functions are matched by their name
-    if VERSION >= v"0.5.0-"
-      fidx = isa(func, Function) && isa(func, Builtin) ?
-                  function_name(func) : func
-    else
-      fidx = isa(func, Function) && isa(func.env, Symbol) ?
-                  func.env : func
-    end
+    fidx = isa(func, Function) && isbuiltin(func) ?
+                  builtin_name(func) : func
 
     haskey(drules, (fidx, index)) || (drules[(fidx, index)] = Dict())
 
@@ -61,16 +56,23 @@ function deriv_rule(func::Union{Function, Type},
     nothing
 end
 
+isbuiltin(f) = VERSION >= v"0.5.0-" ? isa(f, Core.Builtin) : isa(f.env, Symbol)
+builtin_name(f) = VERSION >= v"0.5.0-" ? Base.function_name(f) : f.env
+
 function hasrule(f, pos)
     haskey(drules, (f, pos)) && return true
     # non generic functions are matched by their name
-    isa(func, Function) && isa(f.env, Symbol) && return haskey(drules, (f.env, pos))
+    if isa(f, Function) && isbuiltin(f)
+        fname = builtin_name(f)
+        return haskey(drules, (fname, pos))
+    end
     false
 end
 
 function getrule(f, pos)
-    if isa(f, Function) && isa(f.env, Symbol) # non generic functions are matched by their name
-        haskey(drules, (f.env, pos)) && return drules[(f.env, pos)]
+    if isa(f, Function) && isbuiltin(f) # non generic functions are matched by their name
+        fname = builtin_name(f)
+        haskey(drules, (fname, pos)) && return drules[(fname, pos)]
     else
         haskey(drules, (f, pos)) && return drules[(f, pos)]
     end
