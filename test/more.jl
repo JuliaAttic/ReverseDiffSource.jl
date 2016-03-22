@@ -74,7 +74,23 @@ dplog(ones(3), Any[1.,2.,[3.,2.,-2]])
 @test ploglikelihood(args...) == dplog(args...)[1]
 dplog(args...)[2]
 
+####### Issue #25 (splinary not trigered) #############
+# (happens when function are prefixde with a module)
 
+module B; end
+
+x = 2.
+ex = quote
+  B.max(1., x, 3.)
+end
+
+m = ReverseDiffSource
+m.rdiff(ex, x=2.)
+
+function foo(x,y,z)
+    return x + y + z
+end
+f = m.rdiff(foo,(1,1,1))
 
 ####### error conditions  #############
 

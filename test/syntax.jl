@@ -27,7 +27,6 @@ rosen2([0.5,2])
 
 test(x) = exp(x)
 m.rdiff(test, (1.,), order=5)
-isgeneric(exp)
 
 m.rdiff( :(x^3) , x=2.)             # first order
 m.rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
@@ -99,5 +98,3 @@ ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
 
 res = m.rdiff(ex, x=zeros(2), order=2)
 res = m.rdiff(ex, x=zeros(2), order=3)
-
-

@@ -31,7 +31,6 @@ module ReverseDiffSource
       vcount[radix] = haskey(vcount, radix) ? vcount[radix]+1 : 1
       return symbol("$(radix)$(vcount[radix])")
     end
-    newvar() = newvar(TEMP_NAME)
 
     global resetvar
     function resetvar()

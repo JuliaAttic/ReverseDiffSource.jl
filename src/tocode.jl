@@ -43,10 +43,11 @@ function tocode(g::ExGraph)
         # default translation
         thing_module(op::DataType) = tuple(fullname(op.name.module)..., op.name.name)
 
-        thing_module(op::Function) =
-            tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
-                  op.env.name )
-                  # symbol(string(op)) )
+        function thing_module(op::Function)
+          fname = isbuiltin(op) ? builtin_name(op) : Base.function_name(op)
+          tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
+                fname)
+        end
 
         mt = try
                 thing_module(op)
