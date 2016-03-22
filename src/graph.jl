@@ -3,7 +3,7 @@
 #   ExGraph type definition and related functions
 #
 #########################################################################
-  
+
 typealias NSMap BiDict{ExNode, Any}   # ExNode - Symbol map
 
 #####  ExGraph type definitions ######
@@ -16,9 +16,9 @@ type ExGraph
 end
 
 ExGraph()                   = ExGraph( ExNode[] )
-ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(), 
-                                           NSMap(), 
-                                           NSMap(), 
+ExGraph(vn::Vector{ExNode}) = ExGraph( vn, NSMap(),
+                                           NSMap(),
+                                           NSMap(),
                                            NSMap() )
 
 hasnode(m::NSMap, n::ExNode) = haskey(m.kv, n)
@@ -56,7 +56,7 @@ function show(io::IO, g::ExGraph)
     tn[i,8] = "($(typeof(n.val))) $(repr(n.val)[1:min(40, end)])"
   end
 
-  tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"], 
+  tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"],
         tn)
   sz = maximum(map(length, tn), 1)
   tn = vcat(tn[1,:], map(s->"-"^s, sz), tn[2:end,:])
@@ -133,16 +133,24 @@ end
 # add a single node
 addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 
-######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ###### 
+######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ######
 function splitnary!(g::ExGraph)
-  for n in g.nodes
-      if isa(n, NCall) &&
-          in(n.parents[1].main, [+, *, sum, min, max]) && 
-          ( length(n.parents) > 3 )
+  for n in g.nodes  # n = g.nodes[5]
+      if isa(n, NCall) && ( length(n.parents) > 3 )
+        func = n.parents[1].main
+        if isa(n.parents[1], NDot) # if getfield, evaluate function (issue #25)
+          fsym = isa(n.parents[1].main, Expr) ?
+                     n.parents[1].main.args[1] :  # Expression
+                     n.parents[1].main.value      # QuoteNode
 
+          func = getfield(n.parents[1].parents[1].main, fsym)
+        end
+
+        if func in [+, *, sum, min, max]
           nn = addnode!(g, NCall(:call, [n.parents[1]; n.parents[3:end]] ) )
-          n.parents = [n.parents[1:2]; nn]  
-      
+          n.parents = [n.parents[1:2]; nn]
+        end
+
       elseif isa(n, NFor)
         splitnary!(n.main[2])
 
@@ -152,7 +160,7 @@ function splitnary!(g::ExGraph)
 end
 
 ####### fuses nodes nr and nk, keeps nk ########
-# removes node nr and keeps node nk 
+# removes node nr and keeps node nk
 #  updates all references to nr
 function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
   if hasnode(g.exti, nr)
@@ -168,7 +176,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
 
     if hasnode(g.seto, nr)   # change onodes too (if we are in a subgraph)
       g.seto[nn] = g.seto[nr]  # nn replaces nr as set_onode
-    end  
+    end
   end
 
   # test if nr is in the precedence of some node and nk is a parent of the same node
@@ -182,7 +190,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
       n.precedence = map(x -> x==nr ? nn : x, n.precedence)
     end
 
-  end   
+  end
 
   # replace references to nr by nk in parents of other nodes
   for n in filter(n -> n != nr && n != nk, g.nodes)
@@ -200,7 +208,7 @@ function fusenodes(g::ExGraph, nk::ExNode, nr::ExNode)
         end
 
         g2.exto[nk] = g2.exto[nr]  # nk replaces nr in g2.exto
-      end  
+      end
     end
 
     for (i, n2) in enumerate(n.parents)
@@ -311,7 +319,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
 
   # evaluate a symbol
   function myeval(thing)
-    local ret   
+    local ret
 
     if haskey(params, thing)
       return params[thing]
@@ -330,47 +338,47 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
   function evaluate(n::NCall)
     local ret
     try
-      ret = (n.parents[1].main)([ x.val for x in n.parents[2:end]]...) 
+      ret = (n.parents[1].main)([ x.val for x in n.parents[2:end]]...)
     catch e
       eex = Expr(:call, n.parents[1].main, [ x.val for x in n.parents[2:end]]...)
       error("$e when calling $eex in \n$g")
     end
     return ret
-  end 
+  end
 
   function evaluate(n::NComp)
     local ret
     try
       ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
-      #TODO: improve speed with smth like ret = (n.main)([ x.val for x in n.parents]...) 
+      #TODO: improve speed with smth like ret = (n.main)([ x.val for x in n.parents]...)
     catch e
       eex = Expr(:call, n.main, Any[ x.val for x in n.parents]...)
       error("$e when calling $eex in \n$g")
     end
     return ret
-  end 
+  end
 
   function evaluate(n::NExt)
     hasnode(g.exti, n) || return myeval(n.main)
 
-    sym = g.exti[n]  # should be equal to n.main but just to be sure.. 
+    sym = g.exti[n]  # should be equal to n.main but just to be sure..
     hassym(g.exto, sym) || return myeval(n.main)
     return getnode(g.exto, sym).val  # return node val in parent graph
   end
 
   evaluate(n::NConst) = n.main
 
-  # evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...)) 
-  evaluate(n::NRef)   = getindex(n.parents[1].val, [n2.val for n2 in n.parents[2:end]]...) 
+  # evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
+  evaluate(n::NRef)   = getindex(n.parents[1].val, [n2.val for n2 in n.parents[2:end]]...)
 
   # evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
   function evaluate(n::NDot)
     fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value
-    getfield(n.parents[1].val, fsym) 
+    getfield(n.parents[1].val, fsym)
   end
 
   function evaluate(n::NSRef)
-    if length(n.parents) >= 3   # regular setindex 
+    if length(n.parents) >= 3   # regular setindex
       setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
       return n.parents[1].val
     else
@@ -396,7 +404,7 @@ function calc!(g::ExGraph; params=Dict(), emod = Main)
       params2[is] = is0
       calc!(g2, params=params2)
     end
-    
+
     valdict = Dict()
     for (k, sym) in g2.seto
       valdict[k] = getnode(g2.seti, sym).val
@@ -430,7 +438,7 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   # evalsort!(ig)
 
   nmap = Dict()
-  for n in ig.nodes  #  n = src[1]  
+  for n in ig.nodes  #  n = src[1]
     if isa(n, NExt)
       if haskey(smap, n.main)
         nmap[n] = smap[n.main]
