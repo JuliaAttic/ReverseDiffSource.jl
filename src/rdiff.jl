@@ -264,7 +264,11 @@ function rdiff(ex;
     end
 
     if !allorders  # only keep the last derivative
-        voi = [voi[end]]
+        if order == 1 # potentially multiple diffs, issue #32
+            voi = voi[2:end]
+        else
+            voi = [voi[end]]
+        end
     end
 
     if length(voi) > 1  # create tuple if multiple variables

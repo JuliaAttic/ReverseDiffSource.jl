@@ -74,23 +74,6 @@ dplog(ones(3), Any[1.,2.,[3.,2.,-2]])
 @test ploglikelihood(args...) == dplog(args...)[1]
 dplog(args...)[2]
 
-####### Issue #25 (splinary not trigered) #############
-# (happens when function are prefixde with a module)
-
-module B; end
-
-x = 2.
-ex = quote
-  B.max(1., x, 3.)
-end
-
-m = ReverseDiffSource
-m.rdiff(ex, x=2.)
-
-function foo(x,y,z)
-    return x + y + z
-end
-f = m.rdiff(foo,(1,1,1))
 
 ####### error conditions  #############
 
@@ -109,3 +92,30 @@ m.rdiff( :( log(x) ), x=1., allorders=false)
 ###### BitArray type  ############
 
 m.rdiff( :( sum(x .* falses(2)) ), x=1.  )
+
+####### Issue #25 (splinary not trigered) #############
+# (happens when function are prefixed with a module)
+
+module B; end
+
+x = 2.
+ex = quote
+  B.max(1., x, 3.)
+end
+
+m = ReverseDiffSource
+m.rdiff(ex, x=2.)
+
+function foo(x,y,z)
+    return x + y + z
+end
+f = m.rdiff(foo,(1,1,1))
+
+
+###### Issue 32  (allorders removing some legitimate variables)  ######
+
+ex = m.rdiff( :(y*x^3+y^5) , x=2., y=1., order=1)
+@test length(eval(:(x=2.;y=1.;$ex))) == 3
+
+ex = m.rdiff( :(y*x^3+y^5) , x=2., y=1., order=1, allorders=false)
+@test length(eval(:(x=2.;y=1.;$ex))) == 2
