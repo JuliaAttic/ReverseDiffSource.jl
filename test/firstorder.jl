@@ -5,7 +5,7 @@
 #################################################################
 
 ###### sum()
-@compare sum(x)  v0ref  
+@compare sum(x)  v0ref
 @compare sum(x)  v1ref
 @compare sum(x)  v2ref
 
@@ -208,4 +208,100 @@
 @compare  sum(x          * ones(3,2))    v2ref
 @compare  sum(x          * -1ones(3,1))  v2ref
 
+###### tan
+@compare tan(x)      v0ref
+@compare sum(tan(x)) v1ref
+@compare sum(tan(x)) v2ref
 
+###### sinh
+@compare sinh(x)      v0ref
+@compare sum(sinh(x)) v1ref
+@compare sum(sinh(x)) v2ref
+
+###### cosh
+@compare cosh(x)      v0ref
+@compare sum(cosh(x)) v1ref
+@compare sum(cosh(x)) v2ref
+
+###### tanh
+@compare tanh(x)      v0ref
+@compare sum(tanh(x)) v1ref
+@compare sum(tanh(x)) v2ref
+
+###### asin
+@compare asin(x)      clamp(v0ref, -.99, .99)
+@compare sum(asin(x)) clamp(v1ref, -.99, .99)
+@compare sum(asin(x)) clamp(v2ref, -.99, .99)
+
+###### acos
+@compare acos(x)      clamp(v0ref, -.99, .99)
+@compare sum(acos(x)) clamp(v1ref, -.99, .99)
+@compare sum(acos(x)) clamp(v2ref, -.99, .99)
+
+###### atan
+@compare atan(x)      v0ref
+@compare sum(atan(x)) v1ref
+@compare sum(atan(x)) v2ref
+
+###### round
+@compare round(x)      v0ref
+@compare sum(round(x)) v1ref
+@compare sum(round(x)) v2ref
+
+###### ceil
+@compare ceil(x)      v0ref + 1e-5
+@compare sum(ceil(x)) v1ref + 1e-5
+@compare sum(ceil(x)) v2ref + 1e-5
+
+###### floor
+@compare floor(x)      v0ref + 1e-5
+@compare sum(floor(x)) v1ref + 1e-5
+@compare sum(floor(x)) v2ref + 1e-5
+
+###### trunc
+@compare trunc(x)      v0ref + 1e-5
+@compare sum(trunc(x)) v1ref + 1e-5
+@compare sum(trunc(x)) v2ref + 1e-5
+
+###### mod2pi
+@compare mod2pi(x)      v0ref
+
+###### log1p
+@compare log1p(x)      clamp(v0ref, -0.99, Inf)
+@compare sum(log1p(x)) clamp(v1ref, -0.99, Inf)
+@compare sum(log1p(x)) clamp(v2ref, -0.99, Inf)
+
+###### expm1
+@compare expm1(x)      v0ref
+@compare sum(expm1(x)) v1ref
+@compare sum(expm1(x)) v2ref
+
+###### erf
+@compare erf(x)      v0ref
+@compare sum(erf(x)) v1ref
+@compare sum(erf(x)) v2ref
+
+###### erfc
+@compare erfc(x)      v0ref
+@compare sum(erfc(x)) v1ref
+@compare sum(erfc(x)) v2ref
+
+###### gamma
+@compare gamma(x)      v0ref + 0.1 # to stay away from negative integers
+@compare sum(gamma(x)) v1ref + 0.1
+@compare sum(gamma(x)) v2ref + 0.1
+
+###### lgamma
+@compare lgamma(x)      v0ref + 0.1
+@compare sum(lgamma(x)) v1ref + 0.1
+@compare sum(lgamma(x)) v2ref + 0.1
+
+###### beta
+@compare beta(x, 2.)             v0ref + 0.1
+@compare sum(beta(x, x .* 0.2))  v1ref + 0.1
+@compare sum(beta(x, x))         v2ref + 0.1
+
+###### lbeta
+@compare lbeta(x, 2.)             v0ref + 0.1
+@compare sum(lbeta(x, x .* 0.2))  v1ref + 0.1
+@compare sum(lbeta(x, x))         v2ref + 0.1

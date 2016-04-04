@@ -449,7 +449,9 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
         end
 
       else
-        error("unmapped symbol in source graph $(n.main)")
+        # error message removed to leave a chance for resolution
+        #   in evalmod (π for example)
+        # error("unmapped symbol in source graph $(n.main)")
       end
 
     elseif isa(n, NFor) # update references, including onodes
