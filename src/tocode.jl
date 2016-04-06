@@ -45,7 +45,7 @@ function tocode(g::ExGraph)
 
         function thing_module(op::Function)
           fname = isbuiltin(op) ? builtin_name(op) : Base.function_name(op)
-          tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
+          tuple(fullname(Base.function_module(op, Tuple{Vararg{Any}}))...,
                 fname)
         end
 

@@ -8,7 +8,7 @@ __precompile__(false)
 
 module ReverseDiffSource
 
-  import Base.show, Base.copy
+  import Base.show, Base.copy, Base.length
 
   using Compat  # for Julia v0.x compatibility issues
 

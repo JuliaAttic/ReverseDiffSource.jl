@@ -34,26 +34,48 @@ function rdiff(f::Function, sig0::Tuple; args...)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
-		if VERSION >= v"0.5.0-"
-			fdef  = fs[1].func.def
-	    fcode = Base.uncompressed_ast(fdef)
+	fdef = fs[1].func
 
-	    fargs = fcode.args[1][2:end]  # function parameters
-	    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-		else
-	    fdef  = fs[1].func.code
-	    fcode = Base.uncompressed_ast(fdef)
+	if VERSION >= v"0.5.0-"
+	  fcode =  Expr(:block, Base.uncompressed_ast(fdef)...)
 
-	    fargs = fcode.args[1]  # function parameters
-	    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-		end
+	  # replace slotnames with their initial name
+	  smap = Dict{Symbol,Symbol}([ symbol("(_$i)") => s for (i,s) in enumerate(fdef.slotnames) ])
+	  fcode = rename(fcode, smap)
 
-    ex  = transform(fcode.args[3]) # TODO : add error messages if not parseable
+
+	  fargs = fcode.args[1][2:end]  # function parameters
+	else
+	  flambda = Base.uncompressed_ast(fdef.code)
+	  fcode = flambda.args[3]
+	  fargs = flambda.args[1]  # function parameters
+	end
+
+	cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+    ex  = transform(fcode) # TODO : add error messages if not parseable
+
     dex = rdiff(ex; args..., cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
 end
+
+
+function rename(ex::Expr, smap)
+    args = Any[]
+    for a in ex.args
+        ar = if isa(a,Expr)
+                rename(a, smap)
+             elseif isa(a,Symbol)
+                haskey(smap,a) ? smap[a] : a
+             else
+                a
+             end
+        push!(args, ar)
+    end
+    Expr(ex.head, args...)
+end
+
 
 ### translation functions to recover a workable expression that can be differentiated
 
@@ -179,29 +201,69 @@ function s2e(s::AbstractString)
     res
 end
 
-# `for` loop search regex string (julia v0.3.3 + 0.4 latest)
-exreg = quote
-    rg"(?<pre>.*?)"
-    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
-    rg"(?<iter>.+)" = start(rg"\g{g0}")
-    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-    rg":\((?<lab2>\d+): \)"
-    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
-    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
-    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
-    rg"(?<in>.*)"
-    rg":\((?<lab3>\d+): \)"
-    gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
-    rg":\(\g{lab1}: \)"
-    rg"(?<post>.*)"
+
+if VERSION >= v"0.5.0-"
+	# `for` loop search regex string (julia v0.5)
+	function formatch(s::AbstractString)
+		exreg = quote
+		    rg"(?<pre>.*?)"
+		    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+		    rg"(?<iter>.+)" = start(rg"\g{g0}")
+			rg":\((?<lab2>\d+): \)"
+		    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+		    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
+		    rg"(?<in>.*)"
+			rg":\(.*\)"
+		    rg":\((?<lab3>\d+): \)"
+		    rg":\(goto \g{lab2}\)"
+			rg":\(\g{lab1}: \)"
+			rg":\((?<lab4>\d+): \)"
+		    rg"(?<post>.*)"
+		end
+		rexp = Regex(e2s(streamline(exreg), true))
+
+		mm = match(rexp, s)
+		if mm != nothing && length(mm.captures) >= 11
+			return mm.captures[[1, 3, 8, 9, 12]] # pre, rg, idx, inside, post
+		else
+			return nothing, nothing, nothing, nothing, nothing
+		end
+	end
+else
+	# `for` loop search regex string (julia v0.3.3 + 0.4 latest)
+	function formatch(s::AbstractString)
+		exreg = quote
+		    rg"(?<pre>.*?)"
+		    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+		    rg"(?<iter>.+)" = start(rg"\g{g0}")
+		    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+		    rg":\((?<lab2>\d+): \)"
+		    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
+		    rg"(?<in>.*)"
+		    rg":\((?<lab3>\d+): \)"
+		    gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
+		    rg":\(\g{lab1}: \)"
+		    rg"(?<post>.*)"
+		end
+		rexp = Regex(e2s(streamline(exreg), true))
+
+		mm = match(rexp, s)
+		if mm != nothing && length(mm.captures) >= 11
+	        return mm.captures[[1,3,8,9,11]] # pre, rg, idx, inside, post
+		else
+			return nothing, nothing, nothing, nothing, nothing
+		end
+	end
 end
-rexp = Regex(e2s(streamline(exreg), true))
 
 
 function _transform(s::AbstractString)
-    mm = match(rexp, s)
-    if mm != nothing && length(mm.captures) >= 11
-        pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
+	pre, rg, idx, inside, post = formatch(s)
+    if pre != nothing
         exin = _transform(inside)
         ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), s2e(rg)[1] ), exin)
         return Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)
