@@ -10,7 +10,7 @@ module ReverseDiffSource
 
   import Base.show, Base.copy, Base.length
 
-  using Compat  # for Julia v0.x compatibility issues
+  using Compat  # for compatibility across julia versions
 
   # naming conventions
   const TEMP_NAME = "_tmp"   # prefix of new variables

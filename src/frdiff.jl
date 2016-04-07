@@ -28,7 +28,6 @@ julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
 
 """
 function rdiff(f::Function, sig0::Tuple; args...)
-    # f = tf ; sig0 = (0.,)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -40,11 +39,10 @@ function rdiff(f::Function, sig0::Tuple; args...)
 	  fcode =  Expr(:block, Base.uncompressed_ast(fdef)...)
 
 	  # replace slotnames with their initial name
-	  smap = Dict{Symbol,Symbol}([ symbol("(_$i)") => s for (i,s) in enumerate(fdef.slotnames) ])
-	  fcode = rename(fcode, smap)
+	  fcode = deslot(fcode, fdef.slotnames)
 
-
-	  fargs = fcode.args[1][2:end]  # function parameters
+	  # function parameters
+	  fargs = map(t -> symbol(t[1]), Base.arg_decl_parts(fs[1])[2][2:end])
 	else
 	  flambda = Base.uncompressed_ast(fdef.code)
 	  fcode = flambda.args[3]
@@ -61,14 +59,14 @@ function rdiff(f::Function, sig0::Tuple; args...)
 end
 
 
-function rename(ex::Expr, smap)
+function deslot(ex::Expr, slotnames)
     args = Any[]
     for a in ex.args
         ar = if isa(a,Expr)
-                rename(a, smap)
-             elseif isa(a,Symbol)
-                haskey(smap,a) ? smap[a] : a
-             else
+                deslot(a, slotnames)
+			 elseif isa(a,Slot)
+                slotnames[a.id]
+			 else
                 a
              end
         push!(args, ar)
@@ -215,7 +213,7 @@ if VERSION >= v"0.5.0-"
 		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
 		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
 		    rg"(?<in>.*)"
-			rg":\(.*\)"
+			rg"(?:\(.*\))?"
 		    rg":\((?<lab3>\d+): \)"
 		    rg":\(goto \g{lab2}\)"
 			rg":\(\g{lab1}: \)"
