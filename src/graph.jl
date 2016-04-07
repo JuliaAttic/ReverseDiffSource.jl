@@ -59,7 +59,7 @@ function show(io::IO, g::ExGraph)
   tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"],
         tn)
   sz = maximum(map(length, tn), 1)
-  tn = vcat(tn[1,:]', map(s->"-"^s, sz), tn[2:end,:])
+  tn = vcat(vec(tn[1,:])', map(s->"-"^s, sz), tn[2:end,:])
   for i in 1:size(tn,1)
     for j in 1:size(tn, 2)
       print(io, rpad(tn[i,j], sz[j]), " | ")

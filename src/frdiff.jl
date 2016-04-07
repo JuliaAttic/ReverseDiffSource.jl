@@ -33,20 +33,21 @@ function rdiff(f::Function, sig0::Tuple; args...)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
-	fdef = fs[1].func
 
 	if VERSION >= v"0.5.0-"
-	  fcode =  Expr(:block, Base.uncompressed_ast(fdef)...)
+		fdef = fs[1].func
+		fcode =  Expr(:block, Base.uncompressed_ast(fdef)...)
 
-	  # replace slotnames with their initial name
-	  fcode = deslot(fcode, fdef.slotnames)
+		# replace slotnames with their initial name
+		fcode = deslot(fcode, fdef.slotnames)
 
-	  # function parameters
-	  fargs = map(t -> symbol(t[1]), Base.arg_decl_parts(fs[1])[2][2:end])
+		# function parameters
+		fargs = map(t -> symbol(t[1]), Base.arg_decl_parts(fs[1])[2][2:end])
 	else
-	  flambda = Base.uncompressed_ast(fdef.code)
-	  fcode = flambda.args[3]
-	  fargs = flambda.args[1]  # function parameters
+		fdef = fs[1].func.code
+		flambda = Base.uncompressed_ast(fdef)
+		fcode = flambda.args[3]
+		fargs = flambda.args[1]  # function parameters
 	end
 
 	cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
