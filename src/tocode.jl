@@ -35,7 +35,7 @@ function tocode(g::ExGraph)
         elseif op == colon
             return Expr(       :(:), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         elseif op == transpose
-            return Expr(symbol("'"),                 valueof(n.parents[2], n) )
+            return Expr(Symbol("'"),                 valueof(n.parents[2], n) )
         elseif op == tuple
             return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         end
@@ -48,7 +48,7 @@ function tocode(g::ExGraph)
           tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
                 fname)
         end
-        # symbol(string(op)) )
+        # Symbol(string(op)) )
 
         mt = try
                 thing_module(op)
@@ -157,7 +157,7 @@ end
 #####################################################################
 #  variable name assigned to this node
 #####################################################################
-const nosym = 0x7c883061f2344364  # code for no symbol associated
+const nosym = 0x7c883061f2344364  # code for no Symbol associated
 
 function getname(n::ExNode, g::ExGraph)
     if hasnode(g.seti, n)

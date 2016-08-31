@@ -6,9 +6,9 @@
 #     - provides lookup by values
 #
 #########################################################################
-  
 
-import Base: setindex!, getindex, haskey, delete!, 
+
+import Base: setindex!, getindex, haskey, delete!,
   keys, values, start, next, done
 
 
@@ -83,3 +83,5 @@ next(bd::BiDict, i)     = next(bd.kv, i)
 done(bd::BiDict, i)     = done(bd.kv, i)
 
 getindex(bd::BiDict, k) = bd.kv[k]
+
+length(bd::BiDict) = length(bd.kv)

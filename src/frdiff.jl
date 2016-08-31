@@ -35,20 +35,22 @@ function rdiff(f::Function, sig0::Tuple; args...)
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
 		if VERSION >= v"0.5.0-"
-			fdef  = fs[1].func.def
-	    fcode = Base.uncompressed_ast(fdef)
+		  fdef = fs.mt.defs.func
+		  fcode = Base.uncompressed_ast(fdef.lambda_template)[2]
 
-	    fargs = fcode.args[1][2:end]  # function parameters
-	    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+		  nargs = length(fdef.lambda_template.slotnames)
+			fargs = [ Symbol("(_$i)") for i in 2:nargs ]
+		  cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
 		else
-	    fdef  = fs[1].func.code
-	    fcode = Base.uncompressed_ast(fdef)
+		  fdef  = fs[1].func.code
+		  ast   = Base.uncompressed_ast(fdef)
+		  fcode = ast.args[3]
 
-	    fargs = fcode.args[1]  # function parameters
-	    cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+		  fargs = ast.args[1]  # function parameters
+		  cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
 		end
 
-    ex  = transform(fcode.args[3]) # TODO : add error messages if not parseable
+		ex  = transform(fcode) # TODO : add error messages if not parseable
     dex = rdiff(ex; args..., cargs...)
 
     # Note : new function is created in the same module as original function
@@ -63,7 +65,9 @@ end
 function streamline(ex0::Expr)
     ex = copy(ex0)
 
-    ex.head == :call && isa(ex.args[1], TopNode) && (ex.args[1] = ex.args[1].name)
+    ex.head == :call && isdefined(:TopNode) && # julia 0.5 compatibility
+			isa(ex.args[1], TopNode) &&
+			(ex.args[1] = ex.args[1].name)
 
     args = Any[]
     for a in ex.args
@@ -73,7 +77,7 @@ function streamline(ex0::Expr)
         ar = if isa(a,Expr)
                 streamline(a)
              elseif isdefined(:GenSym) && isa(a, GenSym)
-                symbol("__gensym$(a.id)")
+                Symbol("__gensym$(a.id)")
              else
                 a
              end
@@ -84,7 +88,7 @@ end
 
 # converts expression to searchable strings
 function _e2s(ex::Expr, escape=false)
-    ex.head == :macrocall && ex.args[1] == symbol("@rg_str") && return(ex.args[2])
+    ex.head == :macrocall && ex.args[1] == Symbol("@rg_str") && return(ex.args[2])
 
     if ex.head == :call && ex.args[1] == :gotoifnot
         es = "↑gotoifnot"
@@ -105,7 +109,7 @@ function _e2s(thing, escape=false)
     if isa(thing, Symbol)
         res = ":" * string(thing)
     elseif isdefined(:GlobalRef) && isa(thing, GlobalRef)
-        res = _e2s(Expr(:., symbol(thing.mod), QuoteNode(thing.name)))
+        res = _e2s(Expr(:., Symbol(thing.mod), QuoteNode(thing.name)))
         # res = string(thing.mod) * "." * string(thing.name)
     else
         res = repr(thing)
@@ -142,7 +146,7 @@ function _s2e(s::AbstractString, pos=1)
         return nothing, cap.offsets[1]
     end
 
-    he  = symbol(cap.captures[1])
+    he  = Symbol(cap.captures[1])
     ar  = Any[]
     pos = cap.offsets[2]
     while s[pos] == '→' && !done(s, pos)
@@ -152,10 +156,10 @@ function _s2e(s::AbstractString, pos=1)
         if cap1[1] == '↑'
             ex, pos2 = _s2e(s, cap.offsets[1])
         elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
-            ex = QuoteNode(symbol(cap1[4:end-1]))
+            ex = QuoteNode(Symbol(cap1[4:end-1]))
             pos2 = cap.offsets[2]
         elseif cap1[1] == ':'        # symbols
-            ex = symbol(cap1[2:end])
+            ex = Symbol(cap1[2:end])
             pos2 = cap.offsets[2]
         else
             ex = parse(cap1)
@@ -203,7 +207,7 @@ function _transform(s::AbstractString)
     if mm != nothing && length(mm.captures) >= 11
         pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
         exin = _transform(inside)
-        ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), s2e(rg)[1] ), exin)
+        ef = Expr(:for, Expr(:(=), Symbol(idx[2:end]), s2e(rg)[1] ), exin)
         return Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)
     else
         return Expr(:block, s2e(s)...)

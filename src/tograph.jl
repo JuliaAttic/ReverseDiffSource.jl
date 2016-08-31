@@ -19,7 +19,7 @@
   typealias ExPEqual   ExH{:(+=)}
   typealias ExMEqual   ExH{:(-=)}
   typealias ExTEqual   ExH{:(*=)}
-  typealias ExTrans    ExH{symbol("'")}
+  typealias ExTrans    ExH{Symbol("'")}
   typealias ExCall     ExH{:call}
   typealias ExBlock    ExH{:block}
   typealias ExLine     ExH{:line}
@@ -90,7 +90,7 @@ function tograph(s, evalmod=Main, svars=Any[])
         if sf in [:(>), :(<), :(<=), :(>=)]
             return addnode!(g, NComp(ex.args[1], [explore(ex.args[2]), explore(ex.args[3])]))
         end
-            
+            #
         # catch getindex, etc. qualified by a module
         sf2 = if isa(sf, Expr) && sf.head == :. && isa(sf.args[2], QuoteNode)
                 sf.args[2].value
@@ -159,7 +159,7 @@ function tograph(s, evalmod=Main, svars=Any[])
             else # never set before ? assume it is created here
                 rhn = explore(ex.args[2])
 
-                # we test if RHS has already a symbol
+                # we test if RHS has already a Symbol
                 # if it does, to avoid loosing it, we create an NIn node
                 if hasnode(g.seti, rhn)
                     rhn = addnode!(g, NIn(lhss, [rhn]))

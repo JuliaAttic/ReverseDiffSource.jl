@@ -48,7 +48,7 @@
     @test zerocode( [false, true] )    == :(zeros(size(tv)); )
 
     @test zerocode(12.2-4im) == striplinenumbers( quote
-                                    _tmp1 = cell(2)
+                                    _tmp1 = Array(Any,2)
                                     _tmp1[1] = 0.0
                                     _tmp1[2] = 0.0
                                 end )
@@ -65,7 +65,7 @@
                                                     _tmp1[3] = zeros(size(tv.c))
                                                 end )
 
-    @test zerocode([Abcd(2., 3., [1,2 ]), Abcd(2., 3., [1,2 ])])  == 
+    @test zerocode([Abcd(2., 3., [1,2 ]), Abcd(2., 3., [1,2 ])])  ==
             striplinenumbers( quote
                                   _tmp1 = cell(size(tv))
                                   for i = 1:length(_tmp1)
@@ -79,7 +79,7 @@
                               end )
 
 
-    @test zerocode( (2., 3., [1,2 ]) )    == striplinenumbers( quote 
+    @test zerocode( (2., 3., [1,2 ]) )    == striplinenumbers( quote
                                                     _tmp1 = cell(3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
@@ -87,7 +87,7 @@
                                                 end )
 
 
-    @test zerocode( Any[2., [1,2 ], 3.] )    == striplinenumbers( quote 
+    @test zerocode( Any[2., [1,2 ], 3.] )    == striplinenumbers( quote
                                                     _tmp1 = cell(3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = zeros(size(tv[2]))
@@ -95,7 +95,7 @@
                                                 end )
 
 
-    @test zerocode( [2.+im, 3.-2im] )    == striplinenumbers( quote 
+    @test zerocode( [2.+im, 3.-2im] )    == striplinenumbers( quote
                                                         _tmp1 = cell(size(tv))
                                                         for i = 1:length(_tmp1)
                                                             _tmp2 = cell(2)
@@ -108,13 +108,13 @@
 
 
 ### tmatch (naive multiple dispatch) testing  ###
-    tts = Any[ Tuple{Real}, 
-               Tuple{Real, Real}, 
-               Tuple{Float64, Float64}, 
-               Tuple{Float64, Int}, 
-               Tuple{Float64, Int64}, 
-               Tuple{Float64}, 
-               Tuple{Int64}, 
+    tts = Any[ Tuple{Real},
+               Tuple{Real, Real},
+               Tuple{Float64, Float64},
+               Tuple{Float64, Int},
+               Tuple{Float64, Int64},
+               Tuple{Float64},
+               Tuple{Int64},
                Tuple{AbstractString},
                Tuple{Any},
                Tuple{Any, Any} ]
@@ -133,7 +133,7 @@
     @test m.tmatch(Tuple{Real,Float64}, tts)      == Tuple{Real,Real}
 
 ### testing conversions for functions diff  ###
-  ex = quote 
+  ex = quote
     a = zeros(2)
     for i in 1:2
         a[i] = x
