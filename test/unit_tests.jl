@@ -60,7 +60,7 @@
         c::Vector{Float64}
     end
     @test zerocode(Abcd(2., 3., [1,2 ]))  == striplinenumbers( quote
-                                                    _tmp1 = cell(3)
+                                                    _tmp1 = Array(Any,3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
                                                     _tmp1[3] = zeros(size(tv.c))
@@ -69,9 +69,9 @@
 
     @test zerocode([Abcd(2., 3., [1,2 ]), Abcd(2., 3., [1,2 ])])  ==
             striplinenumbers( quote
-                                  _tmp1 = cell(size(tv))
+                                  _tmp1 = Array(Any,size(tv))
                                   for i = 1:length(_tmp1)
-                                      _tmp2 = cell(3)
+                                      _tmp2 = Array(Any,3)
                                       _tmp2[1] = 0.0
                                       _tmp2[2] = 0.0
                                       _tmp2[3] = zeros(size(tv[i].c))
@@ -82,7 +82,7 @@
 
 
     @test zerocode( (2., 3., [1,2 ]) )    == striplinenumbers( quote
-                                                    _tmp1 = cell(3)
+                                                    _tmp1 = Array(Any,3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
                                                     _tmp1[3] = zeros(size(tv[3]))
@@ -91,7 +91,7 @@
 
 
     @test zerocode( Any[2., [1,2 ], 3.] )    == striplinenumbers( quote
-                                                    _tmp1 = cell(3)
+                                                    _tmp1 = Array(Any,3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = zeros(size(tv[2]))
                                                     _tmp1[3] = 0.0
@@ -100,9 +100,9 @@
 
 
     @test zerocode( [2.+im, 3.-2im] )    == striplinenumbers( quote
-                                                        _tmp1 = cell(size(tv))
+                                                        _tmp1 = Array(Any,size(tv))
                                                         for i = 1:length(_tmp1)
-                                                            _tmp2 = cell(2)
+                                                            _tmp2 = Array(Any,2)
                                                             _tmp2[1] = 0.0
                                                             _tmp2[2] = 0.0
                                                             _tmp1[i] = _tmp2

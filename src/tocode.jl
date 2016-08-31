@@ -13,7 +13,7 @@ function tocode(g::ExGraph)
     valueof(n::ExNode, child::ExNode) = n.val
     valueof(n::NFor,   child::ExNode) = valueof(n.val[child], n)
 
-    translate(n::NConst) = n.main
+    translate(n::NConst) = isa(n.main, DataType) ? Symbol(n.main) : n.main
     translate(n::NComp)  = Expr(:comparison,
                                 valueof(n.parents[1],n),
                                 n.main,

@@ -90,11 +90,7 @@ function tograph(s, evalmod=Main, svars=Any[])
         if sf in [:(>), :(<), :(<=), :(>=)]
             return addnode!(g, NComp(ex.args[1], [explore(ex.args[2]), explore(ex.args[3])]))
         end
-<<<<<<< HEAD
-            #
-=======
 
->>>>>>> 89e1c0bf92f2252786d3d34be7ee69d8a204f077
         # catch getindex, etc. qualified by a module
         sf2 = if isa(sf, Expr) && sf.head == :. && isa(sf.args[2], QuoteNode)
                 sf.args[2].value
