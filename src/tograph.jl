@@ -90,7 +90,11 @@ function tograph(s, evalmod=Main, svars=Any[])
         if sf in [:(>), :(<), :(<=), :(>=)]
             return addnode!(g, NComp(ex.args[1], [explore(ex.args[2]), explore(ex.args[3])]))
         end
+<<<<<<< HEAD
             #
+=======
+
+>>>>>>> 89e1c0bf92f2252786d3d34be7ee69d8a204f077
         # catch getindex, etc. qualified by a module
         sf2 = if isa(sf, Expr) && sf.head == :. && isa(sf.args[2], QuoteNode)
                 sf.args[2].value
@@ -234,9 +238,9 @@ function tograph(s, evalmod=Main, svars=Any[])
         p  = ExNode[]
         for (i,na) in enumerate(as)
             if length(as)==1 # single dimension
-                ns = addgraph!(:( length(x) ), g, @compat Dict(:x => nv) )
+                ns = addgraph!(:( length(x) ), g, Dict(:x => nv) )
             else # several dimensions
-                ns = addgraph!(:( size(x, $i) ), g, @compat Dict(:x => nv) )
+                ns = addgraph!(:( size(x, $i) ), g, Dict(:x => nv) )
             end
 
             na==:(:) && (na = Expr(:(:), 1, :end) )  # replace (:) with (1:end)

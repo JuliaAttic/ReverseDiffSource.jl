@@ -75,14 +75,11 @@ dplog(ones(3), Any[1.,2.,[3.,2.,-2]])
 dplog(args...)[2]
 
 
-
 ####### error conditions  #############
 
 @test_throws UndefVarError m.rdiff( :( x * abcd ), x=1.)    # undefined external
 @test_throws ErrorException m.rdiff( :( log(x) ), x=-1.)    # unevaluable function
 @test_throws ErrorException m.rdiff( :( [1] > [2] ), x=-1.) # unevaluable comparison
-
-@test_throws ErrorException m.addgraph!(:( y + 2), g, Dict(:z => g.nodes[4]))   # y not mapped
 
 @test_throws ErrorException m.tograph(:(log(a) = 1,2))   # incorrect LHS
 
@@ -93,3 +90,30 @@ m.rdiff( :( log(x) ), x=1., allorders=false)
 ###### BitArray type  ############
 
 m.rdiff( :( sum(x .* falses(2)) ), x=1.  )
+
+####### Issue #25 (splinary not trigered) #############
+# (happens when function are prefixed with a module)
+
+module B; end
+
+x = 2.
+ex = quote
+  B.max(1., x, 3.)
+end
+
+m = ReverseDiffSource
+m.rdiff(ex, x=2.)
+
+function foo(x,y,z)
+    return x + y + z
+end
+f = m.rdiff(foo,(1,1,1))
+
+
+###### Issue 32  (allorders removing some legitimate variables)  ######
+
+ex = m.rdiff( :(y*x^3+y^5) , x=2., y=1., order=1)
+@test length(eval(:(x=2.;y=1.;$ex))) == 3
+
+ex = m.rdiff( :(y*x^3+y^5) , x=2., y=1., order=1, allorders=false)
+@test length(eval(:(x=2.;y=1.;$ex))) == 2

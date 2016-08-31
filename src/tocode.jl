@@ -45,10 +45,9 @@ function tocode(g::ExGraph)
 
         function thing_module(op::Function)
           fname = isbuiltin(op) ? builtin_name(op) : Base.function_name(op)
-          tuple(fullname(Base.function_module(op, @compat Tuple{Vararg{Any}}))...,
+          tuple(fullname(Base.function_module(op, Tuple{Vararg{Any}}))...,
                 fname)
         end
-        # Symbol(string(op)) )
 
         mt = try
                 thing_module(op)
@@ -125,6 +124,9 @@ function tocode(g::ExGraph)
         if stat && isa(n, Union{NSRef, NSDot})
             push!(out, n.val)
             n.val = n.parents[1].val
+            if getname(n,g) == nothing && n == g.nodes[end] # add explicit var ref
+                push!(out, :( $(n.val) ))
+            end
 
         elseif stat && isa(n, NFor)
             push!(out, n.val)

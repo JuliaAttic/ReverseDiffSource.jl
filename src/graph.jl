@@ -135,13 +135,22 @@ addnode!(g::ExGraph, nn::ExNode) = ( push!(g.nodes, nn) ; return g.nodes[end] )
 
 ######## transforms n-ary +, *, max, min, sum, etc...  into binary ops  ######
 function splitnary!(g::ExGraph)
-  for n in g.nodes
-      if isa(n, NCall) &&
-          in(n.parents[1].main, [+, *, sum, min, max]) &&
-          ( length(n.parents) > 3 )
 
+  for n in g.nodes  # n = g.nodes[5]
+      if isa(n, NCall) && ( length(n.parents) > 3 )
+        func = n.parents[1].main
+        if isa(n.parents[1], NDot) # if getfield, evaluate function (issue #25)
+          fsym = isa(n.parents[1].main, Expr) ?
+                     n.parents[1].main.args[1] :  # Expression
+                     n.parents[1].main.value      # QuoteNode
+
+          func = getfield(n.parents[1].parents[1].main, fsym)
+        end
+
+        if func in [+, *, sum, min, max]
           nn = addnode!(g, NCall(:call, [n.parents[1]; n.parents[3:end]] ) )
           n.parents = [n.parents[1:2]; nn]
+        end
 
       elseif isa(n, NFor)
         splitnary!(n.main[2])
@@ -441,7 +450,9 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
         end
 
       else
-        error("unmapped symbol in source graph $(n.main)")
+        # error message removed to leave a chance for resolution
+        #   in evalmod (π for example)
+        # error("unmapped symbol in source graph $(n.main)")
       end
 
     elseif isa(n, NFor) # update references, including onodes

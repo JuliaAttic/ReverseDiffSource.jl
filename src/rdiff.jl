@@ -214,13 +214,13 @@ function rdiff(ex;
             nf = addnode!(g, NFor(Any[ si, dg ] ) )
 
             # create param size node
-            nsz = addgraph!( :( length( x ) ), g, @compat Dict( :x => getnode(g.exti, paramdiff[1]) ) )
+            nsz = addgraph!( :( length( x ) ), g, Dict( :x => getnode(g.exti, paramdiff[1]) ) )
 
             # create (n-1)th derivative size node
-            ndsz = addgraph!( :( sz ^ $(i-1) ), g, @compat Dict( :sz => nsz ) )
+            ndsz = addgraph!( :( sz ^ $(i-1) ), g, Dict( :sz => nsz ) )
 
             # create index range node
-            nid = addgraph!( :( 1:dsz ),  g, @compat Dict( :dsz => ndsz ) )
+            nid = addgraph!( :( 1:dsz ),  g, Dict( :dsz => ndsz ) )
             push!(nf.parents, nid)
 
             # pass size node inside subgraph
@@ -232,7 +232,7 @@ function rdiff(ex;
 
             # create result node (alloc in parent graph)
             nsa = addgraph!( :( zeros( $( Expr(:tuple, [:sz for j in 1:i]...) ) ) ),
-                            g, @compat Dict( :sz => nsz ) )
+                            g, Dict( :sz => nsz ) )
             ssa = newvar()
             insa = addnode!(dg, NExt(ssa))
             dg.exti[insa] = ssa
@@ -241,10 +241,10 @@ function rdiff(ex;
 
             # create result node update (in subgraph)
             nres = addgraph!( :( res[ ((sidx-1)*st+1):(sidx*st) ] = dx ; res ), dg,
-                              @compat Dict(:res  => insa,
-                                           :sidx => nmap[ni],
-                                           :st   => inst,
-                                           :dx   => collect(dg.seti)[1][1] ) )
+                              Dict(:res  => insa,
+                                   :sidx => nmap[ni],
+                                   :st   => inst,
+                                   :dx   => collect(dg.seti)[1][1] ) )
             dg.seti = NSMap([nres], [ssa])
 
             # create exit node for result
@@ -264,7 +264,11 @@ function rdiff(ex;
     end
 
     if !allorders  # only keep the last derivative
-        voi = [voi[end]]
+        if order == 1 # potentially multiple diffs, issue #32
+            voi = voi[2:end]
+        else
+            voi = [voi[end]]
+        end
     end
 
     if length(voi) > 1  # create tuple if multiple variables

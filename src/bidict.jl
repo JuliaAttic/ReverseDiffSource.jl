@@ -74,6 +74,7 @@ function delete!(bd::BiDict, k)
   delete!(bd.vk, v)
 end
 
+length(bd::BiDict)      = length(bd.kv)
 haskey(bd::BiDict, k)   = haskey(bd.kv, k)
 keys(bd::BiDict)        = keys(bd.kv)
 values(bd::BiDict)      = values(bd.kv)

@@ -14,7 +14,7 @@ function reversegraph(g::ExGraph, exitnode::ExNode, diffsym::Array{Symbol})
         if n == exitnode
             dnodes[n] = addnode!(g2, NConst(1.0))
         else
-            dnodes[n] = addgraph!( zeronode(n), g2, @compat Dict( :tv => n) )
+            dnodes[n] = addgraph!( zeronode(n), g2, Dict( :tv => n) )
             # dnodes[n] = createzeronode!(g2, n)
         end
     end
@@ -59,7 +59,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
                 dnodes[arg] = addnode!(g2, NCall(:call, [vp, dnodes[arg], exitnode]) )
             end
         end
-    end      
+    end
 
     function rev(n::NRef)
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]]; n.parents[2:end] ]) )
@@ -76,7 +76,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] ; n.parents[3:end] ]) )
 
 			# treat case where a single value is allocated to several array elements
-			if length(n.parents[2].val) == 1 
+			if length(n.parents[2].val) == 1
 				sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
 				if sz > 1
 			       	vp = addnode!(g2, NConst(sum))
@@ -108,7 +108,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NDot)
 		fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
-		idx = findfirst( @compat fieldnames(typeof(n.parents[1].val)) .== fsym )
+		idx = findfirst( fieldnames(typeof(n.parents[1].val)) .== fsym )
 		(idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
 
 		v1 = addnode!(g2, NConst(idx) )
@@ -161,10 +161,10 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         # nexti = fg.exti
         # nexto = fg.exto
         # outgoing nodes generate ingoing dnodes
-        for (n2, sym) in fg.seti 
+        for (n2, sym) in fg.seti
             hassym(fg.seto, sym)  || continue
             on = getnode(fg.seto, sym)
-            dsym = newvar(:_dtmp)  # dprefix(sym) 
+            dsym = newvar(:_dtmp)  # dprefix(sym)
             #  derivative of var
             nn = addnode!(fg2, NExt(dsym))
             nn.val = "seti"
@@ -187,7 +187,7 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
                 dsym = nexti[nn]
                 # println("exti (refused) : $sym / $dsym : $nn")
             else
-                dsym = newvar(:_dtmp)  # dprefix(sym)  
+                dsym = newvar(:_dtmp)  # dprefix(sym)
                 nn = addnode!(fg2, NExt(dsym))
                 nn.val = "exti"
                 nexti[nn] = dsym
@@ -200,11 +200,11 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         end
 
         fg.exti = NSMap(merge(fg.exti.kv, nexti.kv))
-        fg.exto = NSMap(merge(fg.exto.kv, nexto.kv)) 
+        fg.exto = NSMap(merge(fg.exto.kv, nexto.kv))
 
         # create regular zeronodes for the remaining fg nodes
         for n2 in filter(n-> !isa(n,NFor) & !haskey(fdnodes, n), fg.nodes)
-            nn = addgraph!( zeronode(n2), fg2, @compat Dict( :tv => n2) )
+            nn = addgraph!( zeronode(n2), fg2, Dict( :tv => n2) )
             # nn = createzeronode!(fg2, n2)
             fdnodes[n2] = nn
         end
@@ -225,8 +225,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         # println("after pruning\n$fg")
 
         # create for loop
-        nr = addgraph!(:( reverse( x ) ), g2, 
-                       @compat Dict( :x => n.parents[1] ) ) # range in reverse order
+        nr = addgraph!(:( reverse( x ) ), g2,
+                       Dict( :x => n.parents[1] ) ) # range in reverse order
         v2 = addnode!(g2, NFor(Any[ n.main[1], fg ]) )
         v2.parents = [nr; collect( nodes( fg.exto)) ]
 
@@ -235,9 +235,9 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         for (ns2, (sym, on)) in ndmap
             rn = addnode!(g2, NIn(sym, [v2]))  # external node, receiving loop result
             fg.seto[rn] = sym
-            
+
             append!(v2.precedence, filter(n -> dnodes[on] in n.parents && n != v2, g2.nodes))
-            dnodes[on] = rn 
+            dnodes[on] = rn
         end
     end
 
@@ -246,5 +246,3 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
         rev(n2)
     end
 end
-
-

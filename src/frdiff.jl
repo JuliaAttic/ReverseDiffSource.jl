@@ -28,7 +28,6 @@ julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
 
 """
 function rdiff(f::Function, sig0::Tuple; args...)
-    # f = tf ; sig0 = (0.,)
     sig = map( typeof, sig0 )
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
@@ -56,6 +55,23 @@ function rdiff(f::Function, sig0::Tuple; args...)
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
 end
+
+
+function deslot(ex::Expr, slotnames)
+    args = Any[]
+    for a in ex.args
+        ar = if isa(a,Expr)
+                deslot(a, slotnames)
+			 elseif isa(a,Slot)
+                slotnames[a.id]
+			 else
+                a
+             end
+        push!(args, ar)
+    end
+    Expr(ex.head, args...)
+end
+
 
 ### translation functions to recover a workable expression that can be differentiated
 
@@ -183,29 +199,69 @@ function s2e(s::AbstractString)
     res
 end
 
-# `for` loop search regex string (julia v0.3.3 + 0.4 latest)
-exreg = quote
-    rg"(?<pre>.*?)"
-    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
-    rg"(?<iter>.+)" = start(rg"\g{g0}")
-    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-    rg":\((?<lab2>\d+): \)"
-    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
-    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
-    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
-    rg"(?<in>.*)"
-    rg":\((?<lab3>\d+): \)"
-    gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
-    rg":\(\g{lab1}: \)"
-    rg"(?<post>.*)"
+
+if VERSION >= v"0.5.0-"
+	# `for` loop search regex string (julia v0.5)
+	function formatch(s::AbstractString)
+		exreg = quote
+		    rg"(?<pre>.*?)"
+		    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+		    rg"(?<iter>.+)" = start(rg"\g{g0}")
+			rg":\((?<lab2>\d+): \)"
+		    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+		    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
+		    rg"(?<in>.*)"
+			rg"(?:\(.*\))?"
+		    rg":\((?<lab3>\d+): \)"
+		    rg":\(goto \g{lab2}\)"
+			rg":\(\g{lab1}: \)"
+			rg":\((?<lab4>\d+): \)"
+		    rg"(?<post>.*)"
+		end
+		rexp = Regex(e2s(streamline(exreg), true))
+
+		mm = match(rexp, s)
+		if mm != nothing && length(mm.captures) >= 11
+			return mm.captures[[1, 3, 8, 9, 12]] # pre, rg, idx, inside, post
+		else
+			return nothing, nothing, nothing, nothing, nothing
+		end
+	end
+else
+	# `for` loop search regex string (julia v0.3.3 + 0.4 latest)
+	function formatch(s::AbstractString)
+		exreg = quote
+		    rg"(?<pre>.*?)"
+		    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+		    rg"(?<iter>.+)" = start(rg"\g{g0}")
+		    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+		    rg":\((?<lab2>\d+): \)"
+		    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
+		    rg"(?<in>.*)"
+		    rg":\((?<lab3>\d+): \)"
+		    gotoifnot( !(!(done(rg"\g{g0}", rg"\g{iter}"))) , rg"\g{lab2}" )
+		    rg":\(\g{lab1}: \)"
+		    rg"(?<post>.*)"
+		end
+		rexp = Regex(e2s(streamline(exreg), true))
+
+		mm = match(rexp, s)
+		if mm != nothing && length(mm.captures) >= 11
+	        return mm.captures[[1,3,8,9,11]] # pre, rg, idx, inside, post
+		else
+			return nothing, nothing, nothing, nothing, nothing
+		end
+	end
 end
-rexp = Regex(e2s(streamline(exreg), true))
 
 
 function _transform(s::AbstractString)
-    mm = match(rexp, s)
-    if mm != nothing && length(mm.captures) >= 11
-        pre, rg, idx, inside, post = mm.captures[[1,3,8,9,11]]
+	pre, rg, idx, inside, post = formatch(s)
+    if pre != nothing
         exin = _transform(inside)
         ef = Expr(:for, Expr(:(=), Symbol(idx[2:end]), s2e(rg)[1] ), exin)
         return Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)

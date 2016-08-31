@@ -51,6 +51,7 @@
                                     _tmp1 = Array(Any,2)
                                     _tmp1[1] = 0.0
                                     _tmp1[2] = 0.0
+                                    _tmp1
                                 end )
 
     type Abcd
@@ -63,6 +64,7 @@
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
                                                     _tmp1[3] = zeros(size(tv.c))
+                                                    _tmp1
                                                 end )
 
     @test zerocode([Abcd(2., 3., [1,2 ]), Abcd(2., 3., [1,2 ])])  ==
@@ -84,6 +86,7 @@
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
                                                     _tmp1[3] = zeros(size(tv[3]))
+                                                    _tmp1
                                                 end )
 
 
@@ -92,6 +95,7 @@
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = zeros(size(tv[2]))
                                                     _tmp1[3] = 0.0
+                                                    _tmp1
                                                 end )
 
 

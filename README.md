@@ -57,3 +57,4 @@ Usage examples:
     dann = rdiff(ann, (w1, w2, w3, x1))
     dann(w1, w2, w3, x1) # network output + gradient on w1, w2, w3 and x1
 ```
+
