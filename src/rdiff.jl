@@ -84,8 +84,8 @@ function rdiff(ex;
         error("Only one differentiation variable allowed for order >= 2")
 
     order <= 1 ||
-        isa(paramval[1], Vector) ||
-        isa(paramval[1], Real)   ||
+        (paramval[1] <: Vector && (eltype(paramval[1]) <: Real)) ||
+        (paramval[1] <: Real) ||
         error("Param should be a real or vector for order >= 2")
 
 
@@ -101,7 +101,7 @@ function rdiff(ex;
     calc!(g, params=pardict, emod=evalmod)
 
     ov = getnode(g.seti, outsym).val
-    isa(ov, Real) || error("output var should be a Real, $(typeof(ov)) found")
+    ov <: Real || error("output var should be a Real, $ov found")
 
     voi = Any[ outsym ]
 
@@ -118,7 +118,7 @@ function rdiff(ex;
 
         g |> splitnary! |> prune! |> simplify!
 
-    elseif order > 1 && isa(pardict[paramdiff[1]], Real)
+    elseif order > 1 && pardict[paramdiff[1]] <: Real
         for i in 1:order
             dg = reversegraph(g, getnode(g.seti, voi[i]), paramdiff)
             append!(g.nodes, dg.nodes)
@@ -132,7 +132,8 @@ function rdiff(ex;
             calc!(g, params=pardict, emod=evalmod)
         end
 
-    elseif order > 1 && isa(pardict[paramdiff[1]], Vector)
+    elseif order > 1 && pardict[paramdiff[1]] <: Vector &&
+                        eltype(pardict[paramdiff[1]]) <: Real
         # do first order as usual
         dg = reversegraph(g, getnode(g.seti, outsym), paramdiff)
         append!(g.nodes, dg.nodes)
@@ -151,7 +152,7 @@ function rdiff(ex;
             ni = addnode!(g, NExt(si))
             ns = addnode!(g, NRef(:getidx, [ no, ni ]))
 
-            calc!(g, params=Dict(zip([paramsym; si], [paramval; 1])), emod=evalmod)
+            calc!(g, params=Dict(zip([paramsym; si], [paramval; Int64])), emod=evalmod)
             dg = reversegraph(g, ns, paramdiff)
 
             #### We will now wrap dg in a loop scanning all the elements of 'no'
@@ -261,6 +262,8 @@ function rdiff(ex;
             g |> splitnary! |> prune! |> simplify!
         end
 
+    else
+        error("[rdiff] inconsistent parameters")
     end
 
     if !allorders  # only keep the last derivative

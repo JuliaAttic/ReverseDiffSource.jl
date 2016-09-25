@@ -37,29 +37,25 @@
         m.tocode(zex)
     end
 
-    @test zerocode(12)       == :(0.0;)
-    @test zerocode(12.2)     == :(0.0;)
-    @test zerocode(5:6)      == :(zeros(2); )
-    @test zerocode(5:0.2:10) == :(zeros(2); )
+    @test zerocode(Int)              == :(0.0;)
+    @test zerocode(Int64)            == :(0.0;)
+    @test zerocode(Float64)          == :(0.0;)
+    @test zerocode(UnitRange)        == :(zeros(2); )
+    @test zerocode(FloatRange)       == :(zeros(2); )
+    @test zerocode(Complex)          == :(zeros(2); )
+    @test zerocode(Complex64)        == :(zeros(2); )
 
-    @test zerocode( [2., 2 , 3, 0] )    == :(zeros(size(tv)); )
-    @test zerocode( [2.; [1,2 ]; 3.] )  == :(zeros(size(tv)); )
-
-    @test zerocode( [false, true] )    == :(zeros(size(tv)); )
-
-    @test zerocode(12.2-4im) == striplinenumbers( quote
-                                    _tmp1 = Array(Any,2)
-                                    _tmp1[1] = 0.0
-                                    _tmp1[2] = 0.0
-                                    _tmp1
-                                end )
+    @test zerocode(Vector{Float64})    == :(zeros(size(tv)); )
+    @test zerocode(Array{Float64,4})   == :(zeros(size(tv)); )
+    @test zerocode(Vector{Real})       == :(zeros(size(tv)); )
 
     type Abcd
         a::Float64
-        b
+        b::Int64
         c::Vector{Float64}
     end
-    @test zerocode(Abcd(2., 3., [1,2 ]))  == striplinenumbers( quote
+
+    @test zerocode(Abcd)  == striplinenumbers( quote
                                                     _tmp1 = Array(Any,3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
@@ -67,7 +63,8 @@
                                                     _tmp1
                                                 end )
 
-    @test zerocode([Abcd(2., 3., [1,2 ]), Abcd(2., 3., [1,2 ])])  ==
+
+    @test zerocode(Vector{Abcd})  ==
             striplinenumbers( quote
                                   _tmp1 = Array(Any,size(tv))
                                   for i = 1:length(_tmp1)
@@ -80,32 +77,25 @@
                                   _tmp1
                               end )
 
+    @test zerocode(Tuple{Abcd,Abcd})  ==
+            striplinenumbers( quote
+                                  _tmp1 = Array(Any,size(tv))
+                                  for i = 1:length(_tmp1)
+                                      _tmp2 = Array(Any,3)
+                                      _tmp2[1] = 0.0
+                                      _tmp2[2] = 0.0
+                                      _tmp2[3] = zeros(size(tv[i].c))
+                                      _tmp1[i] = _tmp2
+                                  end
+                                  _tmp1
+                              end )
 
-    @test zerocode( (2., 3., [1,2 ]) )    == striplinenumbers( quote
-                                                    _tmp1 = Array(Any,3)
-                                                    _tmp1[1] = 0.0
-                                                    _tmp1[2] = 0.0
-                                                    _tmp1[3] = zeros(size(tv[3]))
-                                                    _tmp1
-                                                end )
+    @test_throws ErrorException zerocode(Vector{Any})
 
-
-    @test zerocode( Any[2., [1,2 ], 3.] )    == striplinenumbers( quote
-                                                    _tmp1 = Array(Any,3)
-                                                    _tmp1[1] = 0.0
-                                                    _tmp1[2] = zeros(size(tv[2]))
-                                                    _tmp1[3] = 0.0
-                                                    _tmp1
-                                                end )
-
-
-    @test zerocode( [2.+im, 3.-2im] )    == striplinenumbers( quote
+    @test zerocode( Array{Complex64,4} )    == striplinenumbers( quote
                                                         _tmp1 = Array(Any,size(tv))
                                                         for i = 1:length(_tmp1)
-                                                            _tmp2 = Array(Any,2)
-                                                            _tmp2[1] = 0.0
-                                                            _tmp2[2] = 0.0
-                                                            _tmp1[i] = _tmp2
+                                                            _tmp1[i] = zeros(2)
                                                         end
                                                         _tmp1
                                                     end )

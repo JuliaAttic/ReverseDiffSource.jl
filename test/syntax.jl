@@ -4,41 +4,41 @@
 
 #########  rdiff ###########
 
-m.rdiff( :(x^3) , x=2.)             # first order
-m.rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
+m.rdiff( :(x^3) , x=Float64)             # first order
+m.rdiff( :(x^3) , order = 3, x=Float64)  # orders up to 3
 
-m.rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
+m.rdiff( :(sin(x)) , order=10, x=Float64)  # derivatives up to order 10
 
-res = m.rdiff( :(sin(x)) , order=10, x=2.)
+res = m.rdiff( :(sin(x)) , order=10, x=Float64)
 @eval foo(x) = $res
 foo(2.)
 
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
-res = m.rdiff(ex, x=zeros(2), order=2)
+res = m.rdiff(ex, x=Vector{Float64}, order=2)
 m.@eval foo(x) = $res
 foo([0.5, 2.])
 
 #########  rdiff (function) ###########
 
 rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
-rosen2 = m.rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+rosen2 = m.rdiff(rosenbrock, (Vector{Float64},), order=2)       # orders up to 2
 rosen2([1,2])
 rosen2([0.5,2])
 
 test(x) = exp(x)
-m.rdiff(test, (1.,), order=5)
+m.rdiff(test, (Float64,), order=5)
 
-m.rdiff( :(x^3) , x=2.)             # first order
-m.rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
+m.rdiff( :(x^3) , x=Float64)             # first order
+m.rdiff( :(x^3) , order = 3, x=Float64)  # orders up to 3
 
-m.rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
+m.rdiff( :(sin(x)) , order=10, x=Float64)  # derivatives up to order 10
 
-res = m.rdiff( :(sin(x)) , order=10, x=2.)
+res = m.rdiff( :(sin(x)) , order=10, x=Float64)
 @eval foo(x) = $res
 foo(2.)
 
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
-res = m.rdiff(ex, x=zeros(2), order=2)
+res = m.rdiff(ex, x=Vector{Float64}, order=2)
 m.@eval foo(x) = $res
 foo([0.5, 2.])
 
@@ -55,7 +55,7 @@ foo(x) = log(1+sin(x))
 
 m.@deriv_rule foo(x)   x   cos(x) / ( 1 + sin(x)) * ds
 
-res = m.rdiff( :( 2 ^ foo(x) ) , x=1)
+res = m.rdiff( :( 2 ^ foo(x) ) , x=Int)
 @eval myf(x) = $res
 
 (myf(1.0)[1] - myf(0.999)[1]) * 1000
@@ -65,8 +65,8 @@ res = m.rdiff( :( 2 ^ foo(x) ) , x=1)
 
 module Sandbox2
     type Bar
-        x
-        y
+        x::Float64
+        y::Float64
     end
 
     norm(z::Bar) = z.x*z.x + z.y*z.y
@@ -82,7 +82,7 @@ m.@deriv_rule  Sandbox2.Bar(x,y)      y  ds[2]   # Derivative accumulator of y i
 
 m.@deriv_rule  Sandbox2.norm(z::Sandbox2.Bar)  z  Any[ 2*z.x*ds , 2*z.y*ds ]  # Note : produces a 2-vector since z is a Bar
 
-res = m.rdiff(ex, a=0.)
+res = m.rdiff(ex, a=Float64)
 @eval df(a) = $res
 
 df(1)
@@ -96,5 +96,5 @@ m.plot( m.tograph( :(a = sin(x+1) ; 2exp(a)) ))
 
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
 
-res = m.rdiff(ex, x=zeros(2), order=2)
-res = m.rdiff(ex, x=zeros(2), order=3)
+res = m.rdiff(ex, x=Vector{Float64}, order=2)
+res = m.rdiff(ex, x=Vector{Float64}, order=3)

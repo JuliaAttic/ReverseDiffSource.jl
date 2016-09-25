@@ -27,22 +27,22 @@ end
 DIFF_DELTA = 1e-9
 ERROR_THRESHOLD = 2e-2
 
-good_enough(x,y) = isfinite(x) ? (abs(x-y) / max(ERROR_THRESHOLD, abs(x))) < ERROR_THRESHOLD : isequal(x,y) 
+good_enough(x,y) = isfinite(x) ? (abs(x-y) / max(ERROR_THRESHOLD, abs(x))) < ERROR_THRESHOLD : isequal(x,y)
 good_enough(t::Tuple) = good_enough(t[1], t[2])
 
 #  Compares numerical gradient to automated gradient
-function compare( ex::Union{Expr, Symbol}, 
+function compare( ex::Union{Expr, Symbol},
                   x0::Union{Float64, Vector{Float64}, Matrix{Float64}} )
-    nx = length(x0)  
+    nx = length(x0)
 
     if isa(ex, Expr)
-        ex2 = m.rdiff( ex, x=x0 )
+        ex2 = m.rdiff( ex, x=typeof(x0) )
         dfunc(x0) = eval( :(let x = $x0 ; $ex2 ; end) )
     else
-        dfunc = m.rdiff( eval(ex), (x0,) )
+        dfunc = m.rdiff( eval(ex), (typeof(x0),) )
     end
 
-    l0, grad0 = dfunc(x0)  
+    l0, grad0 = dfunc(x0)
     if ndims(x0) == 0  # scalar
         grad1 = ( dfunc( x0 + DIFF_DELTA)[1] - l0 ) / DIFF_DELTA
     else # vector and matrices
@@ -72,4 +72,4 @@ end
 ## variables of different dimensions for testing
 v0ref = 2.
 v1ref = [2., 3, 0.1, 0, -5]
-v2ref = [-1. 3 0 ; 0 5 -2] 
+v2ref = [-1. 3 0 ; 0 5 -2]

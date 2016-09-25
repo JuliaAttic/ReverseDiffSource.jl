@@ -27,19 +27,19 @@ julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
 ```
 
 """
-function rdiff(f::Function, sig0::Tuple; args...)
-    sig = map( typeof, sig0 )
+function rdiff(f::Function, sig::Tuple; args...)
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
 		if VERSION >= v"0.5.0-"
 		  fdef = fs.mt.defs.func
-		  fcode = Base.uncompressed_ast(fdef.lambda_template)[2]
+		  fcode = Base.uncompressed_ast(fdef.lambda_template)[2:end]
+			fcode = Expr(:block, fcode...)
 
 		  nargs = length(fdef.lambda_template.slotnames)
 			fargs = [ Symbol("(_$i)") for i in 2:nargs ]
-		  cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
+		  cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
 		else
 		  fdef  = fs[1].func.code
 		  ast   = Base.uncompressed_ast(fdef)
@@ -78,6 +78,7 @@ end
 # Simplifies expressions for processing
 #  - removes Topnodes and linenumbers,
 #  - replaces GenSym() with actual symbol
+#  - replaces SSAValue() with actual symbol
 function streamline(ex0::Expr)
     ex = copy(ex0)
 
@@ -92,6 +93,8 @@ function streamline(ex0::Expr)
 
         ar = if isa(a,Expr)
                 streamline(a)
+ 						 elseif isdefined(:SSAValue) && isa(a, SSAValue)
+                 Symbol("__ssavalue$(a.id)")
              elseif isdefined(:GenSym) && isa(a, GenSym)
                 Symbol("__gensym$(a.id)")
              else

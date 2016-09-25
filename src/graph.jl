@@ -53,7 +53,7 @@ function show(io::IO, g::ExGraph)
     tn[i,6] = join( map( x -> "$x", indexin(n.precedence, Any[g.nodes...])), ", ")
 
     tn[i,7] = repr(main)
-    tn[i,8] = "($(typeof(n.val))) $(repr(n.val)[1:min(40, end)])"
+    tn[i,8] = "($(n.val))"
   end
 
   tn = vcat(["node" "symbol" "ext ?" "type" "parents" "precedence" "main" "value"],
@@ -318,107 +318,134 @@ end
 ####### calculate the value of each node  ###########
 function calc!(g::ExGraph; params=Dict(), emod = Main)
 
-  # evaluate a symbol
-  function myeval(thing)
-    local ret
+    # returns the exit type of the function
+    # wraps Base.return_types, adds generic functions and checks
+    function exittype(f, types::Tuple)
+        local ret
 
-    if haskey(params, thing)
-      return params[thing]
-    else
-      try
-        ret = emod.eval(thing)
-      catch e
-        println("[calc!] can't evaluate $thing in \n $g \n with")
-        display(params)
-        rethrow(e)
-      end
-      return ret
-    end
-  end
+        if f==tuple
+            return Tuple{types...}
+        else
+            ret = Base.return_types(f, types)
+            length(ret) > 1 && throw("$f has more than one method for signature $types")
+            length(ret) ==0 && throw("no method for $f having signature $types")
+            return ret[1]
+        end
 
-  function evaluate(n::NCall)
-    local ret
-    try
-      ret = (n.parents[1].main)([ x.val for x in n.parents[2:end]]...)
-    catch e
-      eex = Expr(:call, n.parents[1].main, [ x.val for x in n.parents[2:end]]...)
-      error("$e when calling $eex in \n$g")
-    end
-    return ret
-  end
-
-  function evaluate(n::NComp)
-    local ret
-    try
-      ret = emod.eval( Expr(:call, n.main, Any[ x.val for x in n.parents]...) )
-      #TODO: improve speed with smth like ret = (n.main)([ x.val for x in n.parents]...)
-    catch e
-      eex = Expr(:call, n.main, Any[ x.val for x in n.parents]...)
-      error("$e when calling $eex in \n$g")
-    end
-    return ret
-  end
-
-  function evaluate(n::NExt)
-    hasnode(g.exti, n) || return myeval(n.main)
-
-    sym = g.exti[n]  # should be equal to n.main but just to be sure..
-    hassym(g.exto, sym) || return myeval(n.main)
-    return getnode(g.exto, sym).val  # return node val in parent graph
-  end
-
-  evaluate(n::NConst) = n.main
-
-  # evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
-  evaluate(n::NRef)   = getindex(n.parents[1].val, [n2.val for n2 in n.parents[2:end]]...)
-
-  # evaluate(n::NDot)   = myeval( Expr(:.   , n.parents[1].val, n.main) )
-  function evaluate(n::NDot)
-    fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value
-    getfield(n.parents[1].val, fsym)
-  end
-
-  function evaluate(n::NSRef)
-    if length(n.parents) >= 3   # regular setindex
-      setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
-      return n.parents[1].val
-    else
-      return n.parents[2].val
-    end
-  end
-
-  # evaluate(n::NSRef)  = n.parents[1].val
-  evaluate(n::NSDot)  = n.parents[1].val
-
-  function evaluate(n::NIn)
-      isa(n.parents[1], NFor) && return n.parents[1].val[n]
-      n.parents[1].val
-  end
-
-  function evaluate(n::NFor)
-    g2 = n.main[2]
-    is = n.main[1]                    # symbol of loop index
-    iter = evaluate(n.parents[1])     #  myeval(n.main[1].args[2])
-
-    params2 = copy(params)
-    for is0 in iter
-      params2[is] = is0
-      calc!(g2, params=params2)
     end
 
-    valdict = Dict()
-    for (k, sym) in g2.seto
-      valdict[k] = getnode(g2.seti, sym).val
+
+    # evaluate a symbol
+    function myeval(thing)
+        local ret
+
+        if haskey(params, thing)
+            return params[thing]
+        else
+            try
+                ret = typeof(emod.eval(thing))
+            catch e
+                println("[calc!] can't evaluate $thing in \n $g \n with")
+                display(params)
+                rethrow(e)
+            end
+            return ret
+        end
     end
 
-    valdict
-  end
+    function evaluate(n::NCall)
+        try
+            return exittype(n.parents[1].main, tuple([ x.val for x in n.parents[2:end]]...))
+        catch e
+            eex = Expr(:call, n.parents[1].main, [ x.val for x in n.parents[2:end]]...)
+            error("$e when trying to infer type of $eex in \n$g")
+        end
+    end
 
-  evalsort!(g)
-  for (i,n) in enumerate(g.nodes)
-    n.val = evaluate(n)
-  end
-  g
+    function evaluate(n::NComp)
+        try
+            return exittype(getfield(emod, n.main), tuple([ x.val for x in n.parents]...))
+        catch e
+            eex = Expr(:call, n.main, Any[ x.val for x in n.parents]...)
+            error("$e when trying to infer type of $eex in \n$g")
+        end
+    end
+
+    function evaluate(n::NExt)
+        hasnode(g.exti, n) || return myeval(n.main)
+
+        sym = g.exti[n]  # should be equal to n.main but just to be sure..
+        hassym(g.exto, sym) || return myeval(n.main)
+        return getnode(g.exto, sym).val  # return node val in parent graph
+    end
+
+    evaluate(n::NConst) = typeof(n.main)
+
+    # evaluate(n::NRef)   = myeval( Expr(:ref , Any[ x.val for x in n.parents]...))
+    function evaluate(n::NRef)
+        try
+            return exittype(getindex, tuple([ x.val for x in n.parents]...))
+        catch e
+            eex = Expr(:call, getindex, Any[ x.val for x in n.parents]...)
+            error("$e when trying to infer type of $eex in \n$g")
+        end
+    end
+
+    function evaluate(n::NDot)
+        fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value
+        fieldtype(n.parents[1].val, fsym)
+    end
+
+    function evaluate(n::NSRef)
+        if length(n.parents) >= 3   # regular setindex
+            # setindex!(n.parents[1].val, n.parents[2].val, [n2.val for n2 in n.parents[3:end]]...)
+            local ret
+            try
+                return exittype(setindex!, tuple([ x.val for x in n.parents]...))
+            catch e
+                eex = Expr(:call, setindex!, Any[ x.val for x in n.parents]...)
+                error("$e when trying to infer type of $eex in \n$g")
+            end
+        else
+            return n.parents[2].val
+        end
+    end
+
+    evaluate(n::NSDot)  = n.parents[1].val
+
+    function evaluate(n::NIn)
+        isa(n.parents[1], NFor) && return n.parents[1].val[n]
+        n.parents[1].val
+    end
+
+    function evaluate(n::NFor)
+        g2 = n.main[2]
+        is = n.main[1]                    # symbol of loop index
+        # iter = evaluate(n.parents[1])     #  myeval(n.main[1].args[2])
+        #
+        # params2 = copy(params)
+        # for is0 in iter
+        #   params2[is] = is0
+        #   calc!(g2, params=params2)
+        # end
+
+        params2 = copy(params)
+        params2[is] = eltype(n.parents[1].val) # type of loop index
+        calc!(g2, params=params2)
+
+        valdict = Dict()
+        for (k, sym) in g2.seto
+            valdict[k] = getnode(g2.seti, sym).val
+        end
+
+        valdict
+    end
+
+    evalsort!(g)
+    for (i,n) in enumerate(g.nodes)
+        n.val = evaluate(n)
+    end
+    g
 end
 
 ###### inserts graph src into dest  ######
@@ -437,6 +464,7 @@ function addgraph!(src::ExGraph, dest::ExGraph, smap::Dict)
   exitnode = getnode(ig.seti, nothing) # result of added subgraph
 
   # evalsort!(ig)
+    # evaluate(n::NSRef)  = n.parents[1].val
 
   nmap = Dict()
   for n in ig.nodes  #  n = src[1]

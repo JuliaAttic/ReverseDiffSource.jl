@@ -36,22 +36,22 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
     rev(n::ExNode) = nothing  # do nothing by default
 
-	function rev(n::NCall)
-		op = n.parents[1].main
-		for (index, arg) in enumerate(n.parents)
-			if !isa(arg, Union{NConst, NComp})
-				# haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
-				# ddict = drules[(op, index-1)]
+	  function rev(n::NCall)
+    		op = n.parents[1].main
+    		for (index, arg) in enumerate(n.parents)
+    			  if !isa(arg, Union{NConst, NComp})
+        				# haskey(drules, (op, index-1)) || error("no derivation rule for $(op) at arg #$(index-1)")
+        				# ddict = drules[(op, index-1)]
                 ddict = getrule(op, index-1)
 
-                targs = Tuple{ Type[ typeof(x.val) for x in n.parents[2:end]]... }
+                targs = Tuple{ Type[ x.val for x in n.parents[2:end]]... }
 
                 sk = tmatch( targs, collect(keys(ddict)) )
                 (sk == nothing) && error("no derivation rule for $(op) at arg #$(index-1) for signature $targs")
 
                 # dg, dd = drules[(op, index-1)][sk]
                 dg, dd = ddict[sk]
-            	smap = Dict( zip(dd, [n.parents[2:end]; dnodes[n]]) )
+            	  smap = Dict( zip(dd, [n.parents[2:end]; dnodes[n]]) )
 
                 exitnode = addgraph!(dg, g2, smap)
 
@@ -76,15 +76,17 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 			v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] ; n.parents[3:end] ]) )
 
 			# treat case where a single value is allocated to several array elements
-			if length(n.parents[2].val) == 1
-				sz = mapreduce(x -> length(x.val), *, n.parents[3:end])
-				if sz > 1
-			       	vp = addnode!(g2, NConst(sum))
+      # if length(n.parents[2].val) == 1
+      if n.parents[2].val <: Real
+				# sz = mapreduce(x -> length(x.val), *, n.parents[3:end]) # FIXME : will fail
+				# if sz > 1
+        if any(x -> ! (x.val <: Real), n.parents[3:end]) # if any dim is not a scalar
+			    vp = addnode!(g2, NConst(sum))
 					v2 = addnode!(g2, NCall(:call, [ vp, v2]))
 				end
 			end
 
-	       	vp = addnode!(g2, NConst(+))
+	    vp = addnode!(g2, NConst(+))
 			v3 = addnode!(g2, NCall(:call, [ vp, dnodes[n.parents[2]], v2 ]) )
 			dnodes[n.parents[2]] = v3
 
@@ -108,8 +110,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
 	function rev(n::NDot)
 		fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
-		idx = findfirst( fieldnames(typeof(n.parents[1].val)) .== fsym )
-		(idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
+		idx = findfirst( fieldnames(n.parents[1].val) .== fsym )
+		(idx == 0) && error("[reversegraph] field $(n.main) not found in $(n.val)")
 
 		v1 = addnode!(g2, NConst(idx) )
         v2 = addnode!(g2, NRef(:getidx,  [ dnodes[n.parents[1]], v1 ]) )
@@ -123,8 +125,8 @@ function reversepass!(g2::ExGraph, g::ExGraph, dnodes::Dict)
 
     function rev(n::NSDot)
         fsym = isa(n.main, Expr) ? n.main.args[1] : n.main.value  # can be Expr or QuoteNode
-        idx = findfirst( fieldnames(typeof(n.parents[1].val)) .== fsym )
-        (idx == 0) && error("[reversegraph] field $(n.main) not found in $(typeof(n.val))")
+        idx = findfirst( fieldnames(n.parents[1].val) .== fsym )
+        (idx == 0) && error("[reversegraph] field $(n.main) not found in $(n.val)")
 
         v1 = addnode!(g2, NConst(idx) )
         v2 = addnode!(g2, NRef(:getidx, [ dnodes[n] , v1 ]) )
