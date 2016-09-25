@@ -37,8 +37,7 @@ function rdiff(f::Function, sig::Tuple; args...)
 		  fcode = Base.uncompressed_ast(fdef.lambda_template)[2:end]
 			fcode = Expr(:block, fcode...)
 
-		  nargs = length(fdef.lambda_template.slotnames)
-			fargs = [ Symbol("(_$i)") for i in 2:nargs ]
+			fargs = [ Symbol("(_$i)") for i in 2:(length(sig)+1) ]
 		  cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
 		else
 		  fdef  = fs[1].func.code
@@ -207,27 +206,43 @@ if VERSION >= v"0.5.0-"
 	# `for` loop search regex string (julia v0.5)
 	function formatch(s::AbstractString)
 		exreg = quote
-		    rg"(?<pre>.*?)"
-		    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
-		    rg"(?<iter>.+)" = start(rg"\g{g0}")
-			rg":\((?<lab2>\d+): \)"
-		    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-		    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
-		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
-		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
-		    rg"(?<in>.*)"
-			rg"(?:\(.*\))?"
-		    rg":\((?<lab3>\d+): \)"
-		    rg":\(goto \g{lab2}\)"
-			rg":\(\g{lab1}: \)"
-			rg":\((?<lab4>\d+): \)"
-		    rg"(?<post>.*)"
+		      rg"(?<pre>.*?)"
+		      rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+		      rg"(?<iter>.+)" = Base.start(rg"\g{g0}")
+		      rg":\((?<lab2>\d+): \)"
+		      gotoifnot( Base.:!(Base.done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+		      rg"(?<g1>.+?)" = Base.next(rg"\g{g0}", rg"\g{iter}")
+		      rg"(?<idx>.+?)" = Core.getfield(rg"\g{g1}", 1)
+		      rg"\g{iter}"    = Core.getfield(rg"\g{g1}", 2)
+		      rg"(?<in>.*)"
+		      rg"(?:\(.*\))?"
+		      rg":\((?<lab3>\d+): \)"
+		      rg":\(goto \g{lab2}\)"
+		      rg":\(\g{lab1}: \)"
+		      rg"(?<post>.*)"
 		end
+		# exreg = quote
+		#     rg"(?<pre>.*?)"
+		#     rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+		#     rg"(?<iter>.+)" = start(rg"\g{g0}")
+		# 	rg":\((?<lab2>\d+): \)"
+		#     gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+		#     rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
+		#     rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
+		#     rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
+		#     rg"(?<in>.*)"
+		# 	rg"(?:\(.*\))?"
+		#     rg":\((?<lab3>\d+): \)"
+		#     rg":\(goto \g{lab2}\)"
+		# 	rg":\(\g{lab1}: \)"
+		# 	rg":\((?<lab4>\d+): \)"
+		#     rg"(?<post>.*)"
+		# end
 		rexp = Regex(e2s(streamline(exreg), true))
 
 		mm = match(rexp, s)
 		if mm != nothing && length(mm.captures) >= 11
-			return mm.captures[[1, 3, 8, 9, 12]] # pre, rg, idx, inside, post
+			return mm.captures[[1, 3, 8, 9, 11]] # pre, rg, idx, inside, post
 		else
 			return nothing, nothing, nothing, nothing, nothing
 		end

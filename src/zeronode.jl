@@ -113,7 +113,7 @@ function zeronode(v)
 
             return g
         else
-            g  = tograph( :( Array(Any, $(length(v)) ) ) )
+            g  = tograph( :( Array(Any, $(length(v.parameters)) ) ) )
             nv = addnode!(g, NExt(:tv)) ; g.exti[nv] = :tv
             # TODO : optimize to an array{Float64} instead of array{Any} if all fields are Reals
 
