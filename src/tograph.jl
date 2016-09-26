@@ -48,6 +48,8 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     explore(ex::ExLine)         = nothing     # remove line info
     explore(ex::LineNumberNode) = nothing     # remove line info
+    explore(ex::LabelNode)      = nothing     # remove label info
+    explore(ex::GotoNode)       = error("[tograph] GotoNode found") # this should be caught before in frdiff.jl
     explore(ex::QuoteNode)      = addnode!(g, NConst(ex.value))  # consider as constant
 
     explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement

@@ -117,7 +117,7 @@ function zeronode(v)
             nv = addnode!(g, NExt(:tv)) ; g.exti[nv] = :tv
             # TODO : optimize to an array{Float64} instead of array{Any} if all fields are Reals
 
-            for i in 1:length(v)
+            for i in 1:length(v.parameters)
                 ni      = addnode!(g, NConst(i))
                 nf      = addnode!(g, NRef(:getidx, [ getnode(g.exti, :tv), ni ], [], v[i], false) )
 

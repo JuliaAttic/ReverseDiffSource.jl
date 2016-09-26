@@ -92,8 +92,8 @@ function streamline(ex0::Expr)
 
         ar = if isa(a,Expr)
                 streamline(a)
- 						 elseif isdefined(:SSAValue) && isa(a, SSAValue)
-                 Symbol("__ssavalue$(a.id)")
+ 			 elseif isdefined(:SSAValue) && isa(a, SSAValue)
+                Symbol("__ssavalue$(a.id)")
              elseif isdefined(:GenSym) && isa(a, GenSym)
                 Symbol("__gensym$(a.id)")
              else
@@ -128,7 +128,10 @@ function _e2s(thing, escape=false)
         res = ":" * string(thing)
     elseif isdefined(:GlobalRef) && isa(thing, GlobalRef)
         res = _e2s(Expr(:., Symbol(thing.mod), QuoteNode(thing.name)))
-        # res = string(thing.mod) * "." * string(thing.name)
+	elseif isdefined(:LabelNode) && isa(thing, LabelNode)
+        res = "↑" * repr(thing) * "↓"
+	elseif isdefined(:GotoNode) && isa(thing, GotoNode)
+        res = "↑" * repr(thing) * "↓"
     else
         res = repr(thing)
     end
@@ -164,35 +167,45 @@ function _s2e(s::AbstractString, pos=1)
         return nothing, cap.offsets[1]
     end
 
-    he  = Symbol(cap.captures[1])
-    ar  = Any[]
-    pos = cap.offsets[2]
-    while s[pos] == '→' && !done(s, pos)
-        cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
-        cap == nothing && error("[s2e] unexpected string (2)")
-        cap1 = cap.captures[1]
-        if cap1[1] == '↑'
-            ex, pos2 = _s2e(s, cap.offsets[1])
-        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
-            ex = QuoteNode(Symbol(cap1[4:end-1]))
-            pos2 = cap.offsets[2]
-        elseif cap1[1] == ':'        # symbols
-            ex = Symbol(cap1[2:end])
-            pos2 = cap.offsets[2]
-        else
-            ex = parse(cap1)
-            pos2 = cap.offsets[2]
-        end
-        push!(ar, ex)
-        pos = pos2
-    end
+	if (mm = match(r":\(goto (\d+)\)", cap.captures[1])) != nothing # Goto node
+		pos = cap.offsets[2]
+		return GotoNode(parse(mm.captures[1])), pos
 
-    c, pos = next(s, pos)
-    return Expr(he, ar...), pos
+	elseif (mm=match(r":\((\d+): \)", cap.captures[1])) != nothing # Labelnodes
+		pos = cap.offsets[2]
+		return LabelNode(parse(mm.captures[1])), pos
+
+	else  # probably an expression
+	    he  = Symbol(cap.captures[1])
+	    ar  = Any[]
+	    pos = cap.offsets[2]
+	    while s[pos] == '→' && !done(s, pos)
+	        cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
+	        cap == nothing && error("[s2e] unexpected string (2)")
+	        cap1 = cap.captures[1]
+	        if cap1[1] == '↑'
+	            ex, pos2 = _s2e(s, cap.offsets[1])
+	        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
+	            ex = QuoteNode(Symbol(cap1[4:end-1]))
+	            pos2 = cap.offsets[2]
+	        elseif cap1[1] == ':'        # symbols
+	            ex = Symbol(cap1[2:end])
+	            pos2 = cap.offsets[2]
+	        else
+	            ex = parse(cap1)
+	            pos2 = cap.offsets[2]
+	        end
+	        push!(ar, ex)
+	        pos = pos2
+	    end
+
+	    c, pos = next(s, pos)
+	    return Expr(he, ar...), pos
+	end
 end
 
 function s2e(s::AbstractString)
-    res = Expr[]
+    res = Any[]
     pos = 1
     while !done(s, pos)
         ex, pos = _s2e(s, pos)
@@ -206,43 +219,24 @@ if VERSION >= v"0.5.0-"
 	# `for` loop search regex string (julia v0.5)
 	function formatch(s::AbstractString)
 		exreg = quote
-		      rg"(?<pre>.*?)"
-		      rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
-		      rg"(?<iter>.+)" = Base.start(rg"\g{g0}")
-		      rg":\((?<lab2>\d+): \)"
-		      gotoifnot( Base.:!(Base.done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-		      rg"(?<g1>.+?)" = Base.next(rg"\g{g0}", rg"\g{iter}")
-		      rg"(?<idx>.+?)" = Core.getfield(rg"\g{g1}", 1)
-		      rg"\g{iter}"    = Core.getfield(rg"\g{g1}", 2)
-		      rg"(?<in>.*)"
-		      rg"(?:\(.*\))?"
-		      rg":\((?<lab3>\d+): \)"
-		      rg":\(goto \g{lab2}\)"
-		      rg":\(\g{lab1}: \)"
-		      rg"(?<post>.*)"
+			rg"(?<pre>.*?)"
+	        rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+	        rg"(?<iter>.+)" = Base.start(rg"\g{g0}")
+	        rg"↑:\((?<lab2>\d+): \)↓"
+	        gotoifnot( Base.:!(Base.done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+	        rg"(?<g1>.+?)" = Base.next(rg"\g{g0}", rg"\g{iter}")
+	        rg"(?<idx>.+?)" = Core.getfield(rg"\g{g1}", 1)
+	        rg"\g{iter}"    = Core.getfield(rg"\g{g1}", 2)
+	        rg"(?<in>.*)"
+	        rg"↑:\(goto \g{lab2}\)↓"
+	        rg"↑:\(\g{lab1}: \)↓"
+	        rg"(?<post>.*)"
 		end
-		# exreg = quote
-		#     rg"(?<pre>.*?)"
-		#     rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
-		#     rg"(?<iter>.+)" = start(rg"\g{g0}")
-		# 	rg":\((?<lab2>\d+): \)"
-		#     gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-		#     rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
-		#     rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
-		#     rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
-		#     rg"(?<in>.*)"
-		# 	rg"(?:\(.*\))?"
-		#     rg":\((?<lab3>\d+): \)"
-		#     rg":\(goto \g{lab2}\)"
-		# 	rg":\(\g{lab1}: \)"
-		# 	rg":\((?<lab4>\d+): \)"
-		#     rg"(?<post>.*)"
-		# end
 		rexp = Regex(e2s(streamline(exreg), true))
 
 		mm = match(rexp, s)
-		if mm != nothing && length(mm.captures) >= 11
-			return mm.captures[[1, 3, 8, 9, 11]] # pre, rg, idx, inside, post
+		if mm != nothing && length(mm.captures) >= 10
+			return mm.captures[[1, 3, 8, 9, 10]] # pre, rg, idx, inside, post
 		else
 			return nothing, nothing, nothing, nothing, nothing
 		end
