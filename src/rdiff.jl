@@ -17,7 +17,7 @@ Arguments:
 - ex: is a Julia Expression containing the code to derive
 - outsym: (default = nothing) is the symbol of the variable within ``ex`` containing the expression output (the result whose derivatives are needed). This variable must evaluate to a ``Real``. If not specified, ``outsym`` defaults to ``nothing`` which signals to ``rdiff`` that the last statement is the result of interest for derivation.
 - order: (default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce an expression that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
-- init: (multiple keyword arguments) is one or several symbol / value pairs indicating a reference value for variables appearing in ``ex`` (a reference value for each variable is needed in order to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+- init: (multiple keyword arguments) is one or several symbol / DataType pairs used to indicate for which variable a derivative is needed and how they should be interpreted. By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
 - evalmod: (default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
 - debug: (default=false) indicates if ``rdiff`` should dump the graph of the generating expression, instead of returning the expression itself.
 - allorders: (default=true) indicates whether to generate the code for all orders up to ``order`` (true) or only the last order.
@@ -25,17 +25,17 @@ Arguments:
 
 Usage:
 ```julia
-julia> rdiff( :(x^3) , x=2.)  # first order
+julia> rdiff( :(x^3) , x=Float64)  # first order
 :(begin
     (x^3,3 * x^2.0)
     end)
 
-julia> rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
+julia> rdiff( :(x^3) , order = 3, x=Float64)  # orders up to 3
 :(begin
         (x^3,3 * x^2.0,2.0 * (x * 3),6.0)
     end)
 
-julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
+julia> rdiff( :(sin(x)) , order=10, x=Float64)  # derivatives up to order 10
 :(begin
         _tmp1 = sin(x)
         _tmp2 = cos(x)
@@ -46,7 +46,7 @@ julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
     end)
 
 julia> ex = :(p^3+y)
-julia> rdiff( ex , p=2., y=3., ignore=:y) # derive for p, not for y
+julia> rdiff( ex , p=Float64, y=Float64, ignore=:y) # derive for p, not for y
 ```
 """
 function rdiff(ex;

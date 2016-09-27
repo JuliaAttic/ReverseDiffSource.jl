@@ -14,7 +14,7 @@ Arguments
 
 :order: (default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce an expression that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 
-:init: (multiple keyword arguments) is one or several symbol / value pairs indicating a reference value for variables appearing in ``ex`` (a reference value for each variable is needed in order to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+:init: (multiple keyword arguments) is one or several symbol / DataType pairs used to indicate for which variable a derivative is needed and how they should be interpreted. By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
 
 :evalmod: (default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
 
@@ -41,19 +41,19 @@ All the variables appearing in the ``init`` argument are considered as the expre
 
 For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. For orders 0 and 1 variables can be of type Real, Vector or Matrix and can be in an unlimited number::
 
-    julia> rdiff( :(x^3) , x=2.)  # first order
+    julia> rdiff( :(x^3) , x=Float64)  # first order
     :(begin
         (x^3,3 * x^2.0)
         end)
 
-    julia> rdiff( :(x^3) , order = 3, x=2.)  # orders up to 3
+    julia> rdiff( :(x^3) , order=3, x=Float64)  # orders up to 3
     :(begin
             (x^3,3 * x^2.0,2.0 * (x * 3),6.0)
         end)
 
 ``rdiff`` runs several simplification heuristics on the generated code to remove neutral statements and factorize repeated calculations. For instance calculating the derivatives of ``sin(x)`` for large orders will reduce to the calculations of ``sin(x)`` and ``cos(x)``::
 
-    julia> rdiff( :(sin(x)) , order=10, x=2.)  # derivatives up to order 10
+    julia> rdiff( :(sin(x)) , order=10, x=Float64)  # derivatives up to order 10
     :(begin
             _tmp1 = sin(x)
             _tmp2 = cos(x)
@@ -63,9 +63,9 @@ For orders >= 2 *only a single variable, of type Real or Vector, is allowed*. Fo
             (_tmp1,_tmp2,_tmp3,_tmp4,_tmp5,_tmp2,_tmp3,_tmp4,_tmp5,_tmp2,_tmp3)
         end)
 
-The expression produced can readily be turned into a function with the ``@eval`` macro::
+The expression produced can easily be turned into a function with the ``@eval`` macro::
 
-    julia> res = rdiff( :(sin(x)) , order=10, x=2.)
+    julia> res = rdiff( :(sin(x)) , order=10, x=Float64)
     julia> @eval foo(x) = $res
     julia> foo(2.)
     (0.9092974268256817,-0.4161468365471424,-0.9092974268256817,0.4161468365471424,0.9092974268256817,-0.4161468365471424,-0.9092974268256817,0.4161468365471424,0.9092974268256817,-0.4161468365471424,-0.9092974268256817)
@@ -73,7 +73,7 @@ The expression produced can readily be turned into a function with the ``@eval``
 When a second derivative expression is needed, only a single derivation variable is allowed. If you are dealing with a function of several (scalar) variables you will have you aggregate them into a vector::
 
     julia> ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
-    julia> res = rdiff(ex, x=zeros(2), order=2)
+    julia> res = rdiff(ex, x=Vector{Float64}, order=2)
     :(begin
         _tmp1 = 1
         _tmp2 = 2

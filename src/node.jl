@@ -3,36 +3,36 @@
 #   ExNode type definition and related functions
 #
 #########################################################################
-  
+
 #####  ExNode type  ######
 
 type ExNode{T}
-  main                    # main payload
-  parents::Vector{Any}    # parent nodes
-  precedence::Vector{Any} # nodes that should be evaluated before (but are not parents)
-  val                     # value
-  alloc::Bool             # Allocation ? Forbids fusions
+    main                    # main payload
+    parents::Vector{Any}    # parent nodes
+    precedence::Vector{Any} # nodes that should be evaluated before (but are not parents)
+    val                     # value
+    alloc::Bool             # Allocation ? Forbids fusions
 
-  ExNode(main)                           = new(   main,   Any[], Any[], NaN, false)
-  ExNode(main,parents)                   = new(   main, parents, Any[], NaN, false)
-  ExNode(main,parents, prec, val, alloc) = new(   main, parents,  prec, val, alloc)
+    ExNode(main)                           = new(   main,   Any[], Any[], NaN, false)
+    ExNode(main,parents)                   = new(   main, parents, Any[], NaN, false)
+    ExNode(main,parents, prec, val, alloc) = new(   main, parents,  prec, val, alloc)
 end
 
-copy{T}(x::ExNode{T}) = ExNode{T}( x.main, # copy(x.main), 
-                                  copy(x.parents), 
-                                  copy(x.precedence), 
-                                  # copy(x.val), 
-                                  x.val, 
+copy{T}(x::ExNode{T}) = ExNode{T}( x.main, # copy(x.main),
+                                  copy(x.parents),
+                                  copy(x.precedence),
+                                  # copy(x.val),
+                                  x.val,
                                   x.alloc)
 
 copy(x::ExNode{:for}) = ExNode{:for}(Any[ x.main[1], copy(x.main[2]) ],    # make a copy of subgraph
-                              copy(x.parents), 
-                              copy(x.precedence), 
-                              # copy(x.val), 
-                              x.val, 
+                              copy(x.parents),
+                              copy(x.precedence),
+                              # copy(x.val),
+                              x.val,
                               x.alloc)
 
-typealias NConst     ExNode{:constant}  # for constant 
+typealias NConst     ExNode{:constant}  # for constant
 typealias NExt       ExNode{:external}  # external var
 typealias NCall      ExNode{:call}      # function call
 typealias NComp      ExNode{:comp}      # comparison operator
@@ -47,8 +47,7 @@ typealias NIn        ExNode{:within}    # reference to var set in a loop
 subtype{T}(n::ExNode{T}) = T
 
 function show(io::IO, res::ExNode)
-  pl = join( map(x->isa(x,NFor) ? "subgraph" : repr(x.main), res.parents) , " / ")
-  print(io, "[$(subtype(res))] $(repr(res.main)) ($(repr(res.val)))")
-  length(pl) > 0 && print(io, ", from = $pl")
+    pl = join( map(x->isa(x,NFor) ? "subgraph" : repr(x.main), res.parents) , " / ")
+    print(io, "[$(subtype(res))] $(repr(res.main)) ($(repr(res.val)))")
+    length(pl) > 0 && print(io, ", from = $pl")
 end
-

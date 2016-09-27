@@ -10,11 +10,11 @@
 
 # wrapper for nodes, with error message showing nodes
 function zeronode(n::ExNode)
-  try
-    return zeronode(n.val)
-  catch e
-    error("[zeronode] $e for node $(repr(n)[1:min(40, end)])")
-  end
+    try
+        return zeronode(n.val)
+    catch e
+        error("[zeronode] $e for node $(repr(n)[1:min(40, end)])")
+    end
 end
 
 ## 0. where derivation makes no sense
@@ -119,7 +119,7 @@ function zeronode(v)
 
             for i in 1:length(v.parameters)
                 ni      = addnode!(g, NConst(i))
-                nf      = addnode!(g, NRef(:getidx, [ getnode(g.exti, :tv), ni ], [], v[i], false) )
+                nf      = addnode!(g, NRef(:getidx, [ getnode(g.exti, :tv), ni ], [], v.parameters[i], false) )
 
                 ng      = zeronode( nf )
                 nn      = addgraph!(ng, g, Dict( :tv => nf ))

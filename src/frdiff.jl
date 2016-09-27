@@ -14,16 +14,21 @@ Generates the derivative function for a given function
 Arguments:
 
 - func: is a Julia generic function.
-- init: is a tuple containing initial values for each parameter of ``func``. These reference values are needed to to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+- init: is a tuple containing the types for each parameter of ``func``. These types are necessary to pick a the right method of the given function. By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
 - order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce a function that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 - evalmod: (keyword arg, default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
 - debug: (keyword arg, default=false) if true ``rdiff`` dumps the graph of the generating expression, instead of the expression.
 - allorders: (keyword arg, default=true) tells rdiff whether to generate the code for all orders up to ``order`` (true) or only the last order.
-- ignore: (keyword arg, default=[]) do not differentiate against the listed variables, useful if you are not interested in having the derivative of one of several variables in ``init``.
+- ignore: (keyword arg, default=[]) do not differentiate against the listed variables (identified by their position index), useful if you are not interested in having the derivative of one of several variables in ``init``.
 
 ```julia
-julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
-julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2       # function to be derived
+julia> rosen2 = rdiff(rosenbrock, (Vector{Float64},), order=2)   # orders up to 2
+```
+
+```julia
+julia> df = rdiff((x,y) -> 2x^y, (Float64, Float64), ignore=[2], allorders=false)
+# derivation against x only (y omitted), order  1 only
 ```
 
 """
@@ -32,43 +37,27 @@ function rdiff(f::Function, sig::Tuple; args...)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
-		if VERSION >= v"0.5.0-"
-		  fdef = fs.mt.defs.func
-		  fcode = Base.uncompressed_ast(fdef.lambda_template)[2:end]
-			fcode = Expr(:block, fcode...)
+	if VERSION >= v"0.5.0-"
+		fdef  = fs.ms[1]
+		fcode = Base.uncompressed_ast(fdef.lambda_template)[2:end]
+		fcode = Expr(:block, fcode...)
 
-			fargs = [ Symbol("(_$i)") for i in 2:(length(sig)+1) ]
-		  cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
-		else
-		  fdef  = fs[1].func.code
-		  ast   = Base.uncompressed_ast(fdef)
-		  fcode = ast.args[3]
+		fargs = [ Symbol("(_$i)") for i in 2:(length(sig)+1) ]
+		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
+	else
+		fdef  = fs[1].func.code
+		ast   = Base.uncompressed_ast(fdef)
+		fcode = ast.args[3]
 
-		  fargs = ast.args[1]  # function parameters
-		  cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-		end
+		fargs = ast.args[1]  # function parameters
+		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig0) ]
+	end
 
-		ex  = transform(fcode) # TODO : add error messages if not parseable
+	ex  = transform(fcode) # TODO : add error messages if not parseable
     dex = rdiff(ex; args..., cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
-end
-
-
-function deslot(ex::Expr, slotnames)
-    args = Any[]
-    for a in ex.args
-        ar = if isa(a,Expr)
-                deslot(a, slotnames)
-			 elseif isa(a,Slot)
-                slotnames[a.id]
-			 else
-                a
-             end
-        push!(args, ar)
-    end
-    Expr(ex.head, args...)
 end
 
 
