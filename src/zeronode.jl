@@ -132,7 +132,6 @@ function zeronode(v)
 
     # Composite types or equivalent
     elseif Base.isstructtype(v) && # type with fields
-           method_exists(getfield, (v, Symbol)) &&
            method_exists(fieldnames, (v,))
 
         g  = tograph( :( Array(Any, $(length(fieldnames(v))) ) ) )

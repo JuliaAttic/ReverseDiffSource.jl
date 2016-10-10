@@ -50,7 +50,7 @@ function rdiff(f::Function, sig::Tuple; args...)
 		fcode = ast.args[3]
 
 		fargs = ast.args[1]  # function parameters
-		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig0) ]
+		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
 	end
 
 	ex  = transform(fcode) # TODO : add error messages if not parseable
