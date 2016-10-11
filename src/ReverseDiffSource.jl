@@ -56,7 +56,6 @@ module ReverseDiffSource
     ######  Exports  ######
     export
         rdiff,
-        @deriv_rule, deriv_rule,
-        @typeequiv, typeequiv
+        @deriv_rule, deriv_rule
 
 end # module ReverseDiffSource
