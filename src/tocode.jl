@@ -43,6 +43,7 @@ function tocode(g::ExGraph)
         # default translation
         thing_module(op::DataType) = tuple(fullname(op.name.module)..., op.name.name)
 
+        # fullname(Base.binding_module(ReverseDiffSource, symbol(^)))
         function thing_module(op::Function)
           fname = isbuiltin(op) ? builtin_name(op) : Base.function_name(op)
           tuple(fullname(Base.function_module(op, Tuple{Vararg{Any}}))...,
