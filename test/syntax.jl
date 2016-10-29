@@ -10,13 +10,13 @@ m.rdiff( :(x^3) , order = 3, x=Float64)  # orders up to 3
 m.rdiff( :(sin(x)) , order=10, x=Float64)  # derivatives up to order 10
 
 res = m.rdiff( :(sin(x)) , order=10, x=Float64)
-@eval foo(x) = $res
-foo(2.)
+@eval foo1(x) = $res
+foo1(2.)
 
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
 res = m.rdiff(ex, x=Vector{Float64}, order=2)
-m.@eval foo(x) = $res
-foo([0.5, 2.])
+m.@eval foo2(x) = $res
+foo2([0.5, 2.])
 
 #########  rdiff (function) ###########
 
@@ -34,13 +34,13 @@ m.rdiff( :(x^3) , order = 3, x=Float64)  # orders up to 3
 m.rdiff( :(sin(x)) , order=10, x=Float64)  # derivatives up to order 10
 
 res = m.rdiff( :(sin(x)) , order=10, x=Float64)
-@eval foo(x) = $res
-foo(2.)
+@eval foo3(x) = $res
+foo3(2.)
 
 ex = :( (1 - x[1])^2 + 100(x[2] - x[1]^2)^2 )  # the rosenbrock function
 res = m.rdiff(ex, x=Vector{Float64}, order=2)
-m.@eval foo(x) = $res
-foo([0.5, 2.])
+m.@eval foo4(x) = $res
+foo4([0.5, 2.])
 
 
 #########  @deriv_rule  ###########
@@ -51,11 +51,11 @@ m.@deriv_rule *(x::AbstractArray, y::Real )            y     sum(x .* ds)
 m.@deriv_rule *(x::AbstractArray, y::AbstractArray)    y     x' * ds
 
 
-foo(x) = log(1+sin(x))
+foo5(x) = log(1+sin(x))
 
-m.@deriv_rule foo(x)   x   cos(x) / ( 1 + sin(x)) * ds
+m.@deriv_rule foo5(x)   x   cos(x) / ( 1 + sin(x)) * ds
 
-res = m.rdiff( :( 2 ^ foo(x) ) , x=Int)
+res = m.rdiff( :( 2 ^ foo5(x) ) , x=Int)
 @eval myf(x) = $res
 
 (myf(1.0)[1] - myf(0.999)[1]) * 1000

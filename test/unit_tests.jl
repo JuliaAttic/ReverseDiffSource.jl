@@ -101,30 +101,63 @@
                                                     end )
 
 
-### tmatch (naive multiple dispatch) testing  ###
-    tts = Any[ Tuple{Real},
-               Tuple{Real, Real},
-               Tuple{Float64, Float64},
-               Tuple{Float64, Int},
-               Tuple{Float64, Int64},
-               Tuple{Float64},
-               Tuple{Int64},
-               Tuple{AbstractString},
-               Tuple{Any},
-               Tuple{Any, Any} ]
+### deriv rule signature matching
+  tss = Any[ (Real,),
+             (Real, Real),
+             (Float64, Float64),
+             (Float64, Int64),
+             (Any, Real),
+             (Float64,),
+             (Int64,),
+             (AbstractString,),
+             (Any,),
+             (Any, Any) ]
 
-    @test m.tmatch(Tuple{Float64}, tts)           == Tuple{Float64}
-    @test m.tmatch(Tuple{Int64}, tts)             == Tuple{Int64}
-    @test m.tmatch(Tuple{Float64,Int64}, tts)     == Tuple{Float64, Int64}
-    @test m.tmatch(Tuple{Float64,Int32}, tts)     == Tuple{Real,Real}
-    @test m.tmatch(Tuple{Any, Real}, tts)         == Tuple{Any,Any}
-    @test m.tmatch(Tuple{Float64, Int, Int}, tts) == nothing
-    @test m.tmatch(Tuple{AbstractString}, tts)    == Tuple{AbstractString}
-    @test m.tmatch(Tuple{Float32}, tts)           == Tuple{Real}
-    @test m.tmatch(Tuple{Float64,Real}, tts)      == Tuple{Real,Real}
-    @test m.tmatch(Tuple{Float64,Float64}, tts)   == Tuple{Float64,Float64}
-    @test m.tmatch(Tuple{Float64,Vector}, tts)    == Tuple{Any,Any}
-    @test m.tmatch(Tuple{Real,Float64}, tts)      == Tuple{Real,Real}
+  foo0(x) = 2x
+  for ts in tss
+    m._define(foo0, ts, 1, ts)
+  end
+
+  @test m.getrule(foo0,1,(Float64,))           == (Float64,)
+  @test m.getrule(foo0,1,(Int64,))             == (Int64,)
+  @test m.getrule(foo0,1,(Float64,Int64))      == (Float64, Int64)
+  @test m.getrule(foo0,1,(Float64,Int32))      == (Real,Real)
+  @test m.getrule(foo0,1,(Any, Real))          == (Any,Real)
+  @test_throws ErrorException  m.getrule(foo0,1,(Float64, Int, Int))
+  @test m.getrule(foo0,1,(AbstractString,))    == (AbstractString,)
+  @test m.getrule(foo0,1,(Float32,))           == (Real,)
+  @test m.getrule(foo0,1,(Float64,Real))       == (Real,Real)
+  @test m.getrule(foo0,1,(Float64,Float64))    == (Float64,Float64)
+  @test m.getrule(foo0,1,(Float64,Vector))     == (Any,Any)
+  @test m.getrule(foo0,1,(Real,Float64))       == (Real,Real)
+
+    #
+    # tts = Any[ Tuple{Real},
+    #            Tuple{Real, Real},
+    #            Tuple{Float64, Float64},
+    #            Tuple{Float64, Int},
+    #            Tuple{Float64, Int64},
+    #            Tuple{Float64},
+    #            Tuple{Int64},
+    #            Tuple{AbstractString},
+    #            Tuple{Any},
+    #            Tuple{Any, Any} ]
+    #
+    #
+    #
+    #
+    # @test m.tmatch(Tuple{Float64}, tts)           == Tuple{Float64}
+    # @test m.tmatch(Tuple{Int64}, tts)             == Tuple{Int64}
+    # @test m.tmatch(Tuple{Float64,Int64}, tts)     == Tuple{Float64, Int64}
+    # @test m.tmatch(Tuple{Float64,Int32}, tts)     == Tuple{Real,Real}
+    # @test m.tmatch(Tuple{Any, Real}, tts)         == Tuple{Any,Any}
+    # @test m.tmatch(Tuple{Float64, Int, Int}, tts) == nothing
+    # @test m.tmatch(Tuple{AbstractString}, tts)    == Tuple{AbstractString}
+    # @test m.tmatch(Tuple{Float32}, tts)           == Tuple{Real}
+    # @test m.tmatch(Tuple{Float64,Real}, tts)      == Tuple{Real,Real}
+    # @test m.tmatch(Tuple{Float64,Float64}, tts)   == Tuple{Float64,Float64}
+    # @test m.tmatch(Tuple{Float64,Vector}, tts)    == Tuple{Any,Any}
+    # @test m.tmatch(Tuple{Real,Float64}, tts)      == Tuple{Real,Real}
 
 ### testing conversions for functions diff  ###
   ex = quote

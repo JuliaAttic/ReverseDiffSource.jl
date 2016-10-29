@@ -5,62 +5,57 @@
 ################################################################################
 
 # rules are stored as functions to reuse the existing multiple dispatch
-# instead of recoding it.
-# to keep workspaces tidy, these functions are created in an ad-hoc module
+# instead of trying to recode it.
+# To keep workspaces tidy, these functions are created in an ad-hoc module
 module DerivRules
-    ruledict = Any[]
+  ruledict = Any[]
+  dr() = 0  # to create initial function
+end
 
-    # rfsym(f, ord) = symbol("dr_$(ord)_$(object_id(f))")
-    # rfsym(f, ord) = symbol("dr_$(ord)_$(symbol(f))")
+### creates function signature for DerivRules.dr
+function _tosigtuple(f, ts, ord)
+  tuple([Val{Symbol(f)}, Val{ord}, ts...]...)
+end
 
-    function _totuple(f, t::Tuple, ord)
-        tuple([Val{symbol(f)}, Val{ord}, t...]...)
-    end
+### creates rule through a new method on function DerivRules.dr
+function _define(f, ts, ord, payload)
+  st = _tosigtuple(f, ts, ord)
 
-    function define(f, sig::Vector, ord, payload)
-        ts = tuple([ typ for (vn, typ) in sig ]...)
-        st = _totuple(f, ts, ord)
+  push!(DerivRules.ruledict, payload)
+  rid = length(DerivRules.ruledict)
 
-        push!(ruledict, payload)
-        rid = length(ruledict)
+  if length(ts) == 0
+    DerivRules.dr(::st[1], ::st[2]) =  Val{rid}()
+  elseif length(ts) == 1
+    DerivRules.dr(::st[1], ::st[2],::st[3]) =  Val{rid}()
+  elseif length(ts) == 2
+    DerivRules.dr(::st[1], ::st[2],::st[3], ::st[4]) =  Val{rid}()
+  elseif length(ts) == 3
+    DerivRules.dr(::st[1], ::st[2],::st[3], ::st[4],::st[5]) =  Val{rid}()
+  elseif length(ts) == 4
+    DerivRules.dr(::st[1], ::st[2],::st[3], ::st[4],::st[5], ::st[6]) =  Val{rid}()
+  else
+    error("[DerivRules.define] too many arguments !")
+  end
+end
 
-        fn2 = Expr(:call, :dr, [ :( ::$typ ) for typ in st ]...)
-        @eval $fn2 = Val{$rid}()
-        #
-        # global vp
-        #
-        # fn = rfsym(f, ord)
-        #
-        # # declare function if it does not exists yet
-        # isdefined(fn) || eval( Expr(:method, fn) )
-        #
-        # # add method
-        # vp  = payload
-        # fn2 = Expr(:call, fn, [ :( $vn::$typ ) for (vn, typ) in sig ]...)
-        # @eval let g = vp ; $fn2 = g ; end
-    end
-
-    # function hasrule(f, ord::Int, args::Tuple)
-    #     fn = rfsym(f, ord)
-    #     isdefined(DerivRules, fn) || return false
-    #     rf = eval(fn)
-    #     meths = methods(rf, args)
-    #     length(meths) > 0
-    # end
-
-    function getrule(f, ord::Int, args::Tuple)
-        st = _totuple(f, args, ord)
-        rt = Base.return_types(dr, st)
-        if length(rt) == 0
-            fn = "$f(" * join(args, ",") * ")"
-            error("no deriv rule for '$fn' at pos $ord")
-        elseif length(rt) > 1
-            fn = "$f(" * join(args, ",") * ")"
-            error("multiple deriv rules for '$fn' at pos $ord")
-        end
-
-        ruledict[ first(rt).parameters[1] ]
-    end
+### fetches rule for given function / signature / differentiation var position
+function getrule(f, ord::Int, args::Tuple)
+  st = _tosigtuple(f, args, ord)
+  if method_exists(DerivRules.dr, st)
+    rts = Base.return_types(DerivRules.dr, st)
+    # if single method fits the constraints,  return directly
+    length(rts)==1 && return DerivRules.ruledict[ first(rts).parameters[1] ]
+    # if several we will have to pick the good one
+    mt = which(DerivRules.dr, st) # correct method
+    mts = methods(DerivRules.dr, st) # all methods (hopefully in the same order as rts)
+    mn = findfirst(mts.ms .== mt)
+    mn==0 && error("no deriv rule for '$fn' at pos $ord")
+    return DerivRules.ruledict[ rts[mn].parameters[1] ]
+  else
+    fn = "$f(" * join(args, ",") * ")"
+    error("no deriv rule for '$fn' at pos $ord")
+  end
 end
 
 ### converts argument expressions to a vector of tuples (symbol, type)
@@ -81,17 +76,18 @@ end
 
 # packages rule before calling DerivRules.define
 function _deriv_rule(func::Union{Function, Type},
-                    args::Vector, dv::Symbol,
-                    diff::Union{Expr, Symbol, Real};
-                    repl=false)
-  ss  = Symbol[ e[1] for e in args ]
+                     args::Vector, dv::Symbol,
+                     diff::Union{Expr, Symbol, Real};
+                     repl=false)
+  ss = Symbol[ e[1] for e in args ]
+  ts = Type[ e[2] for e in args ]
   ord = findfirst(dv .== ss)
   (ord == 0) && error("[deriv_rule] cannot find $dv in function arguments")
 
   # payload = ( Snippet(diff, vcat(ss, :ds)), repl )
   payload = ( tograph(diff, current_module()), vcat(ss, :ds) )
 
-  DerivRules.define(func, args, ord, payload)
+  _define(func, ts, ord, payload)
   nothing
 end
 

@@ -84,5 +84,3 @@ next(bd::BiDict, i)     = next(bd.kv, i)
 done(bd::BiDict, i)     = done(bd.kv, i)
 
 getindex(bd::BiDict, k) = bd.kv[k]
-
-length(bd::BiDict) = length(bd.kv)

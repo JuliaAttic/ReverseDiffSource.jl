@@ -286,5 +286,5 @@ function rdiff(ex;
     g |> splitnary! |> prune! |> simplify!
 
     resetvar()
-    debug ? g : tocode(g)
+    debug ? g : tocode(g, evalmod)
 end
