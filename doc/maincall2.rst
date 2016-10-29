@@ -10,7 +10,7 @@ Arguments
 
 :func: is a Julia generic function.
 
-:init: is a tuple containing initial values for each parameter of ``func``. These reference values are needed to to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+:init: is a tuple containing the types for each parameter of ``func``. These types are necessary to pick a the right method of the given function. By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
 
 :order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce a function that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 
@@ -20,7 +20,7 @@ Arguments
 
 :allorders: (default=true) tells rdiff whether to generate the code for all orders up to ``order`` (true) or only the last order.
 
-:ignore: (default=[]) do not differentiate against the listed variables, useful if you are not interested in having the derivative of one of several variables in ``init``.
+:ignore: (default=[]) do not differentiate against the listed variables (identified by their position index), useful if you are not interested in having the derivative of one of several variables in ``init``.
 
 
 Output
@@ -35,7 +35,7 @@ Usage
 ``rdiff`` takes a function defined with the same subset of Julia statements ( assigments, getindex, setindex!, for loops, function calls ) as the Expression variant of ``rdiff()`` and transforms it into another function whose call will return the derivatives at all orders between 0 and the order specified::
 
 	julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
-	julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+	julia> rosen2 = rdiff(rosenbrock, (Vector{Float64},), order=2)       # orders up to 2
 		(anonymous function)
 	julia> rosen2([1,2])
 		(100,[-400.0,200.0],

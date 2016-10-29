@@ -4,16 +4,12 @@
 #
 #########################################################################
 
-function tocode(g::ExGraph)
-
-    #### creates expression for names qualified by a module
-    mexpr(ns) = length(ns) == 1 ? ns[1] : Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
-
+function tocode(g::ExGraph, evalmod::Module=Main)
 
     valueof(n::ExNode, child::ExNode) = n.val
     valueof(n::NFor,   child::ExNode) = valueof(n.val[child], n)
 
-    translate(n::NConst) = n.main
+    translate(n::NConst) = isa(n.main, DataType) ? Symbol(n.main) : n.main
     translate(n::NComp)  = Expr(:comparison,
                                 valueof(n.parents[1],n),
                                 n.main,
@@ -35,35 +31,14 @@ function tocode(g::ExGraph)
         elseif op == colon
             return Expr(       :(:), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         elseif op == transpose
-            return Expr(symbol("'"),                 valueof(n.parents[2], n) )
+            return Expr(Symbol("'"),                 valueof(n.parents[2], n) )
         elseif op == tuple
             return Expr(     :tuple, Any[ valueof(x,n) for x in n.parents[2:end] ]...)
         end
 
-        # default translation
-        thing_module(op::DataType) = tuple(fullname(op.name.module)..., op.name.name)
-
-        function thing_module(op::Function)
-          fname = isbuiltin(op) ? builtin_name(op) : Base.function_name(op)
-          tuple(fullname(Base.function_module(op, Tuple{Vararg{Any}}))...,
-                fname)
-        end
-
-        mt = try
-                thing_module(op)
-             catch e
-                error("[tocode] cannot find module of $op ($(typeof(op)))")
-             end
-
-        # try to strip module names for brevity
-        try
-            mt2 = (:Base, mt[end])
-            eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
-            mt2 = (mt[end],)
-            eval(:( $(mexpr(mt)) == $(mexpr(mt2)) )) &&  (mt = mt2)
-        end
-
-        Expr(:call, mexpr( mt ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+        # Expr(:call, mexpr( mt ), Any[ valueof(x,n) for x in n.parents[2:end] ]...)
+        Expr(:call, relative_name(op, evalmod),
+             Any[ valueof(x,n) for x in n.parents[2:end] ]...)
     end
 
     function translate(n::NExt)
@@ -87,7 +62,7 @@ function tocode(g::ExGraph)
 
     translate(n::NFor) = Expr(:for,
                               Expr(:(=), n.main[1], valueof(n.parents[1],n)),
-                              tocode(n.main[2]))
+                              tocode(n.main[2], evalmod))
 
     ### do a precount of nodes references for speedup
     nref1 = Dict(zip(g.nodes, zeros(Int, length(g.nodes))))
@@ -159,7 +134,7 @@ end
 #####################################################################
 #  variable name assigned to this node
 #####################################################################
-const nosym = 0x7c883061f2344364  # code for no symbol associated
+const nosym = 0x7c883061f2344364  # code for no Symbol associated
 
 function getname(n::ExNode, g::ExGraph)
     if hasnode(g.seti, n)
@@ -268,4 +243,25 @@ function ispivot(n::Union{NCall, NComp}, g::ExGraph, nref1, nref2, nref3)
 
     # otherwise do not create assignment
     return (false, nothing)
+end
+
+# generates expr that binds to the object given, from module emod
+function relative_name(o::Union{Function,DataType}, emod::Module=Main)
+  mexpr(ns) = length(ns) == 1 ?
+                ns[1] :
+                Expr(:., mexpr(ns[1:end-1]), QuoteNode(ns[end]) )
+
+  fs, mf = isa(o, Function) ?
+            (Base.function_name(o), Base.function_module(o)) :
+            (o.name.name          , Base.datatype_module(o))
+
+  mfn = mf==Main ? (Main,) : fullname(mf)
+
+  if mf == emod # function defined in eval module
+    return mexpr((fs,))
+  elseif isdefined(emod, fs) && getfield(emod,fs)==getfield(mf,fs)
+    return mexpr((fs,))
+  else
+    return mexpr(tuple(mfn..., fs))
+  end
 end

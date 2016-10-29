@@ -37,41 +37,38 @@
         m.tocode(zex)
     end
 
-    @test zerocode(12)       == :(0.0;)
-    @test zerocode(12.2)     == :(0.0;)
-    @test zerocode(5:6)      == :(zeros(2); )
-    @test zerocode(5:0.2:10) == :(zeros(2); )
+    @test zerocode(Int)              == :(0.0;)
+    @test zerocode(Int64)            == :(0.0;)
+    @test zerocode(Float64)          == :(0.0;)
+    @test zerocode(UnitRange)        == :(zeros(2); )
+    @test zerocode(FloatRange)       == :(zeros(2); )
+    @test zerocode(Complex)          == :(zeros(2); )
+    @test zerocode(Complex64)        == :(zeros(2); )
 
-    @test zerocode( [2., 2 , 3, 0] )    == :(zeros(size(tv)); )
-    @test zerocode( [2.; [1,2 ]; 3.] )  == :(zeros(size(tv)); )
-
-    @test zerocode( [false, true] )    == :(zeros(size(tv)); )
-
-    @test zerocode(12.2-4im) == striplinenumbers( quote
-                                    _tmp1 = cell(2)
-                                    _tmp1[1] = 0.0
-                                    _tmp1[2] = 0.0
-                                    _tmp1
-                                end )
+    @test zerocode(Vector{Float64})    == :(zeros(size(tv)); )
+    @test zerocode(Array{Float64,4})   == :(zeros(size(tv)); )
+    @test zerocode(Vector{Real})       == :(zeros(size(tv)); )
 
     type Abcd
         a::Float64
-        b
+        b::Int64
         c::Vector{Float64}
     end
-    @test zerocode(Abcd(2., 3., [1,2 ]))  == striplinenumbers( quote
-                                                    _tmp1 = cell(3)
+
+    @test zerocode(Abcd)  == striplinenumbers( quote
+                                                    _tmp1 = Array(Any,3)
                                                     _tmp1[1] = 0.0
                                                     _tmp1[2] = 0.0
                                                     _tmp1[3] = zeros(size(tv.c))
                                                     _tmp1
                                                 end )
 
-    @test zerocode([Abcd(2., 3., [1,2 ]), Abcd(2., 3., [1,2 ])])  ==
+
+    @test zerocode(Vector{Abcd})  ==
             striplinenumbers( quote
-                                  _tmp1 = cell(size(tv))
+                                  _tmp1 = Array(Any,size(tv))
                                   for i = 1:length(_tmp1)
-                                      _tmp2 = cell(3)
+                                      _tmp2 = Array(Any,3)
                                       _tmp2[1] = 0.0
                                       _tmp2[2] = 0.0
                                       _tmp2[3] = zeros(size(tv[i].c))
@@ -80,61 +77,87 @@
                                   _tmp1
                               end )
 
+    @test zerocode(Tuple{Abcd,Abcd})  ==
+            striplinenumbers( quote
+                                  _tmp1 = Array(Any,size(tv))
+                                  for i = 1:length(_tmp1)
+                                      _tmp2 = Array(Any,3)
+                                      _tmp2[1] = 0.0
+                                      _tmp2[2] = 0.0
+                                      _tmp2[3] = zeros(size(tv[i].c))
+                                      _tmp1[i] = _tmp2
+                                  end
+                                  _tmp1
+                              end )
 
-    @test zerocode( (2., 3., [1,2 ]) )    == striplinenumbers( quote
-                                                    _tmp1 = cell(3)
-                                                    _tmp1[1] = 0.0
-                                                    _tmp1[2] = 0.0
-                                                    _tmp1[3] = zeros(size(tv[3]))
-                                                    _tmp1
-                                                end )
+    @test_throws ErrorException zerocode(Vector{Any})
 
-
-    @test zerocode( Any[2., [1,2 ], 3.] )    == striplinenumbers( quote
-                                                    _tmp1 = cell(3)
-                                                    _tmp1[1] = 0.0
-                                                    _tmp1[2] = zeros(size(tv[2]))
-                                                    _tmp1[3] = 0.0
-                                                    _tmp1
-                                                end )
-
-
-    @test zerocode( [2.+im, 3.-2im] )    == striplinenumbers( quote
-                                                        _tmp1 = cell(size(tv))
+    @test zerocode( Array{Complex64,4} )    == striplinenumbers( quote
+                                                        _tmp1 = Array(Any,size(tv))
                                                         for i = 1:length(_tmp1)
-                                                            _tmp2 = cell(2)
-                                                            _tmp2[1] = 0.0
-                                                            _tmp2[2] = 0.0
-                                                            _tmp1[i] = _tmp2
+                                                            _tmp1[i] = zeros(2)
                                                         end
                                                         _tmp1
                                                     end )
 
 
-### tmatch (naive multiple dispatch) testing  ###
-    tts = Any[ Tuple{Real},
-               Tuple{Real, Real},
-               Tuple{Float64, Float64},
-               Tuple{Float64, Int},
-               Tuple{Float64, Int64},
-               Tuple{Float64},
-               Tuple{Int64},
-               Tuple{AbstractString},
-               Tuple{Any},
-               Tuple{Any, Any} ]
+### deriv rule signature matching
+  tss = Any[ (Real,),
+             (Real, Real),
+             (Float64, Float64),
+             (Float64, Int64),
+             (Any, Real),
+             (Float64,),
+             (Int64,),
+             (AbstractString,),
+             (Any,),
+             (Any, Any) ]
 
-    @test m.tmatch(Tuple{Float64}, tts)           == Tuple{Float64}
-    @test m.tmatch(Tuple{Int64}, tts)             == Tuple{Int64}
-    @test m.tmatch(Tuple{Float64,Int64}, tts)     == Tuple{Float64, Int64}
-    @test m.tmatch(Tuple{Float64,Int32}, tts)     == Tuple{Real,Real}
-    @test m.tmatch(Tuple{Any, Real}, tts)         == Tuple{Any,Any}
-    @test m.tmatch(Tuple{Float64, Int, Int}, tts) == nothing
-    @test m.tmatch(Tuple{AbstractString}, tts)    == Tuple{AbstractString}
-    @test m.tmatch(Tuple{Float32}, tts)           == Tuple{Real}
-    @test m.tmatch(Tuple{Float64,Real}, tts)      == Tuple{Real,Real}
-    @test m.tmatch(Tuple{Float64,Float64}, tts)   == Tuple{Float64,Float64}
-    @test m.tmatch(Tuple{Float64,Vector}, tts)    == Tuple{Any,Any}
-    @test m.tmatch(Tuple{Real,Float64}, tts)      == Tuple{Real,Real}
+  foo0(x) = 2x
+  for ts in tss
+    m._define(foo0, ts, 1, ts)
+  end
+
+  @test m.getrule(foo0,1,(Float64,))           == (Float64,)
+  @test m.getrule(foo0,1,(Int64,))             == (Int64,)
+  @test m.getrule(foo0,1,(Float64,Int64))      == (Float64, Int64)
+  @test m.getrule(foo0,1,(Float64,Int32))      == (Real,Real)
+  @test m.getrule(foo0,1,(Any, Real))          == (Any,Real)
+  @test_throws ErrorException  m.getrule(foo0,1,(Float64, Int, Int))
+  @test m.getrule(foo0,1,(AbstractString,))    == (AbstractString,)
+  @test m.getrule(foo0,1,(Float32,))           == (Real,)
+  @test m.getrule(foo0,1,(Float64,Real))       == (Real,Real)
+  @test m.getrule(foo0,1,(Float64,Float64))    == (Float64,Float64)
+  @test m.getrule(foo0,1,(Float64,Vector))     == (Any,Any)
+  @test m.getrule(foo0,1,(Real,Float64))       == (Real,Real)
+
+    #
+    # tts = Any[ Tuple{Real},
+    #            Tuple{Real, Real},
+    #            Tuple{Float64, Float64},
+    #            Tuple{Float64, Int},
+    #            Tuple{Float64, Int64},
+    #            Tuple{Float64},
+    #            Tuple{Int64},
+    #            Tuple{AbstractString},
+    #            Tuple{Any},
+    #            Tuple{Any, Any} ]
+    #
+    #
+    #
+    #
+    # @test m.tmatch(Tuple{Float64}, tts)           == Tuple{Float64}
+    # @test m.tmatch(Tuple{Int64}, tts)             == Tuple{Int64}
+    # @test m.tmatch(Tuple{Float64,Int64}, tts)     == Tuple{Float64, Int64}
+    # @test m.tmatch(Tuple{Float64,Int32}, tts)     == Tuple{Real,Real}
+    # @test m.tmatch(Tuple{Any, Real}, tts)         == Tuple{Any,Any}
+    # @test m.tmatch(Tuple{Float64, Int, Int}, tts) == nothing
+    # @test m.tmatch(Tuple{AbstractString}, tts)    == Tuple{AbstractString}
+    # @test m.tmatch(Tuple{Float32}, tts)           == Tuple{Real}
+    # @test m.tmatch(Tuple{Float64,Real}, tts)      == Tuple{Real,Real}
+    # @test m.tmatch(Tuple{Float64,Float64}, tts)   == Tuple{Float64,Float64}
+    # @test m.tmatch(Tuple{Float64,Vector}, tts)    == Tuple{Any,Any}
+    # @test m.tmatch(Tuple{Real,Float64}, tts)      == Tuple{Real,Real}
 
 ### testing conversions for functions diff  ###
   ex = quote

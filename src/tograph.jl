@@ -5,37 +5,37 @@
 #########################################################################
 
 ##########  Parameterized type to ease AST exploration  ############
-  type ExH{H}
+type ExH{H}
     head::Symbol
     args::Vector
     typ::Any
-  end
-  toExH(ex::Expr) = ExH{ex.head}(ex.head, ex.args, ex.typ)
-  toExpr(ex::ExH) = Expr(ex.head, ex.args...)
+end
+toExH(ex::Expr) = ExH{ex.head}(ex.head, ex.args, ex.typ)
+toExpr(ex::ExH) = Expr(ex.head, ex.args...)
 
-  typealias ExEqual    ExH{:(=)}
-  typealias ExDColon   ExH{:(::)}
-  typealias ExColon    ExH{:(:)}
-  typealias ExPEqual   ExH{:(+=)}
-  typealias ExMEqual   ExH{:(-=)}
-  typealias ExTEqual   ExH{:(*=)}
-  typealias ExTrans    ExH{symbol("'")}
-  typealias ExCall     ExH{:call}
-  typealias ExBlock    ExH{:block}
-  typealias ExLine     ExH{:line}
-  typealias ExVcat     ExH{:vcat}
-  typealias ExVect     ExH{:vect}
-  typealias ExCell1d   ExH{:cell1d}
-  typealias ExCell     ExH{:cell1d}
-  typealias ExFor      ExH{:for}
-  typealias ExRef      ExH{:ref}
-  typealias ExIf       ExH{:if}
-  typealias ExComp     ExH{:comparison}
-  typealias ExDot      ExH{:.}
-  typealias ExTuple    ExH{:tuple}
-  typealias ExReturn   ExH{:return}
-  typealias ExBody     ExH{:body}
-  typealias ExQuote    ExH{:QuoteNode}
+typealias ExEqual    ExH{:(=)}
+typealias ExDColon   ExH{:(::)}
+typealias ExColon    ExH{:(:)}
+typealias ExPEqual   ExH{:(+=)}
+typealias ExMEqual   ExH{:(-=)}
+typealias ExTEqual   ExH{:(*=)}
+typealias ExTrans    ExH{Symbol("'")}
+typealias ExCall     ExH{:call}
+typealias ExBlock    ExH{:block}
+typealias ExLine     ExH{:line}
+typealias ExVcat     ExH{:vcat}
+typealias ExVect     ExH{:vect}
+typealias ExCell1d   ExH{:cell1d}
+typealias ExCell     ExH{:cell1d}
+typealias ExFor      ExH{:for}
+typealias ExRef      ExH{:ref}
+typealias ExIf       ExH{:if}
+typealias ExComp     ExH{:comparison}
+typealias ExDot      ExH{:.}
+typealias ExTuple    ExH{:tuple}
+typealias ExReturn   ExH{:return}
+typealias ExBody     ExH{:body}
+typealias ExQuote    ExH{:QuoteNode}
 
 
 #  s     : expression to convert
@@ -48,6 +48,8 @@ function tograph(s, evalmod=Main, svars=Any[])
 
     explore(ex::ExLine)         = nothing     # remove line info
     explore(ex::LineNumberNode) = nothing     # remove line info
+    explore(ex::LabelNode)      = nothing     # remove label info
+    explore(ex::GotoNode)       = error("[tograph] GotoNode found") # this should be caught before in frdiff.jl
     explore(ex::QuoteNode)      = addnode!(g, NConst(ex.value))  # consider as constant
 
     explore(ex::ExReturn)  = explore(ex.args[1]) # focus on returned statement
@@ -159,7 +161,7 @@ function tograph(s, evalmod=Main, svars=Any[])
             else # never set before ? assume it is created here
                 rhn = explore(ex.args[2])
 
-                # we test if RHS has already a symbol
+                # we test if RHS has already a Symbol
                 # if it does, to avoid loosing it, we create an NIn node
                 if hasnode(g.seti, rhn)
                     rhn = addnode!(g, NIn(lhss, [rhn]))

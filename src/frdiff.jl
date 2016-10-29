@@ -14,65 +14,50 @@ Generates the derivative function for a given function
 Arguments:
 
 - func: is a Julia generic function.
-- init: is a tuple containing initial values for each parameter of ``func``. These reference values are needed to to fully evaluate ``ex``, this is a requirement of the derivation algorithm). By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
+- init: is a tuple containing the types for each parameter of ``func``. These types are necessary to pick a the right method of the given function. By default the generated expression will yield the derivative for each variable given unless the variable is listed in the ``ignore`` argument.
 - order: (keyword arg, default = 1) is an integer indicating the derivation order (1 for 1st order, etc.). Order 0 is allowed and will produce a function that is a processed version of ``ex`` with some variables names rewritten and possibly some optimizations.
 - evalmod: (keyword arg, default=Main) module where the expression is meant to be evaluated. External variables and functions should be evaluable in this module.
 - debug: (keyword arg, default=false) if true ``rdiff`` dumps the graph of the generating expression, instead of the expression.
 - allorders: (keyword arg, default=true) tells rdiff whether to generate the code for all orders up to ``order`` (true) or only the last order.
-- ignore: (keyword arg, default=[]) do not differentiate against the listed variables, useful if you are not interested in having the derivative of one of several variables in ``init``.
+- ignore: (keyword arg, default=[]) do not differentiate against the listed variables (identified by their position index), useful if you are not interested in having the derivative of one of several variables in ``init``.
 
 ```julia
-julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2   # function to be derived
-julia> rosen2 = rdiff(rosenbrock, (ones(2),), order=2)       # orders up to 2
+julia> rosenbrock(x) = (1 - x[1])^2 + 100(x[2] - x[1]^2)^2       # function to be derived
+julia> rosen2 = rdiff(rosenbrock, (Vector{Float64},), order=2)   # orders up to 2
+```
+
+```julia
+julia> df = rdiff((x,y) -> 2x^y, (Float64, Float64), ignore=[2], allorders=false)
+# derivation against x only (y omitted), order  1 only
 ```
 
 """
-function rdiff(f::Function, sig0::Tuple; args...)
-    sig = map( typeof, sig0 )
+function rdiff(f::Function, sig::Tuple; args...)
     fs = methods(f, sig)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
-
 	if VERSION >= v"0.5.0-"
-		fdef = fs[1].func
-		fcode =  Expr(:block, Base.uncompressed_ast(fdef)...)
+		fdef  = fs.ms[1]
+		fcode = Base.uncompressed_ast(fdef.lambda_template)[2:end]
+		fcode = Expr(:block, fcode...)
 
-		# replace slotnames with their initial name
-		fcode = deslot(fcode, fdef.slotnames)
-
-		# function parameters
-		fargs = map(t -> symbol(t[1]), Base.arg_decl_parts(fs[1])[2][2:end])
+		fargs = [ Symbol("(_$i)") for i in 2:(length(sig)+1) ]
+		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
 	else
-		fdef = fs[1].func.code
-		flambda = Base.uncompressed_ast(fdef)
-		fcode = flambda.args[3]
-		fargs = flambda.args[1]  # function parameters
+		fdef  = fs[1].func.code
+		ast   = Base.uncompressed_ast(fdef)
+		fcode = ast.args[3]
+
+		fargs = ast.args[1]  # function parameters
+		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
 	end
 
-	cargs = [ (fargs[i], sig0[i]) for i in 1:length(sig0) ]
-    ex  = transform(fcode) # TODO : add error messages if not parseable
-
+	ex  = transform(fcode) # TODO : add error messages if not parseable
     dex = rdiff(ex; args..., cargs...)
 
     # Note : new function is created in the same module as original function
     myf = fdef.module.eval( :( $(Expr(:tuple, fargs...)) -> $dex ) )
-end
-
-
-function deslot(ex::Expr, slotnames)
-    args = Any[]
-    for a in ex.args
-        ar = if isa(a,Expr)
-                deslot(a, slotnames)
-			 elseif isa(a,Slot)
-                slotnames[a.id]
-			 else
-                a
-             end
-        push!(args, ar)
-    end
-    Expr(ex.head, args...)
 end
 
 
@@ -81,10 +66,13 @@ end
 # Simplifies expressions for processing
 #  - removes Topnodes and linenumbers,
 #  - replaces GenSym() with actual symbol
+#  - replaces SSAValue() with actual symbol
 function streamline(ex0::Expr)
     ex = copy(ex0)
 
-    ex.head == :call && isa(ex.args[1], TopNode) && (ex.args[1] = ex.args[1].name)
+    ex.head == :call && isdefined(:TopNode) && # julia 0.5 compatibility
+			isa(ex.args[1], TopNode) &&
+			(ex.args[1] = ex.args[1].name)
 
     args = Any[]
     for a in ex.args
@@ -93,8 +81,10 @@ function streamline(ex0::Expr)
 
         ar = if isa(a,Expr)
                 streamline(a)
+ 			 elseif isdefined(:SSAValue) && isa(a, SSAValue)
+                Symbol("__ssavalue$(a.id)")
              elseif isdefined(:GenSym) && isa(a, GenSym)
-                symbol("__gensym$(a.id)")
+                Symbol("__gensym$(a.id)")
              else
                 a
              end
@@ -105,7 +95,7 @@ end
 
 # converts expression to searchable strings
 function _e2s(ex::Expr, escape=false)
-    ex.head == :macrocall && ex.args[1] == symbol("@rg_str") && return(ex.args[2])
+    ex.head == :macrocall && ex.args[1] == Symbol("@rg_str") && return(ex.args[2])
 
     if ex.head == :call && ex.args[1] == :gotoifnot
         es = "↑gotoifnot"
@@ -126,8 +116,11 @@ function _e2s(thing, escape=false)
     if isa(thing, Symbol)
         res = ":" * string(thing)
     elseif isdefined(:GlobalRef) && isa(thing, GlobalRef)
-        res = _e2s(Expr(:., symbol(thing.mod), QuoteNode(thing.name)))
-        # res = string(thing.mod) * "." * string(thing.name)
+        res = _e2s(Expr(:., Symbol(thing.mod), QuoteNode(thing.name)))
+	elseif isdefined(:LabelNode) && isa(thing, LabelNode)
+        res = "↑" * repr(thing) * "↓"
+	elseif isdefined(:GotoNode) && isa(thing, GotoNode)
+        res = "↑" * repr(thing) * "↓"
     else
         res = repr(thing)
     end
@@ -163,35 +156,45 @@ function _s2e(s::AbstractString, pos=1)
         return nothing, cap.offsets[1]
     end
 
-    he  = symbol(cap.captures[1])
-    ar  = Any[]
-    pos = cap.offsets[2]
-    while s[pos] == '→' && !done(s, pos)
-        cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
-        cap == nothing && error("[s2e] unexpected string (2)")
-        cap1 = cap.captures[1]
-        if cap1[1] == '↑'
-            ex, pos2 = _s2e(s, cap.offsets[1])
-        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
-            ex = QuoteNode(symbol(cap1[4:end-1]))
-            pos2 = cap.offsets[2]
-        elseif cap1[1] == ':'        # symbols
-            ex = symbol(cap1[2:end])
-            pos2 = cap.offsets[2]
-        else
-            ex = parse(cap1)
-            pos2 = cap.offsets[2]
-        end
-        push!(ar, ex)
-        pos = pos2
-    end
+	if (mm = match(r":\(goto (\d+)\)", cap.captures[1])) != nothing # Goto node
+		pos = cap.offsets[2]
+		return GotoNode(parse(mm.captures[1])), pos
 
-    c, pos = next(s, pos)
-    return Expr(he, ar...), pos
+	elseif (mm=match(r":\((\d+): \)", cap.captures[1])) != nothing # Labelnodes
+		pos = cap.offsets[2]
+		return LabelNode(parse(mm.captures[1])), pos
+
+	else  # probably an expression
+	    he  = Symbol(cap.captures[1])
+	    ar  = Any[]
+	    pos = cap.offsets[2]
+	    while s[pos] == '→' && !done(s, pos)
+	        cap = match( r"→([^→↓]*)(.*)↓$", s, pos )  # s[pos:end]
+	        cap == nothing && error("[s2e] unexpected string (2)")
+	        cap1 = cap.captures[1]
+	        if cap1[1] == '↑'
+	            ex, pos2 = _s2e(s, cap.offsets[1])
+	        elseif length(cap1) > 4 && cap1[1:3] == ":(:"    # Quotenodes
+	            ex = QuoteNode(Symbol(cap1[4:end-1]))
+	            pos2 = cap.offsets[2]
+	        elseif cap1[1] == ':'        # symbols
+	            ex = Symbol(cap1[2:end])
+	            pos2 = cap.offsets[2]
+	        else
+	            ex = parse(cap1)
+	            pos2 = cap.offsets[2]
+	        end
+	        push!(ar, ex)
+	        pos = pos2
+	    end
+
+	    c, pos = next(s, pos)
+	    return Expr(he, ar...), pos
+	end
 end
 
 function s2e(s::AbstractString)
-    res = Expr[]
+    res = Any[]
     pos = 1
     while !done(s, pos)
         ex, pos = _s2e(s, pos)
@@ -205,27 +208,24 @@ if VERSION >= v"0.5.0-"
 	# `for` loop search regex string (julia v0.5)
 	function formatch(s::AbstractString)
 		exreg = quote
-		    rg"(?<pre>.*?)"
-		    rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
-		    rg"(?<iter>.+)" = start(rg"\g{g0}")
-			rg":\((?<lab2>\d+): \)"
-		    gotoifnot( !(done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
-		    rg"(?<g1>.+?)" = next(rg"\g{g0}", rg"\g{iter}")
-		    rg"(?<idx>.+?)" = rg":(?:getfield|tupleref)"(rg"\g{g1}", 1)
-		    rg"\g{iter}"    = rg":(?:getfield|tupleref)"(rg"\g{g1}", 2)
-		    rg"(?<in>.*)"
-			rg"(?:\(.*\))?"
-		    rg":\((?<lab3>\d+): \)"
-		    rg":\(goto \g{lab2}\)"
-			rg":\(\g{lab1}: \)"
-			rg":\((?<lab4>\d+): \)"
-		    rg"(?<post>.*)"
+			rg"(?<pre>.*?)"
+	        rg"(?<g0>:[#_].+?)" = rg"(?<range>.+?)"
+	        rg"(?<iter>.+)" = Base.start(rg"\g{g0}")
+	        rg"↑:\((?<lab2>\d+): \)↓"
+	        gotoifnot( Base.:!(Base.done(rg"\g{g0}", rg"\g{iter}" )) , rg"(?<lab1>\d+)" )
+	        rg"(?<g1>.+?)" = Base.next(rg"\g{g0}", rg"\g{iter}")
+	        rg"(?<idx>.+?)" = Core.getfield(rg"\g{g1}", 1)
+	        rg"\g{iter}"    = Core.getfield(rg"\g{g1}", 2)
+	        rg"(?<in>.*)"
+	        rg"↑:\(goto \g{lab2}\)↓"
+	        rg"↑:\(\g{lab1}: \)↓"
+	        rg"(?<post>.*)"
 		end
 		rexp = Regex(e2s(streamline(exreg), true))
 
 		mm = match(rexp, s)
-		if mm != nothing && length(mm.captures) >= 11
-			return mm.captures[[1, 3, 8, 9, 12]] # pre, rg, idx, inside, post
+		if mm != nothing && length(mm.captures) >= 10
+			return mm.captures[[1, 3, 8, 9, 10]] # pre, rg, idx, inside, post
 		else
 			return nothing, nothing, nothing, nothing, nothing
 		end
@@ -264,7 +264,7 @@ function _transform(s::AbstractString)
 	pre, rg, idx, inside, post = formatch(s)
     if pre != nothing
         exin = _transform(inside)
-        ef = Expr(:for, Expr(:(=), symbol(idx[2:end]), s2e(rg)[1] ), exin)
+        ef = Expr(:for, Expr(:(=), Symbol(idx[2:end]), s2e(rg)[1] ), exin)
         return Expr(:block, [ s2e(pre) ; ef ; s2e(post)]...)
     else
         return Expr(:block, s2e(s)...)
