@@ -37,7 +37,15 @@ function rdiff(f::Function, sig::Tuple; args...)
     length(fs) == 0 && error("no function '$f' found for signature $sig")
     length(fs) > 1  && error("several functions $f found for signature $sig")  # is that possible ?
 
-	if VERSION >= v"0.5.0-"
+	if VERSION >= v"0.6.0-"
+                fdef  = fs.ms[1]
+                fcode = Base.uncompressed_ast(fdef, fdef.source)
+                fcode = fcode.code[2:end]
+                fcode = Expr(:block, fcode...)
+		fargs = [ Symbol("(_$i)") for i in 2:(length(sig)+1) ]
+		cargs = [ (fargs[i], sig[i]) for i in 1:length(sig) ]
+
+	elseif VERSION >= v"0.5.0-"
 		fdef  = fs.ms[1]
 		fcode = Base.uncompressed_ast(fdef.lambda_template)[2:end]
 		fcode = Expr(:block, fcode...)
