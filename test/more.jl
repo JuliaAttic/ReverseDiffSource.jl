@@ -95,10 +95,15 @@ end
 f = m.rdiff(foo,(Float64,Float64,Float64))
 
 
-###### Issue 32  (allorders removing some legitimate variables)  ######
+###### Issue #32  (allorders removing some legitimate variables)  ######
 
 ex = m.rdiff( :(y*x^3+y^5) , x=Float64, y=Float64, order=1)
 @test length(eval(:(x=2.;y=1.;$ex))) == 3
 
 ex = m.rdiff( :(y*x^3+y^5) , x=Float64, y=Float64, order=1, allorders=false)
 @test length(eval(:(x=2.;y=1.;$ex))) == 2
+
+###### Issue #48  (order 0 regression)  ######
+
+@test m.rdiff(:(dot(z, z)), z=Vector{Float64}, order=0) ==
+		striplinenumbers(:(begin ; dot(z,z) ; end))

@@ -67,7 +67,7 @@ function zeronode(v)
             g  = tograph( :( Array(Any, size(tv)) ) )
             nv = getnode(g.seti, nothing) ; fg.exto[nv] = :v
             nt = addnode!(g, NExt(:tv))   ; fg.exto[nt] = :tv ; g.exti[nt] = :tv
-            nr = addgraph!( :( 1:length(nv) ), g, @compat Dict( :nv => nv) )
+            nr = addgraph!( :( 1:length(nv) ), g, Dict( :nv => nv) )
             nf = addnode!(g, NFor( Any[:i, fg], [ nr, nv, nt ]) )
             ns = addnode!(g, NIn( :v, [ nf ]) ) ; fg.seto[ns] = :v
             g.seti[ns] = nothing
@@ -106,7 +106,7 @@ function zeronode(v)
             g  = tograph( :( Array(Any, size(tv)) ) )
             nv = getnode(g.seti, nothing) ; fg.exto[nv] = :v
             nt = addnode!(g, NExt(:tv))   ; fg.exto[nt] = :tv ; g.exti[nt] = :tv
-            nr = addgraph!( :( 1:length(nv) ), g, @compat Dict( :nv => nv) )
+            nr = addgraph!( :( 1:length(nv) ), g, Dict( :nv => nv) )
             nf = addnode!(g, NFor( Any[:i, fg], [ nr, nv, nt ]) )
             ns = addnode!(g, NIn( :v, [ nf ]) ) ; fg.seto[ns] = :v
             g.seti[ns] = nothing

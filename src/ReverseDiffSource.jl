@@ -4,8 +4,6 @@
 #
 #########################################################################
 
-# __precompile__(false)
-
 module ReverseDiffSource
 
     import Base.show, Base.copy, Base.length

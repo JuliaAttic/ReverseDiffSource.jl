@@ -105,7 +105,10 @@ function rdiff(ex;
 
     voi = Any[ outsym ]
 
-    if order == 1
+    if order == 0
+        # do nothing
+
+    elseif order == 1
         dg = reversegraph(g, getnode(g.seti, outsym), paramdiff)
         append!(g.nodes, dg.nodes)
 
@@ -263,7 +266,7 @@ function rdiff(ex;
         end
 
     else
-        error("[rdiff] inconsistent parameters")
+        error("[rdiff] order / variable types inconsistent, check documentation")
     end
 
     if !allorders  # only keep the last derivative
